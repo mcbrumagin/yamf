@@ -1,0 +1,7 @@
+# pnpm-workspace.yaml
+packages:
+  - 'packages/core'
+  - 'packages/client'
+  - 'packages/shared'
+  - 'packages/services/*'
+

@@ -1,0 +1,38 @@
+{
+  "name": "@yamf/services-auth",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "JWT-lite authentication service for YAMF microservices",
+  "main": "service.js",
+  "homepage": "https://github.com/mcbrumagin/yamf",
+  "exports": {
+    ".": "./service.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "auth",
+    "authentication",
+    "jwt",
+    "microservice",
+    "yamf"
+  ],
+  "scripts": {
+    "test": "echo \"Tests are run via @yamf/core test suite\" && exit 0"
+  },
+  "files": [
+    "service.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": "Matthew C Brumagin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcbrumagin/yamf"
+  },
+  "peerDependencies": {
+    "@yamf/core": "^0.3.0"
+  }
+}

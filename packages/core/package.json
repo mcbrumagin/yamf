@@ -1,0 +1,60 @@
+{
+  "name": "@yamf/core",
+  "version": "0.3.0",
+  "type": "module",
+  "description": "A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, api gateway, pub/sub messaging, HTTP routing, and load balancing.",
+  "main": "src/index.js",
+  "homepage": "https://github.com/mcbrumagin/yamf",
+  "exports": {
+    ".": "./src/index.js",
+    "./create-service": "./src/api/create-service.js",
+    "./create-subscription-service": "./src/api/create-subscription-service.js",
+    "./create-route": "./src/api/create-route.js",
+    "./call-service": "./src/api/call-service.js",
+    "./call-route": "./src/api/call-route.js",
+    "./publish-message": "./src/api/publish-message.js",
+    "./gateway-server": "./src/gateway/gateway-server.js",
+    "./registry-server": "./src/registry/registry-server.js",
+    "./env-config": "./src/shared/env-config.js",
+    "./http-error": "./src/http-primitives/http-error.js",
+    "./logger": "./src/utils/logger.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "microservices",
+    "api gateway",
+    "service discovery",
+    "pub/sub",
+    "HTTP routing",
+    "load balancing",
+    "zero-dependency"
+  ],
+  "scripts": {
+    "test": "./test/test.sh"
+  },
+  "files": [
+    "src",
+    "yamf.cjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": "Matthew C Brumagin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcbrumagin/yamf"
+  },
+  "peerDependencies": {
+    "@yamf/client": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@yamf/client": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "form-data": "^4.0.4"
+  }
+}

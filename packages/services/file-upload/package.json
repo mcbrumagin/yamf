@@ -1,0 +1,41 @@
+{
+  "name": "@yamf/services-file-upload",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "File upload service for YAMF microservices with multipart/form-data support",
+  "main": "service.js",
+  "homepage": "https://github.com/mcbrumagin/yamf",
+  "exports": {
+    ".": "./service.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "file-upload",
+    "multipart",
+    "form-data",
+    "microservice",
+    "yamf"
+  ],
+  "scripts": {
+    "test": "echo \"Tests are run via @yamf/core test suite\" && exit 0"
+  },
+  "files": [
+    "service.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": "Matthew C Brumagin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcbrumagin/yamf"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0"
+  },
+  "peerDependencies": {
+    "@yamf/core": "^0.3.0"
+  }
+}
