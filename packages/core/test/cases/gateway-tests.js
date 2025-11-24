@@ -64,7 +64,7 @@ function withEnv(envVars, fn) {
 /**
  * Test 1: Gateway health check
  */
-async function testGatewayHealthCheck() {
+export async function testGatewayHealthCheck() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -89,7 +89,7 @@ async function testGatewayHealthCheck() {
 /**
  * Test 2: Gateway pre-registration
  */
-async function testGatewayPreRegistration() {
+export async function testGatewayPreRegistration() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -120,7 +120,7 @@ async function testGatewayPreRegistration() {
 /**
  * Test 3: Gateway pulls registry state
  */
-async function testGatewayPullsState() {
+export async function testGatewayPullsState() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -164,7 +164,7 @@ async function testGatewayPullsState() {
 /**
  * Test 4: Gateway receives update notifications
  */
-async function testGatewayUpdateNotification() {
+export async function testGatewayUpdateNotification() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -196,7 +196,7 @@ async function testGatewayUpdateNotification() {
 /**
  * Test 5: Gateway rejects updates without token
  */
-async function testGatewayRejectsUnauthorizedUpdates() {
+export async function testGatewayRejectsUnauthorizedUpdates() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -223,7 +223,7 @@ async function testGatewayRejectsUnauthorizedUpdates() {
 /**
  * Test 6: Gateway is not subscribed to push events
  */
-async function testGatewayIsNotSubscribed() {
+export async function testGatewayIsNotSubscribed() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -272,7 +272,7 @@ async function testGatewayIsNotSubscribed() {
 /**
  * Test 7: Gateway routes to services
  */
-async function testGatewayRoutesToServices() {
+export async function testGatewayRoutesToServices() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -307,7 +307,7 @@ async function testGatewayRoutesToServices() {
 /**
  * Test 8: Gateway metadata is stored correctly
  */
-async function testGatewayMetadataStorage() {
+export async function testGatewayMetadataStorage() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -342,7 +342,7 @@ async function testGatewayMetadataStorage() {
  * Test 9: Gateway state reflects registry updates
  * Tests that gateway properly pulls and maintains registry state
  */
-async function testGatewayStateReflectsRegistry() {
+export async function testGatewayStateReflectsRegistry() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: REGISTRY_URL,
@@ -390,7 +390,7 @@ async function testGatewayStateReflectsRegistry() {
 /**
  * Test 10: Gateway requires registry URL
  */
-async function testGatewayRequiresRegistryUrl() {
+export async function testGatewayRequiresRegistryUrl() {
   await withEnv({
     MICRO_GATEWAY_URL: GATEWAY_URL,
     MICRO_REGISTRY_URL: undefined,
@@ -412,18 +412,4 @@ async function testGatewayRequiresRegistryUrl() {
       }
     )
   })()
-}
-
-// Export all test functions
-export default {
-  testGatewayHealthCheck,
-  testGatewayPreRegistration,
-  testGatewayPullsState,
-  testGatewayUpdateNotification,
-  testGatewayRejectsUnauthorizedUpdates,
-  testGatewayIsNotSubscribed,
-  testGatewayRoutesToServices,
-  testGatewayMetadataStorage,
-  testGatewayStateReflectsRegistry,
-  testGatewayRequiresRegistryUrl
 }

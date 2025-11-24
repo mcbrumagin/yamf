@@ -27,7 +27,7 @@ const TEST_ADMIN_SECRET = process.env.ADMIN_SECRET
 /**
  * Test auth service with session tracking enabled
  */
-async function testAuthServiceWithSessions() {
+export async function testAuthServiceWithSessions() {
   await terminateAfter(
     await registryServer(),
     await createAuthService({
@@ -61,7 +61,7 @@ async function testAuthServiceWithSessions() {
 /**
  * Test auth service with refresh-only session mode
  */
-async function testAuthServiceWithRefreshOnlySessions() {
+export async function testAuthServiceWithRefreshOnlySessions() {
   await terminateAfter(
     await registryServer(),
     await createAuthService({
@@ -95,7 +95,7 @@ async function testAuthServiceWithRefreshOnlySessions() {
 /**
  * Test auth service without sessions (stateless mode)
  */
-async function testAuthServiceStateless() {
+export async function testAuthServiceStateless() {
   await terminateAfter(
     await registryServer(),
     await createAuthService({
@@ -129,7 +129,7 @@ async function testAuthServiceStateless() {
 /**
  * Test refresh token flow with cookie
  */
-async function testRefreshTokenFlow() {
+export async function testRefreshTokenFlow() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -185,7 +185,7 @@ async function testRefreshTokenFlow() {
 /**
  * Test token expiration validation
  */
-async function testTokenExpirationDetection() {
+export async function testTokenExpirationDetection() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -207,7 +207,7 @@ async function testTokenExpirationDetection() {
 /**
  * Test forwarded header is captured (rate limiting support)
  */
-async function testForwardedHeaderCapture() {
+export async function testForwardedHeaderCapture() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -247,7 +247,7 @@ async function testForwardedHeaderCapture() {
 /**
  * Test X-Forwarded-For header support
  */
-async function testXForwardedForHeader() {
+export async function testXForwardedForHeader() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -285,7 +285,7 @@ async function testXForwardedForHeader() {
 /**
  * Test session invalidation with session mode
  */
-async function testSessionInvalidation() {
+export async function testSessionInvalidation() {
   await terminateAfter(
     await registryServer(),
     await createAuthService({
@@ -327,7 +327,7 @@ async function testSessionInvalidation() {
 /**
  * Test multiple simultaneous auth requests
  */
-async function testConcurrentAuthRequests() {
+export async function testConcurrentAuthRequests() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -361,7 +361,7 @@ async function testConcurrentAuthRequests() {
 /**
  * Test token validation with concurrent requests
  */
-async function testConcurrentTokenValidation() {
+export async function testConcurrentTokenValidation() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -400,7 +400,7 @@ async function testConcurrentTokenValidation() {
 /**
  * Test refresh token reuse prevention (when using sessions)
  */
-async function testRefreshTokenWithSessions() {
+export async function testRefreshTokenWithSessions() {
   await terminateAfter(
     await registryServer(),
     await createAuthService({
@@ -456,7 +456,7 @@ async function testRefreshTokenWithSessions() {
 /**
  * Test invalid refresh token
  */
-async function testInvalidRefreshToken() {
+export async function testInvalidRefreshToken() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -482,7 +482,7 @@ async function testInvalidRefreshToken() {
 /**
  * Test missing refresh token cookie
  */
-async function testMissingRefreshToken() {
+export async function testMissingRefreshToken() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -499,7 +499,7 @@ async function testMissingRefreshToken() {
 /**
  * Test protected service with session-based auth
  */
-async function testProtectedServiceWithSessionAuth() {
+export async function testProtectedServiceWithSessionAuth() {
   await terminateAfter(
     await registryServer(),
     await createAuthService({
@@ -538,7 +538,7 @@ async function testProtectedServiceWithSessionAuth() {
 /**
  * Test Base64 encoding in tokens
  */
-async function testTokenBase64Encoding() {
+export async function testTokenBase64Encoding() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -588,7 +588,7 @@ async function testTokenBase64Encoding() {
 /**
  * Test token payload contains expected fields
  */
-async function testTokenPayloadStructure() {
+export async function testTokenPayloadStructure() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -616,23 +616,3 @@ async function testTokenPayloadStructure() {
     }
   )
 }
-
-export default {
-  testAuthServiceWithSessions,
-  testAuthServiceWithRefreshOnlySessions,
-  testAuthServiceStateless,
-  testRefreshTokenFlow,
-  testTokenExpirationDetection,
-  testForwardedHeaderCapture,
-  testXForwardedForHeader,
-  testSessionInvalidation,
-  testConcurrentAuthRequests,
-  testConcurrentTokenValidation,
-  testRefreshTokenWithSessions,
-  testInvalidRefreshToken,
-  testMissingRefreshToken,
-  testProtectedServiceWithSessionAuth,
-  testTokenBase64Encoding,
-  testTokenPayloadStructure
-}
-

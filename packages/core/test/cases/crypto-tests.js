@@ -17,7 +17,7 @@ import {
 /**
  * Test MD5 checksum generation
  */
-async function testMD5Checksum() {
+export async function testMD5Checksum() {
   const data = 'test data'
   const checksum = calculateMD5Checksum(data)
   
@@ -31,7 +31,7 @@ async function testMD5Checksum() {
 /**
  * Test MD5 produces different checksums for different data
  */
-async function testMD5DifferentInputs() {
+export async function testMD5DifferentInputs() {
   const checksum1 = calculateMD5Checksum('data1')
   const checksum2 = calculateMD5Checksum('data2')
   
@@ -43,7 +43,7 @@ async function testMD5DifferentInputs() {
 /**
  * Test SHA1 checksum generation
  */
-async function testSHA1Checksum() {
+export async function testSHA1Checksum() {
   const data = 'test data'
   const checksum = calculateSHA1Checksum(data)
   
@@ -57,7 +57,7 @@ async function testSHA1Checksum() {
 /**
  * Test SHA256 checksum generation
  */
-async function testSHA256Checksum() {
+export async function testSHA256Checksum() {
   const data = 'test data'
   const checksum = calculateSHA256Checksum(data)
   
@@ -71,7 +71,7 @@ async function testSHA256Checksum() {
 /**
  * Test SHA256 collision resistance
  */
-async function testSHA256DifferentInputs() {
+export async function testSHA256DifferentInputs() {
   const checksum1 = calculateSHA256Checksum('data1')
   const checksum2 = calculateSHA256Checksum('data2')
   const checksum3 = calculateSHA256Checksum('data1 ') // Note the space
@@ -86,7 +86,7 @@ async function testSHA256DifferentInputs() {
 /**
  * Test SHA512 checksum generation
  */
-async function testSHA512Checksum() {
+export async function testSHA512Checksum() {
   const data = 'test data'
   const checksum = calculateSHA512Checksum(data)
   
@@ -100,7 +100,7 @@ async function testSHA512Checksum() {
 /**
  * Test Ed25519 key pair generation
  */
-async function testEd25519KeyPairGeneration() {
+export async function testEd25519KeyPairGeneration() {
   const keyPair = await ed25519.generateKeyPair()
   
   await assert([keyPair],
@@ -115,7 +115,7 @@ async function testEd25519KeyPairGeneration() {
 /**
  * Test Ed25519 key pairs are unique
  */
-async function testEd25519UniqueKeyPairs() {
+export async function testEd25519UniqueKeyPairs() {
   const keyPair1 = await ed25519.generateKeyPair()
   const keyPair2 = await ed25519.generateKeyPair()
   
@@ -130,7 +130,7 @@ async function testEd25519UniqueKeyPairs() {
 /**
  * Test Ed25519 signing
  */
-async function testEd25519Signing() {
+export async function testEd25519Signing() {
   const keyPair = await ed25519.generateKeyPair()
   const data = 'test message'
   
@@ -146,7 +146,7 @@ async function testEd25519Signing() {
 /**
  * Test Ed25519 signature verification with valid signature
  */
-async function testEd25519VerificationValid() {
+export async function testEd25519VerificationValid() {
   const keyPair = await ed25519.generateKeyPair()
   const data = 'test message'
   
@@ -159,7 +159,7 @@ async function testEd25519VerificationValid() {
 /**
  * Test Ed25519 signature verification with invalid signature
  */
-async function testEd25519VerificationInvalid() {
+export async function testEd25519VerificationInvalid() {
   const keyPair = await ed25519.generateKeyPair()
   const data = 'test message'
   
@@ -174,7 +174,7 @@ async function testEd25519VerificationInvalid() {
 /**
  * Test Ed25519 signature verification with wrong signature
  */
-async function testEd25519VerificationWrongSignature() {
+export async function testEd25519VerificationWrongSignature() {
   const keyPair = await ed25519.generateKeyPair()
   const data = 'test message'
   
@@ -191,7 +191,7 @@ async function testEd25519VerificationWrongSignature() {
  * Test Ed25519 different signatures for same data
  * (Ed25519 is deterministic, so same data + key = same signature)
  */
-async function testEd25519DeterministicSignatures() {
+export async function testEd25519DeterministicSignatures() {
   const keyPair = await ed25519.generateKeyPair()
   const data = 'test message'
   
@@ -206,7 +206,7 @@ async function testEd25519DeterministicSignatures() {
 /**
  * Test Ed25519 different signatures for different data
  */
-async function testEd25519DifferentDataSignatures() {
+export async function testEd25519DifferentDataSignatures() {
   const keyPair = await ed25519.generateKeyPair()
   
   const signature1 = await ed25519.sign(keyPair, 'message1')
@@ -220,7 +220,7 @@ async function testEd25519DifferentDataSignatures() {
 /**
  * Test Ed25519 signatures can't be used with different key pairs
  */
-async function testEd25519SignatureNotTransferable() {
+export async function testEd25519SignatureNotTransferable() {
   const keyPair1 = await ed25519.generateKeyPair()
   const keyPair2 = await ed25519.generateKeyPair()
   const data = 'test message'
@@ -234,7 +234,7 @@ async function testEd25519SignatureNotTransferable() {
 /**
  * Test Ed25519 with empty string
  */
-async function testEd25519EmptyString() {
+export async function testEd25519EmptyString() {
   const keyPair = await ed25519.generateKeyPair()
   const data = ''
   
@@ -251,7 +251,7 @@ async function testEd25519EmptyString() {
 /**
  * Test Ed25519 with long data
  */
-async function testEd25519LongData() {
+export async function testEd25519LongData() {
   const keyPair = await ed25519.generateKeyPair()
   const data = 'x'.repeat(10000) // 10KB of data
   
@@ -268,7 +268,7 @@ async function testEd25519LongData() {
 /**
  * Test Ed25519 with special characters
  */
-async function testEd25519SpecialCharacters() {
+export async function testEd25519SpecialCharacters() {
   const keyPair = await ed25519.generateKeyPair()
   const data = '🔐 Special chars: \n\t\r áéíóú 中文 🚀'
   
@@ -281,7 +281,7 @@ async function testEd25519SpecialCharacters() {
 /**
  * Test salted hash generation
  */
-async function testCreateSaltedHash() {
+export async function testCreateSaltedHash() {
   const password = 'mySecurePassword123'
   const result = await createSaltedHash(password)
   
@@ -298,7 +298,7 @@ async function testCreateSaltedHash() {
 /**
  * Test salted hashes are unique (different salts)
  */
-async function testSaltedHashUniqueness() {
+export async function testSaltedHashUniqueness() {
   const password = 'mySecurePassword123'
   const result1 = await createSaltedHash(password)
   const result2 = await createSaltedHash(password)
@@ -312,7 +312,7 @@ async function testSaltedHashUniqueness() {
 /**
  * Test salted hash with empty password
  */
-async function testSaltedHashEmptyPassword() {
+export async function testSaltedHashEmptyPassword() {
   const password = ''
   const result = await createSaltedHash(password)
   
@@ -327,7 +327,7 @@ async function testSaltedHashEmptyPassword() {
 /**
  * Test salted hash consistency with same password and salt
  */
-async function testSaltedHashConsistency() {
+export async function testSaltedHashConsistency() {
   const crypto = await import('crypto')
   const { promisify } = await import('util')
   const pbkdf2 = promisify(crypto.pbkdf2)
@@ -346,7 +346,7 @@ async function testSaltedHashConsistency() {
 /**
  * Test Base64 encoding/decoding through Ed25519
  */
-async function testBase64EncodingDecoding() {
+export async function testBase64EncodingDecoding() {
   const keyPair = await ed25519.generateKeyPair()
   const originalData = 'Test data with special chars: 中文 🚀'
   
@@ -365,7 +365,7 @@ async function testBase64EncodingDecoding() {
 /**
  * Test checksum functions with binary data
  */
-async function testChecksumWithBinaryData() {
+export async function testChecksumWithBinaryData() {
   const binaryData = Buffer.from([0x00, 0xFF, 0x42, 0xAB, 0xCD, 0xEF])
   
   const md5 = calculateMD5Checksum(binaryData)
@@ -384,31 +384,3 @@ async function testChecksumWithBinaryData() {
     ([m, s1, s256, s512]) => s512.length === 128
   )
 }
-
-export default {
-  testMD5Checksum,
-  testMD5DifferentInputs,
-  testSHA1Checksum,
-  testSHA256Checksum,
-  testSHA256DifferentInputs,
-  testSHA512Checksum,
-  testEd25519KeyPairGeneration,
-  testEd25519UniqueKeyPairs,
-  testEd25519Signing,
-  testEd25519VerificationValid,
-  testEd25519VerificationInvalid,
-  testEd25519VerificationWrongSignature,
-  testEd25519DeterministicSignatures,
-  testEd25519DifferentDataSignatures,
-  testEd25519SignatureNotTransferable,
-  testEd25519EmptyString,
-  testEd25519LongData,
-  testEd25519SpecialCharacters,
-  testCreateSaltedHash,
-  testSaltedHashUniqueness,
-  testSaltedHashEmptyPassword,
-  testSaltedHashConsistency,
-  testBase64EncodingDecoding,
-  testChecksumWithBinaryData
-}
-

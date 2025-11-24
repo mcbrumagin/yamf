@@ -49,7 +49,7 @@ import {
 
 // --- Registry State Tests ---
 
-async function testCreateRegistryState() {
+export async function testCreateRegistryState() {
   const state = createRegistryState()
   await assert(state,
     s => s.services instanceof Map,
@@ -62,7 +62,7 @@ async function testCreateRegistryState() {
   )
 }
 
-async function testResetState() {
+export async function testResetState() {
   const state = createRegistryState()
   state.services.set('test', new Set(['loc1']))
   state.addresses.set('loc1', 'test')
@@ -77,7 +77,7 @@ async function testResetState() {
   )
 }
 
-async function testSetToArray() {
+export async function testSetToArray() {
   const mySet = new Set(['a', 'b', 'c'])
   const result = setToArray(mySet)
   
@@ -88,7 +88,7 @@ async function testSetToArray() {
   )
 }
 
-async function testSerializeServicesMap() {
+export async function testSerializeServicesMap() {
   const state = createRegistryState()
   state.services.set('service1', new Set(['loc1', 'loc2']))
   state.services.set('service2', new Set(['loc3']))
@@ -105,7 +105,7 @@ async function testSerializeServicesMap() {
 
 // --- Content Type Detector Tests ---
 
-async function testIsJsonString() {
+export async function testIsJsonString() {
   await assert(true,
     () => isJsonString('{"key":"value"}') === true,
     () => isJsonString('[1,2,3]') === true,
@@ -114,7 +114,7 @@ async function testIsJsonString() {
   )
 }
 
-async function testDetectFromBuffer() {
+export async function testDetectFromBuffer() {
   const buf = Buffer.from('test')
   await assert(true,
     () => detectFromBuffer(buf) === 'application/octet-stream',
@@ -123,7 +123,7 @@ async function testDetectFromBuffer() {
   )
 }
 
-async function testDetectContentType() {
+export async function testDetectContentType() {
   await assert(true,
     () => detectContentType('{"key":"value"}') === 'application/json',
     () => detectContentType('<html><body>test</body></html>') === 'text/html',
@@ -135,7 +135,7 @@ async function testDetectContentType() {
 
 // --- Load Balancer Tests ---
 
-async function testGetServiceAddresses() {
+export async function testGetServiceAddresses() {
   const state = createRegistryState()
   state.services.set('myService', new Set(['loc1', 'loc2', 'loc3']))
   
@@ -148,7 +148,7 @@ async function testGetServiceAddresses() {
   )
 }
 
-async function testSelectServiceLocationRandom() {
+export async function testSelectServiceLocationRandom() {
   const state = createRegistryState()
   state.services.set('myService', new Set(['loc1', 'loc2', 'loc3']))
   
@@ -160,7 +160,7 @@ async function testSelectServiceLocationRandom() {
   )
 }
 
-async function testSelectServiceLocationRoundRobin() {
+export async function testSelectServiceLocationRoundRobin() {
   resetRoundRobinState()
   const state = createRegistryState()
   state.services.set('myService', new Set(['loc1', 'loc2', 'loc3']))
@@ -180,7 +180,7 @@ async function testSelectServiceLocationRoundRobin() {
 
 // --- PubSub Manager Tests ---
 
-async function testPubSubSubscribe() {
+export async function testPubSubSubscribe() {
   const state = createRegistryState()
   subscribe(state, { type: 'myType', location: 'loc1' })
   
@@ -190,7 +190,7 @@ async function testPubSubSubscribe() {
   )
 }
 
-async function testPubSubUnsubscribe() {
+export async function testPubSubUnsubscribe() {
   const state = createRegistryState()
   subscribe(state, { type: 'myType', location: 'loc1' })
   subscribe(state, { type: 'myType', location: 'loc2' })
@@ -204,7 +204,7 @@ async function testPubSubUnsubscribe() {
   )
 }
 
-async function testRemoveAllSubscriptionsForLocation() {
+export async function testRemoveAllSubscriptionsForLocation() {
   const state = createRegistryState()
   subscribe(state, { type: 'type1', location: 'loc1' })
   subscribe(state, { type: 'type2', location: 'loc1' })
@@ -221,7 +221,7 @@ async function testRemoveAllSubscriptionsForLocation() {
 
 // --- Service Registry Tests ---
 
-async function testAllocateServicePort() {
+export async function testAllocateServicePort() {
   const state = createRegistryState()
   
   const loc1 = allocateServicePort(state, { 
@@ -240,7 +240,7 @@ async function testAllocateServicePort() {
   )
 }
 
-async function testRegisterService() {
+export async function testRegisterService() {
   const state = createRegistryState()
   
   await registerService(state, { 
@@ -255,7 +255,7 @@ async function testRegisterService() {
   )
 }
 
-async function testUnregisterService() {
+export async function testUnregisterService() {
   const state = createRegistryState()
   state.services.set('svc', new Set(['loc1', 'loc2']))
   state.addresses.set('loc1', 'svc')
@@ -270,7 +270,7 @@ async function testUnregisterService() {
   )
 }
 
-async function testFindServiceLocation() {
+export async function testFindServiceLocation() {
   const state = createRegistryState()
   state.services.set('svc1', new Set(['loc1']))
   state.services.set('svc2', new Set(['loc2']))
@@ -287,7 +287,7 @@ async function testFindServiceLocation() {
 
 // --- Route Registry Tests ---
 
-async function testRegisterDirectRoute() {
+export async function testRegisterDirectRoute() {
   const state = createRegistryState()
   
   registerDirectRoute(state, { 
@@ -303,7 +303,7 @@ async function testRegisterDirectRoute() {
   )
 }
 
-async function testRegisterControllerRoute() {
+export async function testRegisterControllerRoute() {
   const state = createRegistryState()
   
   registerControllerRoute(state, { 
@@ -317,7 +317,7 @@ async function testRegisterControllerRoute() {
   )
 }
 
-async function testRegisterRouteAutoDetect() {
+export async function testRegisterRouteAutoDetect() {
   const state = createRegistryState()
   
   registerRoute(state, { service: 'svc1', path: '/exact' })
@@ -329,7 +329,7 @@ async function testRegisterRouteAutoDetect() {
   )
 }
 
-async function testFindControllerRoute() {
+export async function testFindControllerRoute() {
   const state = createRegistryState()
   state.controllerRoutes.set('/api/', { service: 'apiService' })
   state.controllerRoutes.set('/admin/', { service: 'adminService' })
@@ -345,7 +345,7 @@ async function testFindControllerRoute() {
   )
 }
 
-async function testGetAllRoutes() {
+export async function testGetAllRoutes() {
   const state = createRegistryState()
   registerRoute(state, { service: 'svc1', path: '/exact' })
   registerRoute(state, { service: 'svc2', path: '/prefix/*' })
@@ -358,41 +358,4 @@ async function testGetAllRoutes() {
     r => r.routes['/exact'].service === 'svc1',
     r => r.controllerRoutes['/prefix/'].service === 'svc2'
   )
-}
-
-// Export all test functions
-export default {
-  // State tests
-  testCreateRegistryState,
-  testResetState,
-  testSetToArray,
-  testSerializeServicesMap,
-  
-  // Content type tests
-  testIsJsonString,
-  testDetectFromBuffer,
-  testDetectContentType,
-  
-  // Load balancer tests
-  testGetServiceAddresses,
-  testSelectServiceLocationRandom,
-  testSelectServiceLocationRoundRobin,
-  
-  // PubSub tests
-  testPubSubSubscribe,
-  testPubSubUnsubscribe,
-  testRemoveAllSubscriptionsForLocation,
-  
-  // Service registry tests
-  testAllocateServicePort,
-  testRegisterService,
-  testUnregisterService,
-  testFindServiceLocation,
-  
-  // Route registry tests
-  testRegisterDirectRoute,
-  testRegisterControllerRoute,
-  testRegisterRouteAutoDetect,
-  testFindControllerRoute,
-  testGetAllRoutes
 }

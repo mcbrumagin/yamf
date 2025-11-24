@@ -53,7 +53,7 @@ function withEnv(envVars, fn) {
 /**
  * Test that registry starts without token in dev environment
  */
-async function testRegistryStartsWithoutTokenInDev() {
+export async function testRegistryStartsWithoutTokenInDev() {
   await withEnv({ 
     ENVIRONMENT: 'dev',
     MICRO_REGISTRY_TOKEN: undefined 
@@ -78,7 +78,7 @@ async function testRegistryStartsWithoutTokenInDev() {
 /**
  * Test that registry warns in non-dev environment without token
  */
-async function testRegistryWarnsInNonDevWithoutToken() {
+export async function testRegistryWarnsInNonDevWithoutToken() {
   await withEnv({ 
     ENVIRONMENT: 'test',
     MICRO_REGISTRY_TOKEN: undefined 
@@ -103,7 +103,7 @@ async function testRegistryWarnsInNonDevWithoutToken() {
 /**
  * Test that registry fails to start in production without token
  */
-async function testRegistryFailsInProdWithoutToken() {
+export async function testRegistryFailsInProdWithoutToken() {
   await withEnv({ 
     ENVIRONMENT: 'production',
     MICRO_REGISTRY_TOKEN: undefined,
@@ -121,7 +121,7 @@ async function testRegistryFailsInProdWithoutToken() {
 /**
  * Test that registry fails to start in staging without token
  */
-async function testRegistryFailsInStagingWithoutToken() {
+export async function testRegistryFailsInStagingWithoutToken() {
   await withEnv({ 
     ENVIRONMENT: 'staging',
     MICRO_REGISTRY_TOKEN: undefined,
@@ -139,7 +139,7 @@ async function testRegistryFailsInStagingWithoutToken() {
 /**
  * Test that registry starts successfully with token in production
  */
-async function testRegistryStartsWithTokenInProduction() {
+export async function testRegistryStartsWithTokenInProduction() {
   const testToken = 'prod-test-token-xyz'
   await withEnv({ 
     ENVIRONMENT: 'production',
@@ -174,7 +174,7 @@ async function testRegistryStartsWithTokenInProduction() {
 /**
  * Test that protected commands require valid token
  */
-async function testProtectedCommandRequiresValidToken() {
+export async function testProtectedCommandRequiresValidToken() {
   const testToken = 'protected-test-token-123'
   await withEnv({ 
     ENVIRONMENT: 'production',
@@ -210,7 +210,7 @@ async function testProtectedCommandRequiresValidToken() {
 /**
  * Test that request with wrong token fails with 403
  */
-async function testRequestWithWrongTokenFails() {
+export async function testRequestWithWrongTokenFails() {
   const testToken = 'correct-token-456'
   await withEnv({ 
     ENVIRONMENT: 'production',
@@ -242,7 +242,7 @@ async function testRequestWithWrongTokenFails() {
 /**
  * Test that request without token fails with 403
  */
-async function testRequestWithoutTokenFails() {
+export async function testRequestWithoutTokenFails() {
   const testToken = 'required-token-abc'
   await withEnv({ 
     ENVIRONMENT: 'production',
@@ -274,7 +274,7 @@ async function testRequestWithoutTokenFails() {
 /**
  * Test that public commands (HEALTH, SERVICE_LOOKUP, SERVICE_CALL) don't require token
  */
-async function testPublicCommandsDoNotRequireToken() {
+export async function testPublicCommandsDoNotRequireToken() {
   const testToken = 'public-test-token-def'
   await withEnv({ 
     ENVIRONMENT: 'production',
@@ -308,7 +308,7 @@ async function testPublicCommandsDoNotRequireToken() {
 /**
  * Test service creation with valid token
  */
-async function testServiceCreationWithValidToken() {
+export async function testServiceCreationWithValidToken() {
   const testToken = 'service-creation-token-ghi'
   await withEnv({ 
     ENVIRONMENT: 'production',
@@ -339,7 +339,7 @@ async function testServiceCreationWithValidToken() {
 /**
  * Test that all protected commands are validated
  */
-async function testAllProtectedCommandsValidated() {
+export async function testAllProtectedCommandsValidated() {
   const testToken = 'protected-commands-token-jkl'
   await withEnv({ 
     ENVIRONMENT: 'production',
@@ -386,18 +386,3 @@ async function testAllProtectedCommandsValidated() {
     )
   })()
 }
-
-export default {
-  testRegistryStartsWithoutTokenInDev,
-  testRegistryWarnsInNonDevWithoutToken,
-  testRegistryFailsInProdWithoutToken,
-  testRegistryFailsInStagingWithoutToken,
-  testRegistryStartsWithTokenInProduction,
-  testProtectedCommandRequiresValidToken,
-  testRequestWithWrongTokenFails,
-  testRequestWithoutTokenFails,
-  testPublicCommandsDoNotRequireToken,
-  testServiceCreationWithValidToken,
-  testAllProtectedCommandsValidated
-}
-

@@ -15,7 +15,7 @@ import {
 
 const logger = new Logger()
 
-async function testCreateService() {
+export async function testCreateService() {
   await terminateAfter(
     await registryServer(),
     await createService('test', function testService(payload) {
@@ -42,7 +42,7 @@ async function testCreateService() {
   )
 }
 
-async function testCallService() {
+export async function testCallService() {
   await terminateAfter(
     await registryServer(),
     await createService('test', function testService(payload) {
@@ -57,7 +57,7 @@ async function testCallService() {
 }
 
 
-async function testBasicDependentService() {
+export async function testBasicDependentService() {
   await terminateAfter(
     await registryServer(),
     await createService('test2', async function testService2(payload) {
@@ -79,7 +79,7 @@ async function testBasicDependentService() {
   )
 }
 
-async function testMissingService() {
+export async function testMissingService() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -92,7 +92,7 @@ async function testMissingService() {
 }
 
 
-async function testMissingDependentService() {
+export async function testMissingDependentService() {
   await terminateAfter(
     await registryServer(),
     await createService('test', function testService(payload) {
@@ -107,7 +107,7 @@ async function testMissingDependentService() {
   )
 }
 
-async function testDependentServicesWithContextCall() {
+export async function testDependentServicesWithContextCall() {
   return terminateAfter(
     registryServer(),
     createService('test', payload => `|TEST| ${payload}`),
@@ -135,7 +135,7 @@ async function testDependentServicesWithContextCall() {
 }
 
 // testing what partially migrated code might look like
-async function testDependentServicesWithInlineFnCalls() {
+export async function testDependentServicesWithInlineFnCalls() {
   function test(payload) {
     return `|TEST| ${payload}`
   }
@@ -169,7 +169,7 @@ async function testDependentServicesWithInlineFnCalls() {
   )
 }
 
-async function testDependentServicesWithBulkCreate() {
+export async function testDependentServicesWithBulkCreate() {
   function test(payload) {
     return `|TEST| ${payload}`
   }
@@ -200,7 +200,7 @@ async function testDependentServicesWithBulkCreate() {
   )
 }
 
-async function testDependentServicesContextCallWithBulkCreate() {
+export async function testDependentServicesContextCallWithBulkCreate() {
   function test(payload) {
     return `|TEST| ${payload}`
   }
@@ -233,7 +233,7 @@ async function testDependentServicesContextCallWithBulkCreate() {
 }
 
 
-async function testDependentServicesContextCall() {
+export async function testDependentServicesContextCall() {
   function test(payload) {
     return `|TEST| ${payload}`
   }
@@ -269,7 +269,7 @@ async function testDependentServicesContextCall() {
 }
 
 // callService (instead of using this.call) forces an eager lookup
-async function testDependentServiceWithEagerLookup() {
+export async function testDependentServiceWithEagerLookup() {
   // process.env.MICRO_REGISTRY_URL = 'http://localhost:10000' // this just gets used in our registryServer fn
   await terminateAfter(
     await registryServer(),
@@ -294,7 +294,7 @@ async function testDependentServiceWithEagerLookup() {
 }
 
 // redundant?
-async function testServiceLookup() {
+export async function testServiceLookup() {
   await terminateAfter(
     await registryServer(),
     await createService('lookup1', function test1() { return 'test1' }),
@@ -328,7 +328,7 @@ async function testServiceLookup() {
   )
 }
 
-async function testDependentServiceThrowsError() {
+export async function testDependentServiceThrowsError() {
   await terminateAfter(
     await registryServer(),
     await createService('test', async function testService(payload) {
@@ -351,7 +351,7 @@ async function testDependentServiceThrowsError() {
   )
 }
 
-async function testServiceRegistrationFailure() {
+export async function testServiceRegistrationFailure() {
   // Test what happens when registry is not available
   let originalEndpoint = process.env.MICRO_REGISTRY_URL
   process.env.MICRO_REGISTRY_URL = 'http://localhost:42069' // nice
@@ -369,7 +369,7 @@ async function testServiceRegistrationFailure() {
   }
 }
 
-async function testCallServiceWithInvalidPayload() {
+export async function testCallServiceWithInvalidPayload() {
   await terminateAfter(
     await registryServer(),
     await createService('payloadTest', function payloadTestService(payload) {
@@ -392,7 +392,7 @@ async function testCallServiceWithInvalidPayload() {
   )
 }
 
-async function testServicePortConflict() {
+export async function testServicePortConflict() {
   await terminateAfter(
     await registryServer(),
     await createService('conflict1', function test1() { return 'service1' }),
@@ -410,7 +410,7 @@ async function testServicePortConflict() {
   )
 }
 
-async function testLoadBalancing() {
+export async function testLoadBalancing() {
   await terminateAfter(
     await registryServer(),
     await createService('loadTest', function loadTestService1() { return 'instance1' }),
@@ -441,7 +441,7 @@ async function testLoadBalancing() {
 }
 
 
-async function testEmptyServiceName() {
+export async function testEmptyServiceName() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -454,7 +454,7 @@ async function testEmptyServiceName() {
   )
 }
 
-async function testServiceWithSpecialCharacters() {
+export async function testServiceWithSpecialCharacters() {
   await terminateAfter(
     await registryServer(),
     await createService('test-service', function testDashService() { return 'dash' }),
@@ -474,7 +474,7 @@ async function testServiceWithSpecialCharacters() {
   )
 }
 
-async function testLargePayload() {
+export async function testLargePayload() {
   await terminateAfter(
     await registryServer(),
     await createService('largePayload', function largePayloadService(payload) {
@@ -494,7 +494,7 @@ async function testLargePayload() {
   )
 }
 
-async function testFileStreamService() {
+export async function testFileStreamService() {
   const fs = await import('fs')
   const path = await import('path')
   
@@ -539,7 +539,7 @@ async function testFileStreamService() {
 }
 
 // TODO is this redundant? does this ACTUALLY work correctly? is it big enough?
-async function testLargeFileStreamService() {
+export async function testLargeFileStreamService() {
   const fs = await import('fs')
   const path = await import('path')
   
@@ -601,7 +601,7 @@ async function testLargeFileStreamService() {
   )
 }
 
-async function testTextStreamService() {
+export async function testTextStreamService() {
   const { Readable } = await import('stream')
   
   await terminateAfter(
@@ -634,7 +634,7 @@ async function testTextStreamService() {
   )
 }
 
-async function testMixedResponseHandling() {
+export async function testMixedResponseHandling() {
   await terminateAfter(
     await registryServer(),
     await createService('hybrid', async function hybridService(payload, request, response) {
@@ -677,7 +677,7 @@ async function testMixedResponseHandling() {
 // need to consider rolling-updates and other use cases
 // could have registration locking/unlocking to temporarily allow unique dupes
 // could also just warn and leave this up to the user to manage for now
-async function testErrorCreatingMultipleDifferentServicesSameName() {
+export async function testErrorCreatingMultipleDifferentServicesSameName() {
   await terminateAfter(
     await registryServer(),
     await createService('serviceDupe', () => ({ instance: 1 })),
@@ -690,7 +690,7 @@ async function testErrorCreatingMultipleDifferentServicesSameName() {
   )
 }
 
-async function testAnonymousFunctionService() {
+export async function testAnonymousFunctionService() {
   await terminateAfter(
     await registryServer(),
     await createService((payload) => {
@@ -714,7 +714,7 @@ async function testAnonymousFunctionService() {
   )
 }
 
-async function testAnonymousAsyncFunctionService() {
+export async function testAnonymousAsyncFunctionService() {
   await terminateAfter(
     await registryServer(),
     await createService(async (payload) => {
@@ -737,7 +737,7 @@ async function testAnonymousAsyncFunctionService() {
   )
 }
 
-async function testAnonymousArrowFunctionService() {
+export async function testAnonymousArrowFunctionService() {
   await terminateAfter(
     await registryServer(),
     await createService(payload => ({ arrow: true, ...payload })),
@@ -757,7 +757,7 @@ async function testAnonymousArrowFunctionService() {
   )
 }
 
-async function testAnonymousWithContextCall() {
+export async function testAnonymousWithContextCall() {
   await terminateAfter(
     await registryServer(),
     await createService('helper', payload => `helper: ${payload}`),
@@ -779,7 +779,7 @@ async function testAnonymousWithContextCall() {
   )
 }
 
-async function testMultipleAnonymousServices() {
+export async function testMultipleAnonymousServices() {
   await terminateAfter(
     await registryServer(),
     await createService(payload => ({ service: 1, payload })),
@@ -810,7 +810,7 @@ async function testMultipleAnonymousServices() {
 /**
  * Test subscription creation on regular service with middleware
  */
-async function testServiceWithMiddleware() {
+export async function testServiceWithMiddleware() {
   await terminateAfter(
     await registryServer(),
     await createService('middleware-service', async (payload) => {
@@ -833,38 +833,4 @@ async function testServiceWithMiddleware() {
       )
     }
   )
-}
-
-export default {
-  testCreateService,
-  testCallService,
-  testBasicDependentService,
-  testMissingService,
-  testMissingDependentService,
-  testDependentServicesWithContextCall,
-  testDependentServicesWithInlineFnCalls,
-  testDependentServicesWithBulkCreate,
-  testDependentServicesContextCallWithBulkCreate,
-  testDependentServicesContextCall,
-  testDependentServiceWithEagerLookup,
-  testServiceLookup,
-  testDependentServiceThrowsError,
-  testServiceRegistrationFailure,
-  testCallServiceWithInvalidPayload,
-  testServicePortConflict,
-  testLoadBalancing,
-  testEmptyServiceName,
-  testServiceWithSpecialCharacters,
-  testLargePayload,
-  testFileStreamService,
-  testLargeFileStreamService,
-  testTextStreamService,
-  testMixedResponseHandling,
-  // TODO // testErrorCreatingMultipleDifferentServicesSameName
-  testAnonymousFunctionService,
-  testAnonymousAsyncFunctionService,
-  testAnonymousArrowFunctionService,
-  testAnonymousWithContextCall,
-  testMultipleAnonymousServices,
-  testServiceWithMiddleware
 }

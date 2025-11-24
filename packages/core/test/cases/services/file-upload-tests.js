@@ -76,7 +76,7 @@ async function createMultipartRequest(formData, serviceName = 'file-upload-servi
   })
 }
 
-async function testBasicFileUpload() {
+export async function testBasicFileUpload() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -119,7 +119,7 @@ async function testBasicFileUpload() {
   }
 }
 
-async function testFileUploadWithTextFields() {
+export async function testFileUploadWithTextFields() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -157,7 +157,7 @@ async function testFileUploadWithTextFields() {
   }
 }
 
-async function testFileUploadWithAllTextFields() {
+export async function testFileUploadWithAllTextFields() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -195,7 +195,7 @@ async function testFileUploadWithAllTextFields() {
   }
 }
 
-async function testFileUploadWithCustomFileName() {
+export async function testFileUploadWithCustomFileName() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -239,7 +239,7 @@ async function testFileUploadWithCustomFileName() {
   }
 }
 
-async function testFileUploadWithMimeTypeValidation() {
+export async function testFileUploadWithMimeTypeValidation() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -273,7 +273,7 @@ async function testFileUploadWithMimeTypeValidation() {
   }
 }
 
-async function testFileUploadWithExtensionValidation() {
+export async function testFileUploadWithExtensionValidation() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -307,7 +307,7 @@ async function testFileUploadWithExtensionValidation() {
   }
 }
 
-async function testFileUploadValidationFailure() {
+export async function testFileUploadValidationFailure() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -341,7 +341,7 @@ async function testFileUploadValidationFailure() {
   }
 }
 
-async function testFileUploadWithCombinedValidators() {
+export async function testFileUploadWithCombinedValidators() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -376,7 +376,7 @@ async function testFileUploadWithCombinedValidators() {
   }
 }
 
-async function testFileUploadNoFile() {
+export async function testFileUploadNoFile() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -406,7 +406,7 @@ async function testFileUploadNoFile() {
   }
 }
 
-async function testFileUploadListFiles() {
+export async function testFileUploadListFiles() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -444,7 +444,7 @@ async function testFileUploadListFiles() {
   }
 }
 
-async function testFileUploadCustomSuccessHandler() {
+export async function testFileUploadCustomSuccessHandler() {
   const uploadDir = await createTempUploadDir()
   let customHandlerCalled = false
   
@@ -490,7 +490,7 @@ async function testFileUploadCustomSuccessHandler() {
   }
 }
 
-async function testFileUploadCustomErrorHandler() {
+export async function testFileUploadCustomErrorHandler() {
   const uploadDir = await createTempUploadDir()
   let customErrorHandlerCalled = false
   
@@ -536,7 +536,7 @@ async function testFileUploadCustomErrorHandler() {
   }
 }
 
-async function testLargeFileUpload() {
+export async function testLargeFileUpload() {
   const uploadDir = await createTempUploadDir()
   
   try {
@@ -565,7 +565,7 @@ async function testLargeFileUpload() {
   }
 }
 
-async function testValidatorMimeTypeWildcard() {
+export async function testValidatorMimeTypeWildcard() {
   const validator = validators.mimeType(['image/*', 'video/*'])
   
   // Test image/* pattern
@@ -584,7 +584,7 @@ async function testValidatorMimeTypeWildcard() {
   )
 }
 
-async function testValidatorExtensionNormalization() {
+export async function testValidatorExtensionNormalization() {
   // Test with and without leading dot
   const validator1 = validators.extension(['.txt', 'md'])
   const validator2 = validators.extension(['txt', '.md'])
@@ -594,22 +594,4 @@ async function testValidatorExtensionNormalization() {
   
   await assert(result1, r => r.valid === true)
   await assert(result2, r => r.valid === true)
-}
-
-export default {
-  testBasicFileUpload,
-  testFileUploadWithTextFields,
-  testFileUploadWithAllTextFields,
-  testFileUploadWithCustomFileName,
-  testFileUploadWithMimeTypeValidation,
-  testFileUploadWithExtensionValidation,
-  testFileUploadValidationFailure,
-  testFileUploadWithCombinedValidators,
-  testFileUploadNoFile,
-  testFileUploadListFiles,
-  testFileUploadCustomSuccessHandler,
-  testFileUploadCustomErrorHandler,
-  testLargeFileUpload,
-  testValidatorMimeTypeWildcard,
-  testValidatorExtensionNormalization
 }

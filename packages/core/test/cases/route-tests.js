@@ -13,7 +13,7 @@ import {
 
 const logger = new Logger()
 
-async function testBasicRoute() {
+export async function testBasicRoute() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/hello', async function helloService() {
@@ -31,7 +31,7 @@ async function testBasicRoute() {
   )
 }
 
-async function testRouteWithService() {
+export async function testRouteWithService() {
   await terminateAfter(
     await registryServer(),
     await createService('greetingService', function greetingService(payload) {
@@ -50,7 +50,7 @@ async function testRouteWithService() {
   )
 }
 
-async function testRouteBulkCreate() {
+export async function testRouteBulkCreate() {
   await terminateAfter(
     await registryServer(),
     await createService('greetingService', function greetingService(payload) {
@@ -89,7 +89,7 @@ async function testRouteBulkCreate() {
 }
 
 
-async function testRouteInlineServiceCreation() {
+export async function testRouteInlineServiceCreation() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/greet', function greetingService(payload) {
@@ -105,7 +105,7 @@ async function testRouteInlineServiceCreation() {
   )
 }
 
-async function testRouteControllerWildcard() {
+export async function testRouteControllerWildcard() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/api/*', async function apiController(payload, request) {
@@ -126,7 +126,7 @@ async function testRouteControllerWildcard() {
   )
 }
 
-async function testRouteMissingService() {
+export async function testRouteMissingService() {
   await terminateAfter(
     await registryServer(),
     async ([registry]) => {
@@ -145,7 +145,7 @@ async function testRouteMissingService() {
   )
 }
 
-async function testRouteValidation() {
+export async function testRouteValidation() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -160,14 +160,4 @@ async function testRouteValidation() {
       )
     }
   )
-}
-
-export default {
-  testBasicRoute,
-  testRouteWithService,
-  testRouteBulkCreate,
-  testRouteInlineServiceCreation,
-  testRouteControllerWildcard,
-  testRouteMissingService,
-  testRouteValidation
 }

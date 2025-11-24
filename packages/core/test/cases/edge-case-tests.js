@@ -10,7 +10,7 @@ const logger = new Logger()
 /**
  * Test service with null payload
  */
-async function testNullPayload() {
+export async function testNullPayload() {
   await terminateAfter(
     await registryServer(),
     await createService('nullService', (payload) => {
@@ -30,7 +30,7 @@ async function testNullPayload() {
 /**
  * Test service with undefined payload
  */
-async function testUndefinedPayload() {
+export async function testUndefinedPayload() {
   await terminateAfter(
     await registryServer(),
     await createService('undefinedService', (payload) => {
@@ -50,7 +50,7 @@ async function testUndefinedPayload() {
 /**
  * Test service with empty string payload
  */
-async function testEmptyStringPayload() {
+export async function testEmptyStringPayload() {
   await terminateAfter(
     await registryServer(),
     await createService('emptyStringService', (payload) => {
@@ -70,7 +70,7 @@ async function testEmptyStringPayload() {
 /**
  * Test service with zero payload
  */
-async function testZeroPayload() {
+export async function testZeroPayload() {
   await terminateAfter(
     await registryServer(),
     await createService('zeroService', (payload) => {
@@ -90,7 +90,7 @@ async function testZeroPayload() {
 /**
  * Test service with false payload
  */
-async function testFalsePayload() {
+export async function testFalsePayload() {
   await terminateAfter(
     await registryServer(),
     await createService('falseService', (payload) => {
@@ -110,7 +110,7 @@ async function testFalsePayload() {
 /**
  * Test service with empty object payload
  */
-async function testEmptyObjectPayload() {
+export async function testEmptyObjectPayload() {
   await terminateAfter(
     await registryServer(),
     await createService('emptyObjectService', (payload) => {
@@ -133,7 +133,7 @@ async function testEmptyObjectPayload() {
 /**
  * Test service with empty array payload
  */
-async function testEmptyArrayPayload() {
+export async function testEmptyArrayPayload() {
   await terminateAfter(
     await registryServer(),
     await createService('emptyArrayService', (payload) => {
@@ -162,7 +162,7 @@ async function testEmptyArrayPayload() {
 /**
  * Test service with 1MB payload
  */
-async function testLargePayload1MB() {
+export async function testLargePayload1MB() {
   await terminateAfter(
     await registryServer(),
     await createService('largePayloadService', (payload) => {
@@ -186,7 +186,7 @@ async function testLargePayload1MB() {
 /**
  * Test service with large binary payload
  */
-async function testLargeBinaryPayload() {
+export async function testLargeBinaryPayload() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/large-binary', (payload) => {
@@ -223,7 +223,7 @@ async function testLargeBinaryPayload() {
 /**
  * Test service with very long name (within reasonable limits)
  */
-async function testLongServiceName() {
+export async function testLongServiceName() {
   const longName = 'service' + 'A'.repeat(100)
   
   await terminateAfter(
@@ -240,7 +240,7 @@ async function testLongServiceName() {
 /**
  * Test route with very long path
  */
-async function testLongRoutePath() {
+export async function testLongRoutePath() {
   const longPath = '/api/' + 'segment/'.repeat(20) + 'endpoint'
   
   await terminateAfter(
@@ -262,7 +262,7 @@ async function testLongRoutePath() {
 /**
  * Test rapid sequential service calls
  */
-async function testRapidSequentialCalls() {
+export async function testRapidSequentialCalls() {
   await terminateAfter(
     await registryServer(),
     await createService('counterService', (() => {
@@ -286,7 +286,7 @@ async function testRapidSequentialCalls() {
 /**
  * Test concurrent service calls
  */
-async function testConcurrentServiceCalls() {
+export async function testConcurrentServiceCalls() {
   await terminateAfter(
     await registryServer(),
     await createService('echoService', (payload) => payload),
@@ -309,7 +309,7 @@ async function testConcurrentServiceCalls() {
 /**
  * Test concurrent service registrations
  */
-async function testConcurrentServiceRegistrations() {
+export async function testConcurrentServiceRegistrations() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -345,7 +345,7 @@ async function testConcurrentServiceRegistrations() {
 /**
  * Test concurrent route registrations
  */
-async function testConcurrentRouteRegistrations() {
+export async function testConcurrentRouteRegistrations() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -386,7 +386,7 @@ async function testConcurrentRouteRegistrations() {
 /**
  * Test payload with unicode characters
  */
-async function testUnicodePayload() {
+export async function testUnicodePayload() {
   await terminateAfter(
     await registryServer(),
     await createService('unicodeService', (payload) => payload),
@@ -413,7 +413,7 @@ async function testUnicodePayload() {
 /**
  * Test payload with nested deep object
  */
-async function testDeeplyNestedPayload() {
+export async function testDeeplyNestedPayload() {
   await terminateAfter(
     await registryServer(),
     await createService('deepService', (payload) => payload),
@@ -436,24 +436,3 @@ async function testDeeplyNestedPayload() {
     }
   )
 }
-
-export default {
-  testNullPayload,
-  testUndefinedPayload,
-  testEmptyStringPayload,
-  testZeroPayload,
-  testFalsePayload,
-  testEmptyObjectPayload,
-  testEmptyArrayPayload,
-  testLargePayload1MB,
-  testLargeBinaryPayload,
-  testLongServiceName,
-  testLongRoutePath,
-  testRapidSequentialCalls,
-  testConcurrentServiceCalls,
-  testConcurrentServiceRegistrations,
-  testConcurrentRouteRegistrations,
-  testUnicodePayload,
-  testDeeplyNestedPayload
-}
-

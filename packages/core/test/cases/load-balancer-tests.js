@@ -10,7 +10,7 @@ const logger = new Logger()
 /**
  * Test basic round-robin load balancing with 2 instances
  */
-async function testRoundRobinTwoInstances() {
+export async function testRoundRobinTwoInstances() {
   await terminateAfter(
     await registryServer(),
     await createService('balancedService', () => ({ instance: 1 })),
@@ -36,7 +36,7 @@ async function testRoundRobinTwoInstances() {
 /**
  * Test round-robin load balancing with 3 instances
  */
-async function testRoundRobinThreeInstances() {
+export async function testRoundRobinThreeInstances() {
   await terminateAfter(
     await registryServer(),
     await createService('tripleService', () => ({ instance: 'A' })),
@@ -65,7 +65,7 @@ async function testRoundRobinThreeInstances() {
  * Test load balancing pattern sequence
  * Note: Round-robin starts with a random instance, so we verify alternating pattern
  */
-async function testLoadBalancingSequence() {
+export async function testLoadBalancingSequence() {
   await terminateAfter(
     await registryServer(),
     await createService('sequenceService', () => ({ id: 'first' })),
@@ -100,7 +100,7 @@ async function testLoadBalancingSequence() {
 /**
  * Test adding instance after initial registration
  */
-async function testAddInstanceDynamically() {
+export async function testAddInstanceDynamically() {
   await terminateAfter(
     await registryServer(),
     // Initially only 1 instance
@@ -137,7 +137,7 @@ async function testAddInstanceDynamically() {
 /**
  * Test removing instance during operation
  */
-async function testRemoveInstanceDynamically() {
+export async function testRemoveInstanceDynamically() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -182,7 +182,7 @@ async function testRemoveInstanceDynamically() {
 /**
  * Test single instance (no load balancing needed)
  */
-async function testSingleInstanceNoBalancing() {
+export async function testSingleInstanceNoBalancing() {
   await terminateAfter(
     await registryServer(),
     await createService('soloService', () => ({ solo: true, timestamp: Date.now() })),
@@ -207,7 +207,7 @@ async function testSingleInstanceNoBalancing() {
 /**
  * Test load balancing when one instance throws error
  */
-async function testLoadBalancingWithFailingInstance() {
+export async function testLoadBalancingWithFailingInstance() {
   let callCount1 = 0
   let callCount2 = 0
   
@@ -249,7 +249,7 @@ async function testLoadBalancingWithFailingInstance() {
 /**
  * Test load balancing with slow instance
  */
-async function testLoadBalancingWithSlowInstance() {
+export async function testLoadBalancingWithSlowInstance() {
   await terminateAfter(
     await registryServer(),
     await createService('slowService', async () => {
@@ -293,7 +293,7 @@ async function testLoadBalancingWithSlowInstance() {
 /**
  * Test load balancing preserves payload across instances
  */
-async function testLoadBalancingPayloadPreservation() {
+export async function testLoadBalancingPayloadPreservation() {
   await terminateAfter(
     await registryServer(),
     await createService('payloadService', (payload) => ({ instance: 1, received: payload })),
@@ -324,7 +324,7 @@ async function testLoadBalancingPayloadPreservation() {
 /**
  * Test load balancing with binary payloads
  */
-async function testLoadBalancingBinaryPayloads() {
+export async function testLoadBalancingBinaryPayloads() {
   await terminateAfter(
     await registryServer(),
     await createService('binaryService', (payload) => {
@@ -364,7 +364,7 @@ async function testLoadBalancingBinaryPayloads() {
 /**
  * Test load balancing under high concurrent load
  */
-async function testHighConcurrentLoad() {
+export async function testHighConcurrentLoad() {
   await terminateAfter(
     await registryServer(),
     await createService('highLoadService', () => ({ instance: 1 })),
@@ -395,7 +395,7 @@ async function testHighConcurrentLoad() {
 /**
  * Test load balancing maintains distribution over time
  */
-async function testLoadBalancingDistributionOverTime() {
+export async function testLoadBalancingDistributionOverTime() {
   await terminateAfter(
     await registryServer(),
     await createService('distributionService', () => ({ instance: 'A' })),
@@ -433,7 +433,7 @@ async function testLoadBalancingDistributionOverTime() {
   )
 }
 
-async function testNoLoadBalancingWhenCreatingMultipleRoutesSameService() {
+export async function testNoLoadBalancingWhenCreatingMultipleRoutesSameService() {
   let serviceFn = function routeService() { return { instance: 1 } }
   await terminateAfter(
     await registryServer(),
@@ -453,20 +453,3 @@ async function testNoLoadBalancingWhenCreatingMultipleRoutesSameService() {
     }
   )
 }
-
-export default {
-  testRoundRobinTwoInstances,
-  testRoundRobinThreeInstances,
-  testLoadBalancingSequence,
-  testAddInstanceDynamically,
-  testRemoveInstanceDynamically,
-  testSingleInstanceNoBalancing,
-  testLoadBalancingWithFailingInstance,
-  testLoadBalancingWithSlowInstance,
-  testLoadBalancingPayloadPreservation,
-  testLoadBalancingBinaryPayloads,
-  testHighConcurrentLoad,
-  testLoadBalancingDistributionOverTime,
-  testNoLoadBalancingWhenCreatingMultipleRoutesSameService
-}
-

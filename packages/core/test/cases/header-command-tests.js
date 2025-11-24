@@ -22,7 +22,7 @@ const getRegistryToken = () => process.env.MICRO_REGISTRY_TOKEN
 /**
  * Test health check command with headers
  */
-async function testHealthCheckWithHeaders() {
+export async function testHealthCheckWithHeaders() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -43,7 +43,7 @@ async function testHealthCheckWithHeaders() {
 /**
  * Test service setup command with headers
  */
-async function testServiceSetupWithHeaders() {
+export async function testServiceSetupWithHeaders() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -69,7 +69,7 @@ async function testServiceSetupWithHeaders() {
 /**
  * Test service lookup command with headers
  */
-async function testServiceLookupWithHeaders() {
+export async function testServiceLookupWithHeaders() {
   await terminateAfter(
     await registryServer(),
     await createService('lookup-test', () => 'result'),
@@ -96,7 +96,7 @@ async function testServiceLookupWithHeaders() {
 /**
  * Test service call command with headers (JSON payload)
  */
-async function testServiceCallWithHeadersJson() {
+export async function testServiceCallWithHeadersJson() {
   await terminateAfter(
     await registryServer(),
     await createService('echo', payload => payload),
@@ -124,7 +124,7 @@ async function testServiceCallWithHeadersJson() {
 /**
  * Test service call command with headers (binary payload)
  */
-async function testServiceCallWithHeadersBinary() {
+export async function testServiceCallWithHeadersBinary() {
   await terminateAfter(
     await registryServer(),
     await createService('binaryEcho', payload => payload),
@@ -158,7 +158,7 @@ async function testServiceCallWithHeadersBinary() {
 /**
  * Test invalid command header value
  */
-async function testInvalidCommandHeader() {
+export async function testInvalidCommandHeader() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -175,7 +175,7 @@ async function testInvalidCommandHeader() {
 /**
  * Test missing service name header for service-call
  */
-async function testMissingServiceNameForCall() {
+export async function testMissingServiceNameForCall() {
   await terminateAfter(
     await registryServer(),
     await createService('test', () => 'result'),
@@ -198,7 +198,7 @@ async function testMissingServiceNameForCall() {
 /**
  * Test missing service name header for service-setup
  */
-async function testMissingServiceNameForSetup() {
+export async function testMissingServiceNameForSetup() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -221,7 +221,7 @@ async function testMissingServiceNameForSetup() {
 /**
  * Test missing service location header for service-register
  */
-async function testMissingServiceLocationForRegister() {
+export async function testMissingServiceLocationForRegister() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -244,7 +244,7 @@ async function testMissingServiceLocationForRegister() {
 /**
  * Test calling non-existent service with headers
  */
-async function testCallNonExistentServiceWithHeaders() {
+export async function testCallNonExistentServiceWithHeaders() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -270,7 +270,7 @@ async function testCallNonExistentServiceWithHeaders() {
 /**
  * Test that HTTP routes have priority over command headers
  */
-async function testCommandHeaderPriorityOverRoutes() {
+export async function testCommandHeaderPriorityOverRoutes() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/priority-test', async function rightService() {
@@ -305,7 +305,7 @@ async function testCommandHeaderPriorityOverRoutes() {
 /**
  * Test routes work without any command headers
  */
-async function testRoutesWithoutCommandHeaders() {
+export async function testRoutesWithoutCommandHeaders() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/no-headers', () => 'Success without headers'),
@@ -326,7 +326,7 @@ async function testRoutesWithoutCommandHeaders() {
 /**
  * Test command headers work for non-route URLs
  */
-async function testCommandHeadersForNonRouteUrls() {
+export async function testCommandHeadersForNonRouteUrls() {
   await terminateAfter(
     await registryServer(),
     await createService('regularService', payload => `Got: ${payload.value}`),
@@ -356,7 +356,7 @@ async function testCommandHeadersForNonRouteUrls() {
 /**
  * Test that content-type is preserved with header-based calls
  */
-async function testContentTypePreservation() {
+export async function testContentTypePreservation() {
   await terminateAfter(
     await registryServer(),
     await createService('typeEcho', payload => payload),
@@ -403,7 +403,7 @@ async function testContentTypePreservation() {
 /**
  * Test primitive types are preserved through JSON encoding
  */
-async function testPrimitiveTypePreservation() {
+export async function testPrimitiveTypePreservation() {
   await terminateAfter(
     await registryServer(),
     await createService('numberReturner', () => 42),
@@ -462,7 +462,7 @@ async function testPrimitiveTypePreservation() {
 /**
  * Test pub/sub subscribe command with headers
  */
-async function testPubSubSubscribeWithHeaders() {
+export async function testPubSubSubscribeWithHeaders() {
   await terminateAfter(
     await registryServer(),
     await createService('subscriber', message => message),
@@ -487,7 +487,7 @@ async function testPubSubSubscribeWithHeaders() {
 /**
  * Test pub/sub publish command with headers
  */
-async function testPubSubPublishWithHeaders() {
+export async function testPubSubPublishWithHeaders() {
   await terminateAfter(
     await registryServer(),
     await createService('subscriber', message => ({ received: message })),
@@ -532,7 +532,7 @@ async function testPubSubPublishWithHeaders() {
 /**
  * Test that hitting registry root without commands returns API docs
  */
-async function testApiDocumentation() {
+export async function testApiDocumentation() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -578,7 +578,7 @@ async function testApiDocumentation() {
 /**
  * Test that API documentation is valid JSON (not a function)
  */
-async function testApiDocumentationIsJson() {
+export async function testApiDocumentationIsJson() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -602,7 +602,7 @@ async function testApiDocumentationIsJson() {
  * Test custom header size limit (STUB - functionality not yet implemented)
  * Default limit should be ~4KB for headers
  */
-async function testHeaderSizeLimit() {
+export async function testHeaderSizeLimit() {
   await terminateAfter(
     await registryServer(),
     await createService('headerTest', () => 'ok'),
@@ -638,27 +638,3 @@ async function testHeaderSizeLimit() {
     }
   )
 }
-
-export default {
-  testHealthCheckWithHeaders,
-  testServiceSetupWithHeaders,
-  testServiceLookupWithHeaders,
-  testServiceCallWithHeadersJson,
-  testServiceCallWithHeadersBinary,
-  testInvalidCommandHeader,
-  testMissingServiceNameForCall,
-  testMissingServiceNameForSetup,
-  testMissingServiceLocationForRegister,
-  testCallNonExistentServiceWithHeaders,
-  testCommandHeaderPriorityOverRoutes,
-  testRoutesWithoutCommandHeaders,
-  testCommandHeadersForNonRouteUrls,
-  testContentTypePreservation,
-  testPrimitiveTypePreservation,
-  testPubSubSubscribeWithHeaders,
-  testPubSubPublishWithHeaders,
-  testApiDocumentation,
-  testApiDocumentationIsJson,
-  testHeaderSizeLimit
-}
-

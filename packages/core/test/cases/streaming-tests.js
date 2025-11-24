@@ -9,7 +9,7 @@ const logger = new Logger()
 /**
  * Test that JSON payloads still work (backward compatibility)
  */
-async function testJsonPayloadStillWorks() {
+export async function testJsonPayloadStillWorks() {
   await terminateAfter(
     await registryServer(),
     await createService('jsonEcho', function jsonEchoService(payload) {
@@ -33,7 +33,7 @@ async function testJsonPayloadStillWorks() {
 /**
  * Test that buffers can be sent and received
  */
-async function testBufferStreaming() {
+export async function testBufferStreaming() {
   await terminateAfter(
     await registryServer(),
     await createService('bufferEcho', function bufferEchoService(payload) {
@@ -62,7 +62,7 @@ async function testBufferStreaming() {
 /**
  * Test that binary file data can be streamed through registry
  */
-async function testBinaryFileStreaming() {
+export async function testBinaryFileStreaming() {
   await terminateAfter(
     await registryServer(),
     await createService('fileProcessor', function fileProcessorService(payload) {
@@ -98,7 +98,7 @@ async function testBinaryFileStreaming() {
 /**
  * Test that service can process and modify binary data
  */
-async function testBinaryDataProcessing() {
+export async function testBinaryDataProcessing() {
   await terminateAfter(
     await registryServer(),
     await createService('binaryProcessor', function binaryProcessorService(payload) {
@@ -131,7 +131,7 @@ async function testBinaryDataProcessing() {
 /**
  * Test mixed content types in sequence
  */
-async function testMixedContentTypes() {
+export async function testMixedContentTypes() {
   await terminateAfter(
     await registryServer(),
     await createService('polyglot', function polyglotService(payload) {
@@ -174,7 +174,7 @@ async function testMixedContentTypes() {
 /**
  * Test large buffer transfer
  */
-async function testLargeBufferTransfer() {
+export async function testLargeBufferTransfer() {
   await terminateAfter(
     await registryServer(),
     await createService('largeBufferEcho', function largeBufferEchoService(payload) {
@@ -210,7 +210,7 @@ async function testLargeBufferTransfer() {
 /**
  * Test empty buffer
  */
-async function testEmptyBuffer() {
+export async function testEmptyBuffer() {
   await terminateAfter(
     await registryServer(),
     await createService('emptyBufferEcho', function emptyBufferEchoService(payload) {
@@ -230,14 +230,3 @@ async function testEmptyBuffer() {
     }
   )
 }
-
-export default {
-  testJsonPayloadStillWorks,
-  testBufferStreaming,
-  testBinaryFileStreaming,
-  testBinaryDataProcessing,
-  testMixedContentTypes,
-  testLargeBufferTransfer,
-  testEmptyBuffer
-}
-

@@ -10,7 +10,7 @@ const logger = new Logger()
 /**
  * Test creating service with empty name
  */
-async function testServiceWithEmptyName() {
+export async function testServiceWithEmptyName() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -25,7 +25,7 @@ async function testServiceWithEmptyName() {
 /**
  * Test creating service with invalid name (spaces)
  */
-async function testServiceWithSpacesInName() {
+export async function testServiceWithSpacesInName() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -41,7 +41,7 @@ async function testServiceWithSpacesInName() {
 /**
  * Test creating service with special characters in name (error validation)
  */
-async function testServiceNameValidationSpecialChars() {
+export async function testServiceNameValidationSpecialChars() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -57,7 +57,7 @@ async function testServiceNameValidationSpecialChars() {
 /**
  * Test calling service that doesn't exist
  */
-async function testCallNonExistentService() {
+export async function testCallNonExistentService() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -77,7 +77,7 @@ async function testCallNonExistentService() {
 /**
  * Test 404 error from service
  */
-async function testService404Error() {
+export async function testService404Error() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/404-test', async function notFoundService() {
@@ -96,7 +96,7 @@ async function testService404Error() {
 /**
  * Test 500 error from service
  */
-async function testService500Error() {
+export async function testService500Error() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/500-test', async function errorService() {
@@ -113,7 +113,7 @@ async function testService500Error() {
 /**
  * Test 400 error from service
  */
-async function testService400Error() {
+export async function testService400Error() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/400-test', async function badRequestService(payload) {
@@ -137,7 +137,7 @@ async function testService400Error() {
 /**
  * Test custom error status codes
  */
-async function testCustomErrorStatusCodes() {
+export async function testCustomErrorStatusCodes() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/403-test', () => { throw new HttpError(403, 'Forbidden') }),
@@ -164,7 +164,7 @@ async function testCustomErrorStatusCodes() {
 /**
  * Test HTML content type detection
  */
-async function testHtmlContentTypeDetection() {
+export async function testHtmlContentTypeDetection() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/html', () => '<html><body>test</body></html>'),
@@ -183,7 +183,7 @@ async function testHtmlContentTypeDetection() {
 /**
  * Test JSON content type detection
  */
-async function testJsonContentTypeDetection() {
+export async function testJsonContentTypeDetection() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/json', () => ({ data: 'test', number: 123 })),
@@ -202,7 +202,7 @@ async function testJsonContentTypeDetection() {
 /**
  * Test binary content type detection
  */
-async function testBinaryContentTypeDetection() {
+export async function testBinaryContentTypeDetection() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/binary', () => Buffer.from([0x89, 0x50, 0x4E, 0x47])),
@@ -221,7 +221,7 @@ async function testBinaryContentTypeDetection() {
 /**
  * Test multiple content types in sequence
  */
-async function testMultipleContentTypes() {
+export async function testMultipleContentTypes() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/html', () => '<html>test</html>'),
@@ -252,7 +252,7 @@ async function testMultipleContentTypes() {
 /**
  * Test error propagation through service chain
  */
-async function testErrorPropagationThroughChain() {
+export async function testErrorPropagationThroughChain() {
   await terminateAfter(
     await registryServer(),
     await createService('errorService', () => {
@@ -304,7 +304,7 @@ async function testErrorPropagationThroughChain() {
  * This verifies that unhandled rejections don't crash the registry
  * and that it can continue to process requests after errors
  */
-async function testRegistryStaysHealthyAfterServiceCallError() {
+export async function testRegistryStaysHealthyAfterServiceCallError() {
   await terminateAfter(
     await registryServer(),
     await createService('test-service', async () => ({ status: 'ok' })),
@@ -342,7 +342,7 @@ async function testRegistryStaysHealthyAfterServiceCallError() {
  * Test that calling a service with a URL-like name (starting with /) 
  * is handled properly and doesn't crash the registry
  */
-async function testServiceCallWithUrlLikeName() {
+export async function testServiceCallWithUrlLikeName() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -357,23 +357,3 @@ async function testServiceCallWithUrlLikeName() {
     }
   )
 }
-
-export default {
-  testServiceWithEmptyName,
-  testServiceWithSpacesInName,
-  testServiceNameValidationSpecialChars,
-  testCallNonExistentService,
-  testService404Error,
-  testService500Error,
-  testService400Error,
-  testCustomErrorStatusCodes,
-  testHtmlContentTypeDetection,
-  testJsonContentTypeDetection,
-  testBinaryContentTypeDetection,
-  testMultipleContentTypes,
-  testErrorPropagationThroughChain,
-  testRegistryStaysHealthyAfterServiceCallError,
-  testServiceCallWithUrlLikeName
-  // testRequestTimeout
-}
-

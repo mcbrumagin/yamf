@@ -17,7 +17,7 @@ const logger = new Logger()
 /**
  * Test basic set and get operations
  */
-async function testBasicSetAndGet() {
+export async function testBasicSetAndGet() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -44,7 +44,7 @@ async function testBasicSetAndGet() {
 /**
  * Test setting multiple keys at once
  */
-async function testSetMultipleKeys() {
+export async function testSetMultipleKeys() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -73,7 +73,7 @@ async function testSetMultipleKeys() {
 /**
  * Test cache expiration with setex
  */
-async function testCacheExpiration() {
+export async function testCacheExpiration() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 200, evictionInterval: 20 }),
@@ -109,7 +109,7 @@ async function testCacheExpiration() {
 /**
  * Test setting custom expiration time
  */
-async function testCustomExpirationTime() {
+export async function testCustomExpirationTime() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 1000, evictionInterval: 20 }),
@@ -137,7 +137,7 @@ async function testCustomExpirationTime() {
 /**
  * Test removing expiration (rex)
  */
-async function testRemoveExpiration() {
+export async function testRemoveExpiration() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 100 }),
@@ -169,7 +169,7 @@ async function testRemoveExpiration() {
 /**
  * Test deleting keys
  */
-async function testDeleteKeys() {
+export async function testDeleteKeys() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -199,7 +199,7 @@ async function testDeleteKeys() {
 /**
  * Test deleting keys
  */
-async function testDeleteMultipleKeys() {
+export async function testDeleteMultipleKeys() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -230,7 +230,7 @@ async function testDeleteMultipleKeys() {
 /**
  * Test clearing entire cache
  */
-async function testClearCache() {
+export async function testClearCache() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -269,7 +269,7 @@ async function testClearCache() {
 /**
  * Test updating cache settings
  */
-async function testUpdateSettings() {
+export async function testUpdateSettings() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
@@ -293,7 +293,7 @@ async function testUpdateSettings() {
 /**
  * Test cache with complex objects
  */
-async function testCacheComplexObjects() {
+export async function testCacheComplexObjects() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -331,7 +331,7 @@ async function testCacheComplexObjects() {
 /**
  * Test eviction interval cleanup
  */
-async function testEvictionInterval() {
+export async function testEvictionInterval() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ 
@@ -365,7 +365,7 @@ async function testEvictionInterval() {
 /**
  * Test setting expiration on multiple keys
  */
-async function testSetMultipleExpirations() {
+export async function testSetMultipleExpirations() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -404,7 +404,7 @@ async function testSetMultipleExpirations() {
 /**
  * Test concurrent cache operations
  */
-async function testConcurrentOperations() {
+export async function testConcurrentOperations() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -433,7 +433,7 @@ async function testConcurrentOperations() {
  * This tests that services can receive cache updates from the registry
  * without conflicting with their normal service function
  */
-async function testCacheUpdateWithHeaders() {
+export async function testCacheUpdateWithHeaders() {
   let cacheUpdatesReceived = []
   
   // Create a test service that tracks cache updates
@@ -480,7 +480,7 @@ async function testCacheUpdateWithHeaders() {
  * This test verifies that when a new service registers, existing services
  * receive cache update notifications via micro headers
  */
-async function testServiceRegistrationCacheUpdate() {
+export async function testServiceRegistrationCacheUpdate() {
   let service1, service2, newService
   
   await terminateAfter(
@@ -545,7 +545,7 @@ function testCacheMemoryOnly() {
  * Test cache with expireTime set to 'None'
  * Items should never expire automatically
  */
-async function testExpireTimeNone() {
+export async function testExpireTimeNone() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 'None', evictionInterval: 50 }),
@@ -569,7 +569,7 @@ async function testExpireTimeNone() {
  * Test cache with evictionInterval set to 'None'
  * Expired items should not be automatically cleaned up
  */
-async function testEvictionIntervalNone() {
+export async function testEvictionIntervalNone() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 100, evictionInterval: 'None' }),
@@ -594,7 +594,7 @@ async function testEvictionIntervalNone() {
  * Test cache with both expireTime and evictionInterval set to 'None'
  * Cache should grow indefinitely with no automatic cleanup
  */
-async function testBothSettingsNone() {
+export async function testBothSettingsNone() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 'None', evictionInterval: 'None' }),
@@ -628,7 +628,7 @@ async function testBothSettingsNone() {
 /**
  * Test runtime toggling of expireTime from number to 'None' and back
  */
-async function testToggleExpireTimeAtRuntime() {
+export async function testToggleExpireTimeAtRuntime() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 100, evictionInterval: 50 }),
@@ -677,7 +677,7 @@ async function testToggleExpireTimeAtRuntime() {
 /**
  * Test runtime toggling of evictionInterval from number to 'None' and back
  */
-async function testToggleEvictionIntervalAtRuntime() {
+export async function testToggleEvictionIntervalAtRuntime() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 100, evictionInterval: 50 }),
@@ -723,7 +723,7 @@ async function testToggleEvictionIntervalAtRuntime() {
 /**
  * Test validation of invalid expireTime values
  */
-async function testInvalidExpireTimeValidation() {
+export async function testInvalidExpireTimeValidation() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -753,7 +753,7 @@ async function testInvalidExpireTimeValidation() {
 /**
  * Test validation of invalid evictionInterval values
  */
-async function testInvalidEvictionIntervalValidation() {
+export async function testInvalidEvictionIntervalValidation() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -783,7 +783,7 @@ async function testInvalidEvictionIntervalValidation() {
 /**
  * Test validation during runtime settings update
  */
-async function testRuntimeValidation() {
+export async function testRuntimeValidation() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
@@ -821,7 +821,7 @@ async function testRuntimeValidation() {
 /**
  * Test updating multiple settings at once including 'None' values
  */
-async function testBulkSettingsUpdate() {
+export async function testBulkSettingsUpdate() {
   await terminateAfter(
     await registryServer(),
     await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
@@ -867,7 +867,7 @@ async function testBulkSettingsUpdate() {
 /**
  * Test validation of invalid get action
  */
-async function testInvalidGetAction() {
+export async function testInvalidGetAction() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -886,7 +886,7 @@ async function testInvalidGetAction() {
 /**
  * Test validation of invalid set action
  */
-async function testInvalidSetAction() {
+export async function testInvalidSetAction() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -911,7 +911,7 @@ async function testInvalidSetAction() {
 /**
  * Test validation of invalid setex action
  */
-async function testInvalidSetexAction() {
+export async function testInvalidSetexAction() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -930,7 +930,7 @@ async function testInvalidSetexAction() {
 /**
  * Test validation of invalid ex action
  */
-async function testInvalidExAction() {
+export async function testInvalidExAction() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -949,7 +949,7 @@ async function testInvalidExAction() {
 /**
  * Test validation of invalid del action
  */
-async function testInvalidDelAction() {
+export async function testInvalidDelAction() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -968,7 +968,7 @@ async function testInvalidDelAction() {
 /**
  * Test validation of unknown action
  */
-async function testUnknownAction() {
+export async function testUnknownAction() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -987,7 +987,7 @@ async function testUnknownAction() {
 /**
  * Test action result structures
  */
-async function testActionResults() {
+export async function testActionResults() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
@@ -1022,38 +1022,4 @@ async function testActionResults() {
       logger.info('✓ Action results have proper structure')
     }
   )
-}
-
-export default {
-  testBasicSetAndGet,
-  testSetMultipleKeys,
-  testCacheExpiration,
-  testCustomExpirationTime,
-  testRemoveExpiration,
-  testDeleteKeys,
-  testClearCache,
-  testUpdateSettings,
-  testCacheComplexObjects,
-  testEvictionInterval,
-  testSetMultipleExpirations,
-  testConcurrentOperations,
-  testCacheUpdateWithHeaders,
-  testServiceRegistrationCacheUpdate,
-  testCacheMemoryOnly,
-  testExpireTimeNone,
-  testEvictionIntervalNone,
-  testBothSettingsNone,
-  testToggleExpireTimeAtRuntime,
-  testToggleEvictionIntervalAtRuntime,
-  testInvalidExpireTimeValidation,
-  testInvalidEvictionIntervalValidation,
-  testRuntimeValidation,
-  testBulkSettingsUpdate,
-  testInvalidGetAction,
-  testInvalidSetAction,
-  testInvalidSetexAction,
-  testInvalidExAction,
-  testInvalidDelAction,
-  testUnknownAction,
-  testActionResults
 }

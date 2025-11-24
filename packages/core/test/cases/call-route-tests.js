@@ -18,7 +18,7 @@ const logger = new Logger()
 /**
  * Test basic GET request to a route
  */
-async function testBasicGetRoute() {
+export async function testBasicGetRoute() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/hello', async function() {
@@ -40,7 +40,7 @@ async function testBasicGetRoute() {
  * Test GET request with query parameters
  * Note: Routes with query params should use wildcard (*) for flexible matching
  */
-async function testGetWithQueryParams() {
+export async function testGetWithQueryParams() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/search/*', async function(payload, request) {
@@ -75,7 +75,7 @@ async function testGetWithQueryParams() {
 /**
  * Test POST request with JSON body
  */
-async function testPostWithBody() {
+export async function testPostWithBody() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/users', async function(payload) {
@@ -107,7 +107,7 @@ async function testPostWithBody() {
 /**
  * Test PUT request
  */
-async function testPutRequest() {
+export async function testPutRequest() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/users/*', async function(payload, request) {
@@ -138,7 +138,7 @@ async function testPutRequest() {
  * Test DELETE request
  * Note: DELETE method works like GET/HEAD (no body)
  */
-async function testDeleteRequest() {
+export async function testDeleteRequest() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/users/*', async function(payload, request) {
@@ -171,7 +171,7 @@ async function testDeleteRequest() {
 /**
  * Test path without leading slash (should auto-add)
  */
-async function testPathWithoutLeadingSlash() {
+export async function testPathWithoutLeadingSlash() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/api/test', async function() {
@@ -190,7 +190,7 @@ async function testPathWithoutLeadingSlash() {
 /**
  * Test invalid path (empty string)
  */
-async function testInvalidEmptyPath() {
+export async function testInvalidEmptyPath() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -208,7 +208,7 @@ async function testInvalidEmptyPath() {
 /**
  * Test invalid path (null)
  */
-async function testInvalidNullPath() {
+export async function testInvalidNullPath() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -226,7 +226,7 @@ async function testInvalidNullPath() {
 /**
  * Test invalid path characters
  */
-async function testInvalidPathCharacters() {
+export async function testInvalidPathCharacters() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -248,7 +248,7 @@ async function testInvalidPathCharacters() {
 /**
  * Test controller route with wildcard
  */
-async function testControllerRoute() {
+export async function testControllerRoute() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/api/*', async function(payload, request) {
@@ -279,7 +279,7 @@ async function testControllerRoute() {
 /**
  * Test controller route with nested paths
  */
-async function testControllerRouteNested() {
+export async function testControllerRouteNested() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/api/v1/*', async function(payload, request) {
@@ -306,7 +306,7 @@ async function testControllerRouteNested() {
 /**
  * Test various HTTP methods
  */
-async function testVariousHttpMethods() {
+export async function testVariousHttpMethods() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/api/*', async function(payload, request) {
@@ -333,7 +333,7 @@ async function testVariousHttpMethods() {
  * Test custom headers
  * Note: Some headers may be filtered/modified by the framework
  */
-async function testCustomHeaders() {
+export async function testCustomHeaders() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/api/test', async function(payload, request) {
@@ -368,7 +368,7 @@ async function testCustomHeaders() {
 /**
  * Test custom content type
  */
-async function testCustomContentType() {
+export async function testCustomContentType() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/api/data', async function(payload, request) {
@@ -400,7 +400,7 @@ async function testCustomContentType() {
  * Test 404 error for non-existent route
  * Note: In dev mode, registry may return documentation instead of 404
  */
-async function testNonExistentRoute() {
+export async function testNonExistentRoute() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -426,7 +426,7 @@ async function testNonExistentRoute() {
 /**
  * Test service error propagation
  */
-async function testServiceErrorPropagation() {
+export async function testServiceErrorPropagation() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/error', async function() {
@@ -451,7 +451,7 @@ async function testServiceErrorPropagation() {
 /**
  * Test complex query parameters
  */
-async function testComplexQueryParams() {
+export async function testComplexQueryParams() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/filter/*', async function(payload, request) {
@@ -487,7 +487,7 @@ async function testComplexQueryParams() {
 /**
  * Test null/undefined query parameters are filtered
  */
-async function testNullQueryParamsFiltered() {
+export async function testNullQueryParamsFiltered() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/test/*', async function(payload, request) {
@@ -525,7 +525,7 @@ async function testNullQueryParamsFiltered() {
 /**
  * Test callRoute with service backend
  */
-async function testCallRouteWithServiceBackend() {
+export async function testCallRouteWithServiceBackend() {
   await terminateAfter(
     await registryServer(),
     await createService('userService', async function(payload) {
@@ -556,7 +556,7 @@ async function testCallRouteWithServiceBackend() {
  * Test mixed callRoute methods in sequence
  * Tests a realistic CRUD API pattern
  */
-async function testMixedMethodsSequence() {
+export async function testMixedMethodsSequence() {
   await terminateAfter(
     await registryServer(),
     await createRoute('/users/*', async function(payload, request) {
@@ -616,48 +616,4 @@ async function testMixedMethodsSequence() {
   )
 }
 
-// ============================================================================
-// Export all tests
-// ============================================================================
-
-export default {
-  // Basic tests
-  testBasicGetRoute,
-  testGetWithQueryParams,
-  testPostWithBody,
-  testPutRequest,
-  testDeleteRequest,
-  
-  // Path validation
-  testPathWithoutLeadingSlash,
-  testInvalidEmptyPath,
-  testInvalidNullPath,
-  testInvalidPathCharacters,
-  
-  // Controller routes
-  testControllerRoute,
-  testControllerRouteNested,
-  
-  // HTTP methods
-  testVariousHttpMethods,
-  
-  // Headers
-  testCustomHeaders,
-  
-  // Content type
-  testCustomContentType,
-  
-  // Error handling
-  testNonExistentRoute,
-  testServiceErrorPropagation,
-  
-  // Query parameters
-  testComplexQueryParams,
-  testNullQueryParamsFiltered,
-  
-  // Integration
-  testCallRouteWithServiceBackend,
-  testMixedMethodsSequence
-
-  // TODO auth integration tests
-}
+// TODO auth integration tests

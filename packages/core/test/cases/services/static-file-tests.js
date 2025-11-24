@@ -45,7 +45,7 @@ function cleanupTempFiles(tempDir) {
   }
 }
 
-async function testBasicStaticFileServiceWorkingDir() {
+export async function testBasicStaticFileServiceWorkingDir() {
   const tempDir = await createTempTestFiles()
   
   try {
@@ -70,7 +70,7 @@ async function testBasicStaticFileServiceWorkingDir() {
   }
 }
 
-async function testBasicStaticFileServiceExternalTempDir() {
+export async function testBasicStaticFileServiceExternalTempDir() {
   const tempDir = await createTempTestFiles()
   
   try {
@@ -96,7 +96,7 @@ async function testBasicStaticFileServiceExternalTempDir() {
   }
 }
 
-async function testStaticFileWithMultipleRoutes() {
+export async function testStaticFileWithMultipleRoutes() {
   const tempDir = await createTempTestFiles()
   
   try {
@@ -126,7 +126,7 @@ async function testStaticFileWithMultipleRoutes() {
   }
 }
 
-async function testStaticFileWithWildcardMapping() {
+export async function testStaticFileWithWildcardMapping() {
   const tempDir = await createTempTestFiles()
   
   try {
@@ -156,7 +156,7 @@ async function testStaticFileWithWildcardMapping() {
   }
 }
 
-async function testStaticFileNotFound() {
+export async function testStaticFileNotFound() {
   const tempDir = await createTempTestFiles()
   
   try {
@@ -181,7 +181,7 @@ async function testStaticFileNotFound() {
   }
 }
 
-async function testStaticFileWithCustomResolver() {
+export async function testStaticFileWithCustomResolver() {
   const tempDir = await createTempTestFiles()
   
   try {
@@ -204,7 +204,7 @@ async function testStaticFileWithCustomResolver() {
   }
 }
 
-async function testStaticFileInvalidRootDir() {
+export async function testStaticFileInvalidRootDir() {
   await terminateAfter(
     await registryServer(),
     async () => {
@@ -220,7 +220,7 @@ async function testStaticFileInvalidRootDir() {
   )
 }
 
-async function testStaticFileUrlSanitization() {
+export async function testStaticFileUrlSanitization() {
   const tempDir = await createTempTestFiles()
   
   try {
@@ -249,7 +249,7 @@ async function testStaticFileUrlSanitization() {
   }
 }
 
-async function testStaticFileWithDefaultRequestUrl() {
+export async function testStaticFileWithDefaultRequestUrl() {
   const tempDir = await createTempTestFiles()
   try {
     await terminateAfter(
@@ -275,7 +275,7 @@ async function testStaticFileWithDefaultRequestUrl() {
   }
 }
 
-async function testStaticFileResponseHeaders() {
+export async function testStaticFileResponseHeaders() {
   const tempDir = await createTempTestFiles()
   try {
     await terminateAfter(
@@ -307,7 +307,7 @@ async function testStaticFileResponseHeaders() {
   }
 }
 
-async function testStaticFileDirectoryTreePopulation() {
+export async function testStaticFileDirectoryTreePopulation() {
   const tempDir = await createTempTestFiles()
   try {
     await terminateAfter(
@@ -332,7 +332,7 @@ async function testStaticFileDirectoryTreePopulation() {
   }
 }
 
-async function testStaticFileRangeHeaderAdvertisement() {
+export async function testStaticFileRangeHeaderAdvertisement() {
   const tempDir = await createTempTestFiles()
   
   // Create a test audio file
@@ -372,7 +372,7 @@ async function testStaticFileRangeHeaderAdvertisement() {
   }
 }
 
-async function testStaticFileRangeRequest() {
+export async function testStaticFileRangeRequest() {
   const tempDir = await createTempTestFiles()
   
   // Create a test audio file with known content
@@ -422,7 +422,7 @@ async function testStaticFileRangeRequest() {
   }
 }
 
-async function testStaticFileInvalidRangeRequest() {
+export async function testStaticFileInvalidRangeRequest() {
   const tempDir = await createTempTestFiles()
   
   const audioContent = Buffer.alloc(1000, 'x')
@@ -460,7 +460,7 @@ async function testStaticFileInvalidRangeRequest() {
   }
 }
 
-async function testStaticFileRangeWithIfRange() {
+export async function testStaticFileRangeWithIfRange() {
   const tempDir = await createTempTestFiles()
   
   const audioContent = Buffer.from('0123456789'.repeat(100))
@@ -526,7 +526,7 @@ async function testStaticFileRangeWithIfRange() {
   }
 }
 
-async function testStaticFileOpenEndedRangeRequest() {
+export async function testStaticFileOpenEndedRangeRequest() {
   const tempDir = await createTempTestFiles()
   
   const audioContent = Buffer.from('0123456789'.repeat(100)) // 1000 bytes
@@ -570,22 +570,3 @@ async function testStaticFileOpenEndedRangeRequest() {
 
 // TODO write a new file and test that it can be found (and added to quicklookup?)
 // async function testStaticFileWithEagerLookup() {}
-
-export default {
-  testBasicStaticFileServiceWorkingDir,
-  testBasicStaticFileServiceExternalTempDir,
-  testStaticFileWithMultipleRoutes,
-  testStaticFileWithWildcardMapping,
-  testStaticFileNotFound,
-  testStaticFileWithCustomResolver,
-  testStaticFileInvalidRootDir,
-  testStaticFileUrlSanitization,
-  testStaticFileWithDefaultRequestUrl,
-  testStaticFileResponseHeaders,
-  testStaticFileDirectoryTreePopulation,
-  testStaticFileRangeHeaderAdvertisement,
-  testStaticFileRangeRequest,
-  testStaticFileInvalidRangeRequest,
-  testStaticFileRangeWithIfRange,
-  testStaticFileOpenEndedRangeRequest
-}

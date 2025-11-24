@@ -20,7 +20,7 @@ const testDir = path.join(__dirname, '../../')
 /**
  * Test manual file addition to index
  */
-async function testManualFileAddition() {
+export async function testManualFileAddition() {
   await terminateAfter(
     await registryServer(),
     await createStaticFileService({
@@ -76,7 +76,7 @@ async function testManualFileAddition() {
 /**
  * Test pubsub mode - file events trigger index updates
  */
-async function testPubSubMode() {
+export async function testPubSubMode() {
   let fileAddedCalled = false
   
   await terminateAfter(
@@ -132,7 +132,7 @@ async function testPubSubMode() {
 /**
  * Test file deletion events
  */
-async function testFileDeletionEvent() {
+export async function testFileDeletionEvent() {
   let fileRemovedCalled = false
   
   await terminateAfter(
@@ -192,7 +192,7 @@ async function testFileDeletionEvent() {
 /**
  * Test full index refresh
  */
-async function testFullIndexRefresh() {
+export async function testFullIndexRefresh() {
   await terminateAfter(
     await registryServer(),
     await createStaticFileService({
@@ -236,7 +236,7 @@ async function testFullIndexRefresh() {
 /**
  * Test pause/resume autoRefresh
  */
-async function testPauseResumeAutoRefresh() {
+export async function testPauseResumeAutoRefresh() {
   await terminateAfter(
     await registryServer(),
     await createStaticFileService({
@@ -270,7 +270,7 @@ async function testPauseResumeAutoRefresh() {
 /**
  * Test integrated upload service with static service
  */
-async function testIntegratedUploadAndStatic() {
+export async function testIntegratedUploadAndStatic() {
   let fileAddedCount = 0
   
   await terminateAfter(
@@ -310,13 +310,4 @@ async function testIntegratedUploadAndStatic() {
       }
     }
   )
-}
-
-export default {
-  testManualFileAddition,
-  testPubSubMode,
-  testFileDeletionEvent,
-  testFullIndexRefresh,
-  testPauseResumeAutoRefresh,
-  testIntegratedUploadAndStatic
 }

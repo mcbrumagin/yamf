@@ -19,7 +19,7 @@ const logger = new Logger()
 /**
  * Test basic subscription creation and message delivery
  */
-async function testBasicSubscription() {
+export async function testBasicSubscription() {
   await terminateAfter(
     await registryServer(),
     async ([registry]) => {
@@ -66,7 +66,7 @@ async function testBasicSubscription() {
 /**
  * Test multiple subscription services to the same channel
  */
-async function testMultipleSubscriptionsToSameChannel() {
+export async function testMultipleSubscriptionsToSameChannel() {
   await terminateAfter(
     await registryServer(),
     async ([registry]) => {
@@ -104,7 +104,7 @@ async function testMultipleSubscriptionsToSameChannel() {
 /**
  * Test subscription service with multiple channels
  */
-async function testMultipleChannelSubscriptions() {
+export async function testMultipleChannelSubscriptions() {
   await terminateAfter(
     await registryServer(),
     async ([registry]) => {
@@ -139,7 +139,7 @@ async function testMultipleChannelSubscriptions() {
 /**
  * Test subscription termination stops message delivery
  */
-async function testSubscriptionTermination() {
+export async function testSubscriptionTermination() {
   await terminateAfter(
     await registryServer(),
     async ([registry]) => {
@@ -173,7 +173,7 @@ async function testSubscriptionTermination() {
 /**
  * Test subscription with invalid handler
  */
-async function testInvalidHandler() {
+export async function testInvalidHandler() {
   await terminateAfter(
     await registryServer(),
     async ([registry]) => {
@@ -198,7 +198,7 @@ async function testInvalidHandler() {
 /**
  * Test subscription handler error is caught and logged
  */
-async function testSubscriptionHandlerError() {
+export async function testSubscriptionHandlerError() {
   await terminateAfter(
     await registryServer(),
     await createSubscriptionService('error-service', {
@@ -225,7 +225,7 @@ async function testSubscriptionHandlerError() {
 /**
  * Test subscription with complex message payloads
  */
-async function testComplexMessagePayloads() {
+export async function testComplexMessagePayloads() {
   const messages = []
   
   await terminateAfter(
@@ -268,7 +268,7 @@ async function testComplexMessagePayloads() {
 /**
  * Test subscription publish results
  */
-async function testSubscriptionPublishResults() {
+export async function testSubscriptionPublishResults() {
   await terminateAfter(
     await registryServer(),
     await createSubscriptionService('rpc-service', {
@@ -294,7 +294,7 @@ async function testSubscriptionPublishResults() {
 /**
  * Test concurrent message handling
  */
-async function testConcurrentMessages() {
+export async function testConcurrentMessages() {
   const messages = []
   
   await terminateAfter(
@@ -326,7 +326,7 @@ async function testConcurrentMessages() {
 /**
  * Test subscription receives messages from start
  */
-async function testSubscriptionStartsClean() {
+export async function testSubscriptionStartsClean() {
   const messages = []
   
   await terminateAfter(
@@ -360,7 +360,7 @@ async function testSubscriptionStartsClean() {
 /**
  * Test subscription creation on regular service
  */
-async function testSubscriptionCreationOnRegularService() {
+export async function testSubscriptionCreationOnRegularService() {
   const messages = []
   await terminateAfter(
     await registryServer(),
@@ -390,7 +390,7 @@ async function testSubscriptionCreationOnRegularService() {
 /**
  * Test subscription creation on regular service with middleware
  */
-async function testSubscriptionCreationOnMiddlewareService() {
+export async function testSubscriptionCreationOnMiddlewareService() {
   const messages = []
   await terminateAfter(
     await registryServer(),
@@ -428,7 +428,7 @@ async function testSubscriptionCreationOnMiddlewareService() {
 /**
  * Test subscription creation on regular service with middleware
  */
-async function testSubscriptionCreationBeforeMiddlewareOverride() {
+export async function testSubscriptionCreationBeforeMiddlewareOverride() {
   const messages = []
   await terminateAfter(
     await registryServer(),
@@ -468,20 +468,4 @@ async function testSubscriptionCreationBeforeMiddlewareOverride() {
       )
     }
   )
-}
-
-export default {
-  testBasicSubscription,
-  testMultipleSubscriptionsToSameChannel,
-  testMultipleChannelSubscriptions,
-  testSubscriptionTermination,
-  testInvalidHandler,
-  testSubscriptionHandlerError,
-  testComplexMessagePayloads,
-  testSubscriptionPublishResults,
-  testConcurrentMessages,
-  testSubscriptionStartsClean,
-  testSubscriptionCreationOnRegularService,
-  testSubscriptionCreationOnMiddlewareService,
-  testSubscriptionCreationBeforeMiddlewareOverride
 }

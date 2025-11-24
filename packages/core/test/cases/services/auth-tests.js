@@ -27,7 +27,7 @@ const TEST_ADMIN_SECRET = process.env.ADMIN_SECRET
 /**
  * Test that auth service basic functionality works
  */
-async function testAuthServiceWorks() {
+export async function testAuthServiceWorks() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -57,7 +57,7 @@ async function testAuthServiceWorks() {
 /**
  * Test that auth service basic functionality works
  */
-async function testAuthServiceBadCredentials() {
+export async function testAuthServiceBadCredentials() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -79,7 +79,7 @@ async function testAuthServiceBadCredentials() {
 /**
  * Test that protected service requires auth token
  */
-async function testProtectedServiceWithAuth() {
+export async function testProtectedServiceWithAuth() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -125,7 +125,7 @@ async function testProtectedServiceWithAuth() {
 /**
  * Test that unprotected services still work normally
  */
-async function testUnprotectedServiceStillWorks() {
+export async function testUnprotectedServiceStillWorks() {
   await terminateAfter(
     await registryServer(),
     await createService('normal-service', async function(payload) {
@@ -146,7 +146,7 @@ async function testUnprotectedServiceStillWorks() {
 /**
  * Test service registration with auth
  */
-async function testServiceRegistrationWithAuth() {
+export async function testServiceRegistrationWithAuth() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -162,7 +162,7 @@ async function testServiceRegistrationWithAuth() {
 /**
  * Test protected service call with valid token
  */
-async function testProtectedServiceCallWithValidToken() {
+export async function testProtectedServiceCallWithValidToken() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -195,7 +195,7 @@ async function testProtectedServiceCallWithValidToken() {
 /**
  * Test protected service call without token
  */
-async function testProtectedServiceCallWithoutToken() {
+export async function testProtectedServiceCallWithoutToken() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -218,7 +218,7 @@ async function testProtectedServiceCallWithoutToken() {
 /**
  * Test protected service call with invalid token
  */
-async function testProtectedServiceCallWithInvalidToken() {
+export async function testProtectedServiceCallWithInvalidToken() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -246,7 +246,7 @@ async function testProtectedServiceCallWithInvalidToken() {
 /**
  * Test protected service call with expired token
  */
-async function testProtectedServiceCallWithExpiredToken() {
+export async function testProtectedServiceCallWithExpiredToken() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -266,7 +266,7 @@ async function testProtectedServiceCallWithExpiredToken() {
 /**
  * Test auth service not found error
  */
-async function testAuthServiceNotFound() {
+export async function testAuthServiceNotFound() {
   await terminateAfter(
     await registryServer(),
     await createService('protected-service', async function(payload) {
@@ -293,7 +293,7 @@ async function testAuthServiceNotFound() {
 /**
  * Test auth login command
  */
-async function testAuthLoginCommand() {
+export async function testAuthLoginCommand() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -321,7 +321,7 @@ async function testAuthLoginCommand() {
 /**
  * Test auth refresh command
  */
-async function testAuthRefreshCommand() {
+export async function testAuthRefreshCommand() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -369,7 +369,7 @@ async function testAuthRefreshCommand() {
 /**
  * Test route with auth protection
  */
-async function testRouteWithAuth() {
+export async function testRouteWithAuth() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -418,7 +418,7 @@ async function testRouteWithAuth() {
 /**
  * Test multiple auth services
  */
-async function testMultipleAuthServices() {
+export async function testMultipleAuthServices() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -494,7 +494,7 @@ async function testMultipleAuthServices() {
 /**
  * Test auth service unregistration cleanup
  */
-async function testAuthServiceUnregistration() {
+export async function testAuthServiceUnregistration() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
@@ -512,22 +512,4 @@ async function testAuthServiceUnregistration() {
       await assert(true, r => r === true)
     }
   )
-}
-
-export default {
-  testAuthServiceWorks,
-  testAuthServiceBadCredentials,
-  testProtectedServiceWithAuth,
-  testUnprotectedServiceStillWorks,
-  testServiceRegistrationWithAuth,
-  testProtectedServiceCallWithValidToken,
-  testProtectedServiceCallWithoutToken,
-  testProtectedServiceCallWithInvalidToken,
-  testProtectedServiceCallWithExpiredToken,
-  testAuthServiceNotFound,
-  testAuthLoginCommand,
-  testAuthRefreshCommand,
-  testRouteWithAuth,
-  testMultipleAuthServices,
-  testAuthServiceUnregistration
 }
