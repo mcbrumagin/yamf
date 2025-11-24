@@ -1,16 +1,25 @@
 #!/usr/bin/env node
 
 const cliArgs = require('./src/utils/cli-parser.cjs')
-const { callService, publishMessage } = require('./src/index.js')
+const { callService, publishMessage, Logger } = require('./src/index.js')
 const httpRequest = require('./src/index.js').httpRequest
 
-// console.log({cliArgs})
+const logger = new Logger({ logGroup: 'yamf-cli', includeLogLineNumbers: false })
+
+// logger.debug({cliArgs})
+
+/* TODO simple process management
+
+- create process
+- list processes
+- kill process
+*/
 
 async function main() {
   let [ command, target, payload ] = cliArgs.args
 
   if (command === 'call') {
-    console.log({service: target, payload})
+    logger.debug({service: target, payload})
 
     try {
       payload = JSON.parse(payload)
@@ -22,12 +31,12 @@ async function main() {
       } catch (err) { /* ignore */ }
     }
 
-    console.log({payload})
+    logger.debug({payload})
     if (!target || !payload) throw new Error('Please provide "service" and "payload" arguments')
-    console.log('result:', await callService(target, payload))
+    logger.info('result:', await callService(target, payload))
   }
   else if (command === 'publish' || command === 'pub') {
-    console.log({channel: target, message: payload})
+    logger.debug({channel: target, message: payload})
 
     try {
       payload = JSON.parse(payload)
@@ -38,14 +47,14 @@ async function main() {
       } catch (err) { /* ignore */ }
     }
 
-    console.log({message: payload})
+    logger.debug({message: payload})
     if (!target || !payload) throw new Error('Please provide "channel" and "message" arguments')
     const result = await publishMessage(target, payload)
-    console.log('published to', result.results?.length || 0, 'subscriber(s)')
-    console.log('result:', result)
+    logger.info('published to', result.results?.length || 0, 'subscriber(s)')
+    logger.info('result:', result)
   }
   else if (command === 'registry') {
-    // console.log({command, target, payload})
+    // logger.debug({command, target, payload})
     try {
       payload = JSON.parse(payload)
     } catch (err) {
@@ -56,7 +65,7 @@ async function main() {
     }
 
     let url = `${process.env.MICRO_REGISTRY_URL}${target}`
-    console.log({url, payload})
+    logger.debug({url, payload})
     // const response = await fetch(url, {
     //   method: 'POST',
     //   body: JSON.stringify(payload)
@@ -65,10 +74,10 @@ async function main() {
     let result = await httpRequest(url, {
       payload
     })
-    console.log(`registry response [${result?.status}]: ${JSON.stringify(result)}`)
+    logger.info(`registry response [${result?.status}]: ${JSON.stringify(result)}`)
 
   }
   else throw new Error('Invalid command. Use "call" or "publish"')
 }
 
-main().catch(err => console.error(err))
+main().catch(err => logger.error(err))

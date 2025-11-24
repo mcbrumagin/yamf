@@ -36,6 +36,21 @@ function filterForSoloOrMutedTests(testFns) {
   }
 }
 
+// TODO
+class TestRunner {
+  constructor(testFns) {
+    this.testFns = testFns
+  }
+
+  addSuite(suiteName, testFns) {
+    this.suites[suiteName] = testFns
+  }
+
+  run() {
+    // TODO
+  }
+}
+
 export async function runTests(testFns) {
 
   process.on('unhandledRejection', (reason, promise) => {
