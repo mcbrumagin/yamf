@@ -677,11 +677,13 @@ export async function testMixedResponseHandling() {
 // need to consider rolling-updates and other use cases
 // could have registration locking/unlocking to temporarily allow unique dupes
 // could also just warn and leave this up to the user to manage for now
+testErrorCreatingMultipleDifferentServicesSameName.solo = true
 export async function testErrorCreatingMultipleDifferentServicesSameName() {
   await terminateAfter(
     await registryServer(),
     await createService('serviceDupe', () => ({ instance: 1 })),
     async () => {
+      throw new Error('TODO unimplemented')
       await assertErr(
         () => createService('serviceDupe', () => ({ instance: 2 })),
         err => err.message.includes('Duplicate service with different definition found: "serviceDupe"')

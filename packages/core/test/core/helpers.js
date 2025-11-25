@@ -8,6 +8,12 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
   args.unshift(args.pop()) // rearrange for spread
   let [testFn, ...serverFns] = args
   if (typeof testFn !== 'function') throw new Error('terminateAfter last argument must be a function')
+
+  // TODO remove
+  // if (typeof testFn !== 'function') {
+  //   let value = testFn
+  //   testFn = () => value
+  // }
   
   let servers
   try {
@@ -35,28 +41,4 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
       logger.info(`terminated registry server at port ${registryServer?.port}`)
     } else for (let server of servers) await server?.terminate()
   }
-}
-
-export function mergeAllTestsSafely(...testFnObjects) {
-  let finalTestFns = {}
-  let duplicateNames = []
-  for (let testFns of testFnObjects) {
-    if (typeof testFns === 'function') {
-      if (finalTestFns[testFns.name]) duplicateNames.push(testFns.name)
-      finalTestFns[testFns.name] = testFns
-    } else if (Array.isArray(testFns)) {
-      for (let fn of testFns) {
-        if (finalTestFns[fn.name]) duplicateNames.push(fn.name)
-        finalTestFns[fn.name] = fn
-      }
-    } else {
-      let testNames = Object.keys(testFns)
-      for (let name of testNames) {
-        if (finalTestFns[name]) duplicateNames.push(name)
-        finalTestFns[name] = testFns[name]
-      }
-    }
-  }
-  if (duplicateNames.length > 0) throw new Error(`Duplicate test names: [${duplicateNames.join(', ')}]`)
-  return finalTestFns
 }

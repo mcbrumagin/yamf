@@ -13,9 +13,8 @@ import {
   sleep,
   terminateAfter,
   mergeAllTestsSafely,
-  // runTests
+  runTests
 } from './core/index.js'
-import { runTests } from './core/new-runner.js'
 
 import { HEADERS, COMMANDS } from '../src/shared/yamf-headers.js'
 

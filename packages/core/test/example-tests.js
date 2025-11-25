@@ -1,6 +1,8 @@
 import {
   assert, // expects a test function and then any number of assertion functions
+  assertOn, // expects a test function and then any number of assertion functions
   assertErr, // expects a test function that is expected to throw, and any number of error assertions
+  assertErrOn, // expects a test function that is expected to throw, and any number of error assertions
   MultiAssertError, // custom multiple-error object/stack for assert fns
   sleep, // in ms
   terminateAfter, // expects a registry, any number of services/routes, and a meta-test function (usually assert)
@@ -32,25 +34,32 @@ function basicAssertTest() {
 // using anonymous single-expression functions, still gets the name
 const basicAnonymousAssertTest = () => assert(2, r => r === 2)
 
-// you can also just use async/await for consistency
+// use assertOn for async tests
 async function basicAsyncAssertTest() {
-  await assert(3, r => r === 3)
+  await assertOn(async () => 3, r => r === 3)
 }
 
-async function basicAssertErrTest() {
-  await assertErr(new Error('test'), e => e.message === 'test')
+function basicAssertErrTest() {
+  assertErr(new Error('test'), e => e.message === 'test')
 }
 
-async function basicFailingAssertTest() {
-  await assert(1, r => r === 2) // prints your anonymous assert function in full
+function basicFailingAssertTest() {
+  assert(1, r => r === 2) // prints your anonymous assert function in full
 }
 
-async function basicFailingMultiAssertTest() {
-  await assert(1, r => r === 2, r => r === 3) // prints both failures!
+function basicFailingMultiAssertTest() {
+  assert(1, r => r === 2, r => r === 3) // prints both failures!
 }
 
-async function basicFailingMultiAssertErrTest() {
-  await assertErr(new Error('test'),
+function basicFailingMultiAssertErrTest() {
+  assertErr(new Error('test'),
+    e => e.message === 'test', // doesn't print this
+    e => e.message === 'test2' // not true, so prints
+  )
+}
+
+async function basicFailingMultiAssertErrOnTest() {
+  await assertErrOn(async () => new Error('test'),
     e => e.message === 'test', // doesn't print this
     e => e.message === 'test2' // not true, so prints
   )
@@ -73,7 +82,7 @@ async function customServiceTest() {
     // always do your registry first
     await registryServer(), // helper terminates this in a finally block after the assertions
     await createService(customService), // also this
-    () => assert(
+    () => assertOn(
 
       // act
       async () => await callService('customService', { isUseful: true }),
@@ -93,7 +102,7 @@ async function customServiceNegativeTest() {
     await createService(customService),
 
     // terminateAfter passes the servers as arguments to the test function
-    ([registry, service]) => assertErr(
+    ([registry, service]) => assertErrOn(
 
       // act
       async () => await callService('customService', { isUseful: false }),
@@ -164,6 +173,7 @@ const testCases = [
   basicFailingAssertTest,
   basicFailingMultiAssertTest,
   basicFailingMultiAssertErrTest,
+  basicFailingMultiAssertErrOnTest,
   
   // use spreads if you have multiple test suites imported
   ...customServiceTests,
@@ -181,6 +191,5 @@ const testCases = [
 runTests(testCases)
 .then(() => process.exit(0))
 .catch(err => {
-  console.error(err.stack)
-  process.exit(1)
+  process.exit(err.code || 1)
 })
