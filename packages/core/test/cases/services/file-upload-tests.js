@@ -318,7 +318,7 @@ export async function testFileUploadValidationFailure() {
         fileFieldName: 'file',
         validateFile: validators.extension(['.pdf', '.doc'])
       }),
-      async (registry, uploadService) => {
+      async () => {
         // Invalid upload - wrong extension
         const invalidFilePath = path.join(uploadDir, 'invalid.txt')
         await fsPromises.writeFile(invalidFilePath, 'Invalid content')
@@ -332,8 +332,6 @@ export async function testFileUploadValidationFailure() {
           r => r.success === false,
           r => r.error.includes('Invalid file extension')
         )
-        
-        return invalidResult
       }
     )
   } finally {
@@ -416,7 +414,7 @@ export async function testFileUploadListFiles() {
         uploadDir,
         fileFieldName: 'file'
       }),
-      async ([registry, uploadService]) => {
+      async (registry, uploadService) => {
         // Upload multiple files
         for (let i = 1; i <= 3; i++) {
           const testFilePath = path.join(uploadDir, `input-${i}.txt`)
@@ -465,7 +463,7 @@ export async function testFileUploadCustomSuccessHandler() {
           }))
         }
       }),
-      async ([registry, uploadService]) => {
+      async () => {
         const testFilePath = path.join(uploadDir, 'test.txt')
         await fsPromises.writeFile(testFilePath, 'Test content')
         
@@ -512,7 +510,7 @@ export async function testFileUploadCustomErrorHandler() {
           }))
         }
       }),
-      async (registry, uploadService) => {
+      async () => {
         const testFilePath = path.join(uploadDir, 'test.txt')
         await fsPromises.writeFile(testFilePath, 'Test content')
         
@@ -546,18 +544,18 @@ export async function testLargeFileUpload() {
         uploadDir,
         fileFieldName: 'file'
       }),
-      async (registry, uploadService) => {
+      async () => {
         const testFilePath = path.join(process.cwd(), 'test/data/test-track.wav')
         const form = new FormData()
         form.append('file', fs.createReadStream(testFilePath), 'test-track.wav')
         const result = await createMultipartRequest(form)
         await assert(result,
           r => r.success === true,
+          r => r.file != null,
           r => r.file.originalName === 'test-track.wav',
           r => r.file.savedName === 'test-track.wav',
           r => r.file.size === 9098142
         )
-        return result
       }
     )
   } finally {

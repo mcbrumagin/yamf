@@ -2,6 +2,9 @@ import httpRequest from '../http-primitives/http-request.js'
 import { buildPublishHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import HttpError from '../http-primitives/http-error.js'
+import Logger from '../utils/logger.js'
+
+const logger = new Logger({ logGroup: 'yamf-api' })
 
 /**
  * Publish a message to a pubsub channel via the registry
@@ -31,7 +34,7 @@ export async function publishMessageWithCache(cache, channel, message) { // TODO
 
   const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
 
-  console.info('cache.subscriptions', cache.subscriptions)
+  logger.debug('cache.subscriptions', cache.subscriptions)
 
   if (!cache.subscriptions[channel]) throw new HttpError(404, `No subscription by name "${channel}" in cache`)
   let locations = cache.subscriptions[channel].map(s => s)

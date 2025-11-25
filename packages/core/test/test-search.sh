@@ -22,9 +22,14 @@ export NODE_V8_COVERAGE=../coverage/tmp
 
 export MUTE_SUCCESS_CASES=true
 
+if [ -z "$1" ]; then
+  echo "Usage: $0 <file-path>"
+  exit 1
+fi
+
 if npm list -g --depth=0 "c8" > /dev/null 2>&1; then
-  c8 node test/run-all-cases.js
+  c8 node test/test-search.js "$@"
 else
-  node test/run-all-cases.js
+  node test/test-search.js "$@"
   echo "c8 is not installed globally"
 fi

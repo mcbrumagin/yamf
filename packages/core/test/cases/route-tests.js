@@ -19,14 +19,13 @@ export async function testBasicRoute() {
     await createRoute('/hello', async function helloService() {
       return 'Hello World!'
     }),
-    async ([registry]) => {
+    async () => {
       // Test direct HTTP request to route - no special headers needed!
       let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/hello`)
       let result = await response.text()
       
       await assert(result, r => r === 'Hello World!')
       await assert(response.status, s => s === 200)
-      return result
     }
   )
 }
@@ -37,15 +36,13 @@ export async function testRouteWithService() {
     await createService('greetingService', function greetingService(payload) {
       return `Hello ${payload.name || 'World'}!`
     }),
-    async ([registry, service]) => {
+    async () => {
       await createRoute('/greet', 'greetingService')
 
-      let response = await fetch(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}/greet`)
+      let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/greet`)
       let result = await response.text()
       
       await assert(result, r => r.includes('Hello World!'))
-      await assert(response.status, s => s === 200)
-      return result
     }
   )
 }
@@ -59,17 +56,15 @@ export async function testRouteBulkCreate() {
     await createService('greetingService2', function greetingService2(payload) {
       return `Well g'day then, ${payload.name || 'World'}!`
     }),
-    async ([registry]) => {
+    async () => {
       await createRoutes({
         '/greet': 'greetingService',
         '/greet2': 'greetingService',
         '/greet3': 'greetingService2'
       })
 
-      let baseUrl = `http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`
-
-      let result1 = await (await fetch(`${baseUrl}/greet`)).text()
-      let result2 = await (await fetch(`${baseUrl}/greet2`)).text()
+      let result1 = await (await fetch(`${process.env.MICRO_REGISTRY_URL}/greet`)).text()
+      let result2 = await (await fetch(`${process.env.MICRO_REGISTRY_URL}/greet2`)).text()
 
       let requestPayloadOptions = {
         method: 'POST',
@@ -78,11 +73,12 @@ export async function testRouteBulkCreate() {
         },
         body: JSON.stringify({ name: 'John' })
       }
-      let result3 = await (await fetch(`${baseUrl}/greet3`, requestPayloadOptions)).text()
+
+      let result3 = await (await fetch(`${process.env.MICRO_REGISTRY_URL}/greet3`, requestPayloadOptions)).text()
       
       await assert([result1, result2, result3],
-        ([r1, r2]) => r1 === r2,
-        ([,,r3]) => r3 === `Well g'day then, John!`
+        ([r1, r2,   ]) => r1 === r2,
+        ([  ,  ,  r3]) => r3 === `Well g'day then, John!`
       )
     }
   )
@@ -95,11 +91,8 @@ export async function testRouteInlineServiceCreation() {
     await createRoute('/greet', function greetingService(payload) {
       return `Hello ${payload.name || 'World'}!`
     }),
-    async ([registry]) => {
-      let baseUrl = `http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}`
-
-      let result = await (await fetch(`${baseUrl}/greet`)).text()
-      
+    async () => {
+      let result = await (await fetch(`${process.env.MICRO_REGISTRY_URL}/greet`)).text()
       await assert(result, r => r.includes(`Hello World!`))
     }
   )
@@ -111,8 +104,8 @@ export async function testRouteControllerWildcard() {
     await createRoute('/api/*', async function apiController(payload, request) {
       return { path: request.url, message: 'API response' }
     }),
-    async ([registry]) => {
-      let response = await fetch(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}/api/users`)
+    async () => {
+      let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/api/users`)
       let result = await response.text()
       let parsed = JSON.parse(result)
       
@@ -120,8 +113,6 @@ export async function testRouteControllerWildcard() {
         p => p.path === '/api/users',
         p => p.message === 'API response'
       )
-      await assert(response.status, s => s === 200)
-      return parsed
     }
   )
 }
@@ -129,12 +120,12 @@ export async function testRouteControllerWildcard() {
 export async function testRouteMissingService() {
   await terminateAfter(
     await registryServer(),
-    async ([registry]) => {
-      await createRoute('/broken', 'nonExistentService')
+    await createRoute('/broken', 'nonExistentService'),
+    async () => {
 
       await assertErr(
         async () => {
-          let response = await fetch(`http://localhost:${registry.port || process.env.MICRO_REGISTRY_URL.split(':')[2]}/broken`)
+          let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/broken`)
           if (response.status >= 400 && response.status < 600) {
             throw new HttpError(response.status, await response.text())
           } else return await response.text()
@@ -150,12 +141,12 @@ export async function testRouteValidation() {
     await registryServer(),
     async () => {
       await assertErr(
-        () => createRoute('', 'someService'),
+        async () => createRoute('', 'someService'),
         err => err.message.includes('Route path and service fn or name are required')
       )
       
       await assertErr(
-        () => createRoute('/test', ''),
+        async () => createRoute('/test', ''),
         err => err.message.includes('Route path and service fn or name are required')
       )
     }

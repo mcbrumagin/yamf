@@ -103,7 +103,7 @@ export default async function callRoute(path, {
   const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   const fullUrl = `${registryHost}${pathWithParams}`
   
-  logger.debug('callRoute - method:', method, 'path:', pathWithParams)
+  logger.debug(`callRoute - method: "${method}" at path: "${pathWithParams}"`)
   
   // Build request headers
   const requestHeaders = {

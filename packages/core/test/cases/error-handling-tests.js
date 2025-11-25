@@ -12,13 +12,10 @@ const logger = new Logger()
  */
 export async function testServiceWithEmptyName() {
   await terminateAfter(
-    await registryServer(),
-    async () => {
-      await assertErr(
-        () => createService('', () => 'test'),
-        err => err.message.toLowerCase().includes('service name')
-      )
-    }
+    registryServer(),
+    async () => assertErr(async () => createService('', () => 'test'),
+      err => err.message.toLowerCase().includes('service name')
+    )
   )
 }
 
@@ -27,14 +24,11 @@ export async function testServiceWithEmptyName() {
  */
 export async function testServiceWithSpacesInName() {
   await terminateAfter(
-    await registryServer(),
-    async () => {
-      await assertErr(
-        () => createService('invalid service name', () => 'test'),
-        err => err.message.toLowerCase().includes('service name') ||
-               err.message.includes('invalid')
-      )
-    }
+    registryServer(),
+    async () => assertErr(async () => createService('invalid service name', () => 'test'),
+      err => err.message.toLowerCase().includes('service name')
+          || err.message.includes('invalid')
+    )
   )
 }
 
@@ -44,13 +38,10 @@ export async function testServiceWithSpacesInName() {
 export async function testServiceNameValidationSpecialChars() {
   await terminateAfter(
     await registryServer(),
-    async () => {
-      await assertErr(
-        () => createService('service@#$%', () => 'test'),
-        err => err.message.toLowerCase().includes('service name') ||
-               err.message.includes('invalid')
-      )
-    }
+    async () => assertErr(async () => createService('service@#$%', () => 'test'),
+      err => err.message.toLowerCase().includes('service name')
+          || err.message.includes('invalid')
+    )
   )
 }
 
@@ -60,13 +51,10 @@ export async function testServiceNameValidationSpecialChars() {
 export async function testCallNonExistentService() {
   await terminateAfter(
     await registryServer(),
-    async () => {
-      await assertErr(
-        () => callService('doesNotExist', { data: 'test' }),
-        err => err.message.includes('No service by name'),
-        err => err.message.includes('doesNotExist')
-      )
-    }
+    async () => assertErr(async () => callService('doesNotExist', { data: 'test' }),
+      err => err.message.includes('No service by name'),
+      err => err.message.includes('doesNotExist')
+    )
   )
 }
 
@@ -87,8 +75,8 @@ export async function testService404Error() {
       const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/404-test`)
       const text = await response.text()
       
-      await assert(response.status, s => s === 404)
-      await assert(text, t => t.includes('Resource not found'))
+      assert(response.status, s => s === 404)
+      assert(text, t => t.includes('Resource not found'))
     }
   )
 }
@@ -254,20 +242,17 @@ export async function testMultipleContentTypes() {
  */
 export async function testErrorPropagationThroughChain() {
   await terminateAfter(
-    await registryServer(),
-    await createService('errorService', () => {
+    registryServer(),
+    createService('errorService', () => {
       throw new HttpError(418, "I'm a teapot")
     }),
-    await createService('callerService', async function(payload) {
+    createService('callerService', async function(payload) {
       return await this.call('errorService', payload)
     }),
-    async () => {
-      await assertErr(
-        () => callService('callerService', {}),
-        err => err.status === 418,
-        err => err.message.includes('teapot')
-      )
-    }
+    async () => assertErr(async () => callService('callerService', {}),
+      err => err.status === 418,
+      err => err.message.includes('teapot')
+    )
   )
 }
 
@@ -275,29 +260,30 @@ export async function testErrorPropagationThroughChain() {
  * Test timeout error (stub - timeout not yet configurable)
  */
 // TODO implement timeout configuration and enable/update this test
-// async function testRequestTimeout() {
-//   await terminateAfter(
-//     await registryServer(),
-//     await createService('slowService', async () => {
-//       await new Promise(resolve => setTimeout(resolve, 35000)) // Exceeds default 30s timeout
-//       return 'done'
-//     }),
-//     async () => {
-//       // This should timeout with default 30s timeout
-//       // TODO: Add configurable timeout via micro-timeout header
-//       try {
-//         await callService('slowService', {})
-//         // If it doesn't timeout, that's ok for now (stub test)
-//         logger.debug('Timeout not enforced (feature not yet implemented)')
-//       } catch (err) {
-//         // If it times out, verify it's a timeout error
-//         if (err.message.includes('timeout') || err.message.includes('408')) {
-//           logger.debug('Timeout working as expected')
-//         }
-//       }
-//     }
-//   )
-// }
+export async function testRequestTimeout() {
+  await terminateAfter(
+    registryServer(),
+    createService('slowService', async () => {
+      await new Promise(resolve => setTimeout(resolve, 35000)) // Exceeds default 30s timeout
+      return 'done'
+    }),
+    async () => {
+      // This should timeout with default 30s timeout
+      // TODO: Add configurable timeout via micro-timeout header
+      throw new Error('TODO implement timeout configuration and enable/update this test')
+      try {
+        await callService('slowService', {})
+        // If it doesn't timeout, that's ok for now (stub test)
+        logger.debug('Timeout not enforced (feature not yet implemented)')
+      } catch (err) {
+        // If it times out, verify it's a timeout error
+        if (err.message.includes('timeout') || err.message.includes('408')) {
+          logger.debug('Timeout working as expected')
+        }
+      }
+    }
+  )
+}
 
 /**
  * Test that registry doesn't crash when calling non-existent service
@@ -345,15 +331,11 @@ export async function testRegistryStaysHealthyAfterServiceCallError() {
 export async function testServiceCallWithUrlLikeName() {
   await terminateAfter(
     await registryServer(),
-    async () => {
-      // Service name with leading slash (mimics the user's bug report)
-      await assertErr(
-        () => callService('/health', {}),
-        err => err.message.includes('No service by name'),
-        err => err.message.includes('/health')
-      )
-      
-      logger.info('✓ URL-like service names handled properly')
-    }
+
+    // service name with leading slash (mimics the user's bug report)
+    async () => assertErr(async () => callService('/health', {}),
+      err => err.message.includes('No service by name'),
+      err => err.message.includes('/health')
+    )
   )
 }

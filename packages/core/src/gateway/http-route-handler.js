@@ -138,7 +138,7 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   if (redirectResult === false) {
     return false
   }
-
+  
   logger.debug('no route matched')
   if (process.env.ENVIRONMENT?.toLowerCase().includes('dev')) {
     logger.debug('returning routes for debugging', { routes: Object.fromEntries(state.routes) })

@@ -93,7 +93,6 @@ async function processResponse(response) {
 
   if (status >= 400 && status < 600) {
     const errorText = await response.text()
-    logger.debug('processResponse - error status:', status)
     throw new HttpError(status, errorText)
   }
 
@@ -115,6 +114,13 @@ async function processResponse(response) {
     }
   }
   
+  // if an error object is returned (instead of thrown), throw it here
+  if (result && result.status && result.status >= 400 && result.status < 600) {
+    let err = new HttpError(result.status, result.message)
+    err.details = result
+    throw err
+  }
+
   // Otherwise return as text (string)
   return result
 }

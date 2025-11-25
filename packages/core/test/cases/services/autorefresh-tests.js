@@ -28,7 +28,7 @@ export async function testManualFileAddition() {
       fileMap: { '/*': 'data' },
       autoRefresh: false
     }),
-    async ([registry, staticService]) => {
+    async (registry, staticService) => {
       // Check initial state
       const initialStats = staticService.getIndexStats()
       const initialCount = initialStats.totalFiles
@@ -92,7 +92,7 @@ export async function testPubSubMode() {
         }
       }
     }),
-    async ([registry, staticService]) => {
+    async (registry, staticService) => {
       // Call the service to set up subscriptions
       // await staticService.context.call('static-file-service')
       // TODO support for service paths?
@@ -149,7 +149,7 @@ export async function testFileDeletionEvent() {
         }
       }
     }),
-    async ([registry, staticService]) => {
+    async (registry, staticService) => {
       // Call the service to set up subscriptions
       // await staticService.context.call('static-file-service')
       // await sleep(100)
@@ -200,7 +200,7 @@ export async function testFullIndexRefresh() {
       fileMap: { '/*': 'data' },
       autoRefresh: false
     }),
-    async ([registry, staticService]) => {
+    async (registry, staticService) => {
       // Add a file manually (simulating a file that wasn't in initial scan)
       const testFilePath = path.join(testDir, 'data/new-file.html')
       
@@ -247,7 +247,7 @@ export async function testPauseResumeAutoRefresh() {
         intervalMs: 5000
       }
     }),
-    async ([registry, staticService]) => {
+    async (registry, staticService) => {
       let stats = staticService.getIndexStats()
       await assert(stats,
         s => s.isPaused === false,
@@ -290,7 +290,7 @@ export async function testIntegratedUploadAndStatic() {
         onFileAdded: () => fileAddedCount++
       }
     }),
-    async ([registry, uploadService, staticService]) => {
+    async (registry, uploadService, staticService) => {
       const testFilePath = path.join(testDir, 'data/uploaded.txt')
       
       await uploadService.uploadFile(testFilePath, 'test-upload-1234')

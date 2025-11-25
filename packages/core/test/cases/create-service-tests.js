@@ -22,7 +22,7 @@ export async function testCreateService() {
       payload.prop3 = 'test'
       return payload
     }),
-    async ([registry, server]) => {
+    async () => {
       let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
         body: { prop1: 'test', prop2: 'test' },
         headers: {
@@ -45,7 +45,7 @@ export async function testCreateService() {
 export async function testCallService() {
   await terminateAfter(
     await registryServer(),
-    await createService('test', function testService(payload) {
+    await createService('test', function testService() {
       return 'TEST SERVICE RESULT'
     }),
     async () => {
@@ -68,13 +68,12 @@ export async function testBasicDependentService() {
     }),
     async () => {
       let result = await callService('test', { prop1: 'wow', prop2: 'it works' })
-      await assert(result,
+      assert(result,
         r => r.prop1 === 'wow',
         r => r.prop2 === 'it works',
         r => r.test === 'called test',
         r => r.test2 === 'called test2'
       )
-      return result
     }
   )
 }
@@ -84,7 +83,7 @@ export async function testMissingService() {
     await registryServer(),
     async () => {
       await assertErr(
-        () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
+        async () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
         err => err.message.includes('No service by name "test"')
       )
     }
@@ -100,7 +99,7 @@ export async function testMissingDependentService() {
     }),
     async () => {
       await assertErr(
-        () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
+        async () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
         err => err.message.includes('No service by name "test2" in cache')
       )
     }
@@ -120,17 +119,15 @@ export async function testDependentServicesWithContextCall() {
     createService(async function test4() {
       return await this.call('test3', 'test4 payload') + ' test4 result'
     }),
-    async () => {
-      let result = await callService('test4')
-      await assert(result, r => r.includes('|TEST|'))
-      await assert(result, r => r.includes('test2 payload'))
-      await assert(result, r => r.includes('test2 result'))
-      await assert(result, r => r.includes('test3 payload'))
-      await assert(result, r => r.includes('test3 result'))
-      await assert(result, r => r.includes('test4 payload'))
-      await assert(result, r => r.includes('test4 result'))
-      return result
-    }
+    async () => assert(await callService('test4'),
+      r => r.includes('|TEST|'),
+      r => r.includes('test2 payload'),
+      r => r.includes('test2 result'),
+      r => r.includes('test3 payload'),
+      r => r.includes('test3 result'),
+      r => r.includes('test4 payload'),
+      r => r.includes('test4 result')
+    )
   )
 }
 
@@ -140,7 +137,7 @@ export async function testDependentServicesWithInlineFnCalls() {
     return `|TEST| ${payload}`
   }
   async function test2(payload) {
-    return await test(`test2 payload: ${payload}`) + ' test2 result'
+    return test(`test2 payload: ${payload}`) + ' test2 result'
   }
   async function test3(payload) {
     return await test2(`test3 payload: ${payload}`) + ' test3 result'
@@ -157,14 +154,15 @@ export async function testDependentServicesWithInlineFnCalls() {
     createService(test4),
     async () => {
       let result = await callService('test4')
-      await assert(result, r => r.includes('|TEST|'))
-      await assert(result, r => r.includes('test2 payload'))
-      await assert(result, r => r.includes('test2 result'))
-      await assert(result, r => r.includes('test3 payload'))
-      await assert(result, r => r.includes('test3 result'))
-      await assert(result, r => r.includes('test4 payload'))
-      await assert(result, r => r.includes('test4 result'))
-      return result
+      assert(result,
+        r => r.includes('|TEST|'),
+        r => r.includes('test2 payload'),
+        r => r.includes('test2 result'),
+        r => r.includes('test3 payload'),
+        r => r.includes('test3 result'),
+        r => r.includes('test4 payload'),
+        r => r.includes('test4 result')
+      )
     }
   )
 }
@@ -188,14 +186,15 @@ export async function testDependentServicesWithBulkCreate() {
     createServices(test, test2, test3, test4),
     async () => {
       let result = await callService('test4')
-      await assert(result, r => r.includes('|TEST|'))
-      await assert(result, r => r.includes('test2 payload'))
-      await assert(result, r => r.includes('test2 result'))
-      await assert(result, r => r.includes('test3 payload'))
-      await assert(result, r => r.includes('test3 result'))
-      await assert(result, r => r.includes('test4 payload'))
-      await assert(result, r => r.includes('test4 result'))
-      return result
+      assert(result,
+        r => r.includes('|TEST|'),
+        r => r.includes('test2 payload'),
+        r => r.includes('test2 result'),
+        r => r.includes('test3 payload'),
+        r => r.includes('test3 result'),
+        r => r.includes('test4 payload'),
+        r => r.includes('test4 result')
+      )
     }
   )
 }
@@ -218,7 +217,7 @@ export async function testDependentServicesContextCallWithBulkCreate() {
     createServices(test, test2, test3, test4),
     async () => {
       let result = await callService('test4')
-      await assert(result,
+      assert(result,
         r => r.includes('|TEST|'),
         r => r.includes('test2 payload'),
         r => r.includes('test2 result'),
@@ -227,7 +226,6 @@ export async function testDependentServicesContextCallWithBulkCreate() {
         r => r.includes('test4 payload'),
         r => r.includes('test4 result')
       )
-      return result
     }
   )
 }
@@ -254,7 +252,7 @@ export async function testDependentServicesContextCall() {
     await createService(test),
     async () => {
       let result = await callService('test4')
-      await assert(result,
+      assert(result,
         r => r.includes('|TEST|'),
         r => r.includes('test2 payload'),
         r => r.includes('test2 result'),
@@ -263,7 +261,6 @@ export async function testDependentServicesContextCall() {
         r => r.includes('test4 payload'),
         r => r.includes('test4 result')
       )
-      return result
     }
   )
 }
@@ -285,10 +282,11 @@ export async function testDependentServiceWithEagerLookup() {
     }),
     async () => {
       let result = await callService('test4')
-      await assert(result, r => r.includes('TEST SERVICE RESULT...'))
-      await assert(result, r => r.includes('HELL YEAH BABY'))
-      await assert(result, r => r.includes('DUDE!'))
-      return result
+      assert(result,
+        r => r.includes('TEST SERVICE RESULT...'),
+        r => r.includes('HELL YEAH BABY'),
+        r => r.includes('DUDE!')
+      )
     }
   )
 }
@@ -299,7 +297,7 @@ export async function testServiceLookup() {
     await registryServer(),
     await createService('lookup1', function test1() { return 'test1' }),
     await createService('lookup2', function test2() { return 'test2' }),
-    async ([registry]) => {
+    async () => {
       // Test lookup single service
       let service1Location = await httpRequest(process.env.MICRO_REGISTRY_URL, {
         headers: {
@@ -318,12 +316,10 @@ export async function testServiceLookup() {
         }
       })
       
-      await assert(allServices,
+      assert(allServices,
         s => Array.isArray(s.lookup1) && s.lookup1.length > 0,
         s => Array.isArray(s.lookup2) && s.lookup2.length > 0
       )
-      
-      return { single: service1Location, all: allServices }
     }
   )
 }
@@ -331,15 +327,15 @@ export async function testServiceLookup() {
 export async function testDependentServiceThrowsError() {
   await terminateAfter(
     await registryServer(),
-    await createService('test', async function testService(payload) {
-      return await this.call('test2', payload)
+    await createService(async function test() {
+      return await this.call('test2')
     }),
-    await createService('test2', async function testService2(payload) {
+    await createService(async function test2() {
       throw new Error('Test error from inside test2 service')
     }),
     async () => {
       await assertErr(
-        () => callService('test', { prop1: 'wow', prop2: 'it fails' }),
+        async () => callService('test'),
         err => err.message.includes('Test error from inside test2 service'),
         err => err.stack.includes('in service "test"'),
         err => err.stack.includes('test2'),
@@ -359,7 +355,7 @@ export async function testServiceRegistrationFailure() {
   try {
     logger.muteWarn()
     await assertErr(
-      () => createService('testService', () => 'test'),
+      async () => createService('testService', () => 'test'),
       err => err.message.includes('fetch failed')
         || err.message.includes('ECONNREFUSED')
     )
@@ -372,7 +368,7 @@ export async function testServiceRegistrationFailure() {
 export async function testCallServiceWithInvalidPayload() {
   await terminateAfter(
     await registryServer(),
-    await createService('payloadTest', function payloadTestService(payload) {
+    await createService(function payloadTest(payload) {
       if (!payload || !payload.required) {
         throw new HttpError(400, 'Missing required field')
       }
@@ -381,31 +377,37 @@ export async function testCallServiceWithInvalidPayload() {
     async () => {
       // Test successful call
       let result = await callService('payloadTest', { required: 'value' })
-      await assert(result.success, s => s === true)
+      assert(result.success, s => s === true)
       
       // Test missing payload
       await assertErr(
-        () => callService('payloadTest', {}),
+        async () => callService('payloadTest', {}),
         err => err.message.includes('Missing required field')
       )
     }
   )
 }
 
-export async function testServicePortConflict() {
+export async function testServiceDynamicPorts() {
   await terminateAfter(
-    await registryServer(),
-    await createService('conflict1', function test1() { return 'service1' }),
-    await createService('conflict2', function test2() { return 'service2' }),
-    async ([ registry, service1, service2 ]) => {
+    registryServer(),
+    createService(function test1() { return 'service1' }),
+    createService(function test2() { return 'service2' }),
+    async (registry, service1, service2) => {
       // Both should be created successfully on different ports
-      let result1 = await callService('conflict1')
-      let result2 = await callService('conflict2')
-      
-      await assert(result1, r => r === 'service1')
-      await assert(result2, r => r === 'service2')
-      
-      return { service1: service1.location, service2: service2.location }
+      await assert([service1.location, service2.location],
+        ([l1,   ]) => l1.includes('http://localhost:'),
+        ([  , l2]) => l2.includes('http://localhost:'),
+        ([l1, l2]) => l1 !== l2
+      )
+
+      await assert(Promise.all([
+        callService('test1'),
+        callService('test2')
+      ]),
+        ([r1,   ]) => r1 === 'service1',
+        ([  , r2]) => r2 === 'service2'
+      )
     }
   )
 }
@@ -428,7 +430,7 @@ export async function testLoadBalancing() {
       }
       
       // Should hit all three instances
-      await assert(results,
+      assert(results,
         r => r.size === 3,
         r => r.has('instance1') === true,
         r => r.has('instance2') === true,
@@ -440,56 +442,43 @@ export async function testLoadBalancing() {
   )
 }
 
-
 export async function testEmptyServiceName() {
   await terminateAfter(
-    await registryServer(),
-    async () => {
-      await assertErr(
-        () => createService('', function test() { return 'test' }),
-        // err => err.message.includes('Server handler cannot not be an anonymous function') // passes but should it?
-        err => err.message.includes('service') || err.message.includes('name')
-      )
-    }
+    registryServer(),
+    () => assertErr(async () => createService('', () => 'test'),
+      // err => err.message.includes('Server handler cannot be an anonymous function'), // passes but should it?
+      err => err.message.includes('Please provide a function'),
+      err => err.message.includes('service name and its function')
+    )
   )
 }
 
 export async function testServiceWithSpecialCharacters() {
   await terminateAfter(
-    await registryServer(),
-    await createService('test-service', function testDashService() { return 'dash' }),
-    await createService('test_service', function testUnderscoreService() { return 'underscore' }),
-    async () => {
-      // Test service names with special characters
-      let result1 = await callService('test-service')
-      let result2 = await callService('test_service')
-      
-      await assert([result1, result2],
-        results => results[0] === 'dash',
-        results => results[1] === 'underscore'
-      )
-      
-      return { dash: result1, underscore: result2 }
-    }
+    registryServer(),
+    createService('test-service', () => 'dash'),
+    createService('test_service', () => 'underscore'),
+    async () => assert([await callService('test-service'), await callService('test_service')],
+      results => results[0] === 'dash',
+      results => results[1] === 'underscore'
+    )
   )
 }
 
 export async function testLargePayload() {
   await terminateAfter(
     await registryServer(),
-    await createService('largePayload', function largePayloadService(payload) {
+    await createService('largePayload', (payload) => {
       return { received: payload.data.length, echo: payload.data.substring(0, 10) + '...' }
     }),
     async () => {
       let largeData = 'x'.repeat(10000) // 10KB string
       let result = await callService('largePayload', { data: largeData })
       
-      await assert(result,
+      assert(result,
         r => r.received === 10000,
         r => r.echo === 'xxxxxxxxxx...'
       )
-      
-      return result
     }
   )
 }
@@ -499,8 +488,8 @@ export async function testFileStreamService() {
   const path = await import('path')
   
   await terminateAfter(
-    await registryServer(),
-    await createService('fileStream', async function fileStreamService(payload, request, response) {
+    registryServer(),
+    createService('fileStream', async (payload, request, response) => {
       const { url } = payload || {}
       if (url && url.startsWith('/test-files/')) {
         const fileName = url.split('/').pop()
@@ -518,7 +507,7 @@ export async function testFileStreamService() {
         throw new HttpError(404, 'Invalid test file path')
       }
     }),
-    async ([registry]) => {
+    async () => {
       // Test streaming file via HTTP request to registry
       let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
         headers: {
@@ -528,12 +517,10 @@ export async function testFileStreamService() {
         body: { url: '/test-files/index.html' }
       })
       
-      await assert(result,
+      assert(result,
         r => typeof r === 'string',
         r => r.includes('html') || r.includes('HTML')
       )
-      
-      return result
     }
   )
 }
@@ -572,7 +559,7 @@ export async function testLargeFileStreamService() {
         throw new HttpError(404, 'Invalid audio file path')
       }
     }),
-    async ([registry]) => {
+    async () => {
       const startTime = Date.now()
       
       // Test streaming large file via HTTP request to registry (through proxy)
@@ -677,7 +664,6 @@ export async function testMixedResponseHandling() {
 // need to consider rolling-updates and other use cases
 // could have registration locking/unlocking to temporarily allow unique dupes
 // could also just warn and leave this up to the user to manage for now
-testErrorCreatingMultipleDifferentServicesSameName.solo = true
 export async function testErrorCreatingMultipleDifferentServicesSameName() {
   await terminateAfter(
     await registryServer(),
@@ -698,7 +684,7 @@ export async function testAnonymousFunctionService() {
     await createService((payload) => {
       return { message: 'from anonymous', payload }
     }),
-    async ([registry, server]) => {
+    async (registry, server) => {
       await assert(server,
         s => s.name && typeof s.name === 'string',
         s => s.name.includes('Anon$'),
@@ -723,7 +709,7 @@ export async function testAnonymousAsyncFunctionService() {
       await sleep(10)
       return { async: true, payload }
     }),
-    async ([registry, server]) => {
+    async (registry, server) => {
       await assert(server.name,
         name => name.includes('Anon$')
       )
@@ -743,7 +729,7 @@ export async function testAnonymousArrowFunctionService() {
   await terminateAfter(
     await registryServer(),
     await createService(payload => ({ arrow: true, ...payload })),
-    async ([registry, server]) => {
+    async (registry, server) => {
       await assert(server.name,
         name => name.includes('Anon$')
       )
@@ -766,7 +752,7 @@ export async function testAnonymousWithContextCall() {
     await createService(async function(payload) {
       return await this.call('helper', payload)
     }),
-    async ([registry, helper, anon]) => {
+    async (registry, helper, anon) => {
       await assert(anon.name,
         name => name.includes('Anon$')
       )
@@ -787,7 +773,7 @@ export async function testMultipleAnonymousServices() {
     await createService(payload => ({ service: 1, payload })),
     await createService(payload => ({ service: 2, payload })),
     await createService(payload => ({ service: 3, payload })),
-    async ([registry, s1, s2, s3]) => {
+    async (registry, s1, s2, s3) => {
       await assert([s1.name, s2.name, s3.name],
         names => names.every(n => n.includes('Anon$')),
         names => new Set(names).size === 3
@@ -819,7 +805,7 @@ export async function testServiceWithMiddleware() {
       payload.service = true
       return payload
     }),
-    async ([registry, service]) => {
+    async (registry, service) => {
 
       service.before(async (payload, request, response) => {
         payload.before = true

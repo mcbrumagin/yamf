@@ -16,7 +16,6 @@ import {
 import { registerRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
 import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/yamf-headers.js'
-import getRegistryApiDocumentation from './documentation.js'
 import HttpError from '../http-primitives/http-error.js'
 import { validateRegistryToken } from './registry-auth.js'
 
@@ -135,7 +134,7 @@ export async function routeCommand(state, payload, request, response, options = 
   
   // PRIORITY 2: Check for HTTP routes (most specific - based on URL path)
   // Routes should work without any special headers
-  if (request.url) { //&& request.url !== '/health' /* TODO VERIFY */) {
+  if (request.url) {
     const routeMatch = state.routes.get(request.url)
     const controllerMatch = !routeMatch && findControllerRoute(state, request.url)
     
@@ -144,8 +143,7 @@ export async function routeCommand(state, payload, request, response, options = 
     }
   }
   
-  // No route or command matched - return API documentation
-  return getRegistryApiDocumentation()
+  throw new HttpError(404, 'Not found')
 }
 
 /**

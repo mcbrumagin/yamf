@@ -32,7 +32,8 @@
     "zero-dependency"
   ],
   "scripts": {
-    "test": "./test/test.sh"
+    "test": "./test/test.sh",
+    "test:search": "./test/test-search.sh"
   },
   "files": [
     "src",

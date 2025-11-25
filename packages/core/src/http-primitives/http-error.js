@@ -30,9 +30,11 @@ class HttpError extends Error {
     this.isServerError = isServerError
     this.isClientError = isClientError
 
-    // Mute error stack in anything but dev
-    if (!(process.env.ENVIRONMENT?.toLowerCase().includes('dev'))) this.stack = `${this.name}: ${message.trim()}`
-    else this.stack += '\n' + stack.trim()
+    // Mute error stack in production and staging
+    if (process.env.ENVIRONMENT?.toLowerCase().includes('prod') ||
+        process.env.ENVIRONMENT?.toLowerCase().includes('stag')) {
+      this.stack = `${this.name}: ${message.trim()}`
+    } else this.stack += '\n' + stack.trim()
   }
 }
 

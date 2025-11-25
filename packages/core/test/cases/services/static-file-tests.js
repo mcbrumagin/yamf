@@ -168,13 +168,11 @@ export async function testStaticFileNotFound() {
         fileMap: 'index.html',
         externalRootDir: true
       }),
-      async () => {
-        await assertErr(
-          () => callService('static-file-service', { url: '/nonexistent.html' }),
-          err => err.status === 404,
-          err => err.message.includes('Not found')
-        )
-      }
+      async () => assertErr(
+        async () => callService('static-file-service', { url: '/nonexistent.html' }),
+        err => err.status === 404,
+        err => err.message.includes('Not found')
+      )
     )
   } finally {
     cleanupTempFiles(tempDir)
@@ -186,18 +184,17 @@ export async function testStaticFileWithCustomResolver() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      registryServer(),
+      createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: 'index.html',
         externalRootDir: true
       }, (url) => `Custom response for: ${url}`),
-      async () => {
-        let result = await callService('static-file-service', { url: 'custom-route' })
-        await assert(result, r => r.includes('Custom response for: custom-route'))
-        return result
-      }
+      async () => assert(
+        await callService('static-file-service', { url: 'custom-route' }),
+        r => r.includes('Custom response for: custom-route')
+      )
     )
   } finally {
     cleanupTempFiles(tempDir)
@@ -206,17 +203,14 @@ export async function testStaticFileWithCustomResolver() {
 
 export async function testStaticFileInvalidRootDir() {
   await terminateAfter(
-    await registryServer(),
-    async () => {
-      await assertErr(
-        () => createStaticFileService({
-          rootDir: '/nonexistent/directory/path',
-          fileMap: 'index.html',
-          externalRootDir: true
-        }),
-        err => err.message.includes('does not exist')
-      )
-    }
+    registryServer(),
+    async () => assertErr(async () => createStaticFileService({
+        rootDir: '/nonexistent/directory/path',
+        fileMap: 'index.html',
+        externalRootDir: true
+      }),
+      err => err.message.includes('does not exist')
+    )
   )
 }
 

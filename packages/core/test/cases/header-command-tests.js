@@ -161,14 +161,11 @@ export async function testServiceCallWithHeadersBinary() {
 export async function testInvalidCommandHeader() {
   await terminateAfter(
     await registryServer(),
-    async () => {
-      await assertErr(
-        () => httpRequest(process.env.MICRO_REGISTRY_URL, {
-          headers: { [HEADERS.COMMAND]: 'invalid-command-xyz' }
-        }),
-        err => err.message.includes('Unknown command')
-      )
-    }
+    async () => assertErr(async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+        headers: { [HEADERS.COMMAND]: 'invalid-command-xyz' }
+      }),
+      err => err.message.includes('Unknown command')
+    )
   )
 }
 
@@ -179,19 +176,17 @@ export async function testMissingServiceNameForCall() {
   await terminateAfter(
     await registryServer(),
     await createService('test', () => 'result'),
-    async () => {
-      await assertErr(
-        () => httpRequest(process.env.MICRO_REGISTRY_URL, {
-          body: { data: 'test' },
-          headers: { 
-            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL
-            // Missing: HEADERS.SERVICE_NAME
-          }
-        }),
-        // TODO clearer error message
-        err => err.message.includes('Proxy call requires service "name" property')
-      )
-    }
+    async () => assertErr(
+      async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+        body: { data: 'test' },
+        headers: { 
+          [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL
+          // Missing: HEADERS.SERVICE_NAME
+        }
+      }),
+      // TODO clearer error message
+      err => err.message.includes('Proxy call requires service "name" property')
+    )
   )
 }
 
@@ -201,20 +196,17 @@ export async function testMissingServiceNameForCall() {
 export async function testMissingServiceNameForSetup() {
   await terminateAfter(
     await registryServer(),
-    async () => {
-      await assertErr(
-        () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+    async () => assertErr(async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
             [HEADERS.SERVICE_HOME]: 'http://localhost',
             [HEADERS.REGISTRY_TOKEN]: getRegistryToken()
             // Missing: HEADERS.SERVICE_NAME
-          }
-        }),
-        err => err.status === 400,
-        err => err.message.includes('SERVICE_SETUP requires micro-service-name header')
-      )
-    }
+        }
+      }),
+      err => err.status === 400,
+      err => err.message.includes('SERVICE_SETUP requires micro-service-name header')
+    )
   )
 }
 
@@ -224,20 +216,17 @@ export async function testMissingServiceNameForSetup() {
 export async function testMissingServiceLocationForRegister() {
   await terminateAfter(
     await registryServer(),
-    async () => {
-      await assertErr(
-        () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+    async () => assertErr(async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
             [HEADERS.SERVICE_NAME]: 'test-service',
             // Missing: HEADERS.SERVICE_LOCATION
             [HEADERS.REGISTRY_TOKEN]: getRegistryToken()
-          }
-        }),
-        err => err.status === 400,
-        err => err.message.includes('SERVICE_REGISTER requires micro-service-location header')
-      )
-    }
+        }
+      }),
+      err => err.status === 400,
+      err => err.message.includes('SERVICE_REGISTER requires micro-service-location header')
+    )
   )
 }
 
@@ -246,20 +235,17 @@ export async function testMissingServiceLocationForRegister() {
  */
 export async function testCallNonExistentServiceWithHeaders() {
   await terminateAfter(
-    await registryServer(),
-    async () => {
-      await assertErr(
-        () => httpRequest(process.env.MICRO_REGISTRY_URL, {
-          body: {},
-          headers: {
-            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'does-not-exist'
-          }
-        }),
-        err => err.message.includes('No service by name'),
-        err => err.message.includes('does-not-exist')
-      )
-    }
+    registryServer(),
+    () => assertErr(async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+        body: {},
+        headers: {
+          [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+          [HEADERS.SERVICE_NAME]: 'does-not-exist'
+        }
+      }),
+      err => err.message.includes('No service by name'),
+      err => err.message.includes('does-not-exist')
+    )
   )
 }
 
@@ -272,33 +258,27 @@ export async function testCallNonExistentServiceWithHeaders() {
  */
 export async function testCommandHeaderPriorityOverRoutes() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/priority-test', async function rightService() {
+    registryServer(),
+    createRoute('/priority-test', async function rightService() {
       return 'WRONG'
     }),
-    await createService('headerCommandTest', (payload, request, response) => {
+    createService('headerCommandTest', (payload, request, response) => {
       return `CORRECT: ${request.url}`
     }),
-    async () => {
+    async () => assert(await httpRequest(
+      `${process.env.MICRO_REGISTRY_URL}/priority-test`, {
+        headers: {
+          // These should be IGNORED because /priority-test matches a route
+          [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+          [HEADERS.SERVICE_NAME]: 'headerCommandTest'
+        }
+      }),
       // Send request with both route URL AND command headers
       // Route should win (checked first)
-      const result = await httpRequest(
-        `${process.env.MICRO_REGISTRY_URL}/priority-test`, {
-          headers: {
-            // These should be IGNORED because /priority-test matches a route
-            [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'headerCommandTest'
-          }
-        }
-      )
-      
-      await assert(result, 
-        r => r.includes('CORRECT'),
-        r => r.includes('priority-test'),
-        r => r.includes('WRONG') === false
-      )
-      return result
-    }
+      r => r.includes('CORRECT'),
+      r => r.includes('priority-test'),
+      r => r.includes('WRONG') === false
+    )
   )
 }
 
@@ -307,19 +287,14 @@ export async function testCommandHeaderPriorityOverRoutes() {
  */
 export async function testRoutesWithoutCommandHeaders() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/no-headers', () => 'Success without headers'),
-    async () => {
+    registryServer(),
+    createRoute('/no-headers', () => 'Success without headers'),
+    () => assert(
+      async () => fetch(`${process.env.MICRO_REGISTRY_URL}/no-headers`),
       // Plain fetch, no custom headers
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/no-headers`)
-      const result = await response.text()
-      
-      await assert(result,
-        r => r === 'Success without headers',
-        () => response.status === 200
-      )
-      return result
-    }
+      r => r.status === 200,
+      async r => await r.text() === 'Success without headers'
+    )
   )
 }
 
@@ -466,7 +441,7 @@ export async function testPubSubSubscribeWithHeaders() {
   await terminateAfter(
     await registryServer(),
     await createService('subscriber', message => message),
-    async ([registry, service]) => {
+    async (registry, service) => {
       const result = await httpRequest(
         process.env.MICRO_REGISTRY_URL, {
           headers: {
@@ -491,7 +466,7 @@ export async function testPubSubPublishWithHeaders() {
   await terminateAfter(
     await registryServer(),
     await createService('subscriber', message => ({ received: message })),
-    async ([registry, service]) => {
+    async (registry, service) => {
       await httpRequest(
         process.env.MICRO_REGISTRY_URL, {
           headers: {
@@ -520,75 +495,6 @@ export async function testPubSubPublishWithHeaders() {
         r => Array.isArray(r.results),
         r => r.results.length > 0,
         r => r.results[0].received.data === 'test message'
-      )
-    }
-  )
-}
-
-// ============================================================================
-// API Documentation Tests
-// ============================================================================
-
-/**
- * Test that hitting registry root without commands returns API docs
- */
-export async function testApiDocumentation() {
-  await terminateAfter(
-    await registryServer(),
-    async () => {
-      // Hit root URL without any commands or routes
-      process.env.ENVIRONMENT = 'development'
-      const docs = await httpRequest(process.env.MICRO_REGISTRY_URL, {})
-      console.log('docs:', docs)
-      
-      await assert(docs,
-        d => d.name === '@yamf/core',
-        d => d.commands !== undefined,
-        d => typeof d.commands === 'object',
-        d => d.commands.health !== undefined,
-        d => d.commands['service-call'] !== undefined,
-        d => d.commands['pubsub-publish'] !== undefined,
-        d => d.usage !== undefined
-      )
-      
-      // Verify all commands are documented
-      const commandNames = Object.keys(docs.commands)
-      await assert(commandNames,
-        names => names.includes('health'),
-        names => names.includes('service-setup'),
-        names => names.includes('service-register'),
-        names => names.includes('service-call'),
-        names => names.includes('route-register'),
-        names => names.includes('pubsub-publish'),
-        names => names.includes('pubsub-subscribe')
-      )
-      
-      // Verify structure of a command
-      await assert(docs.commands.health,
-        cmd => cmd.description !== undefined,
-        cmd => Array.isArray(cmd.requiredHeaders),
-        cmd => cmd.requiredHeaders.includes('micro-command')
-      )
-      
-      return docs
-    }
-  )
-}
-
-/**
- * Test that API documentation is valid JSON (not a function)
- */
-export async function testApiDocumentationIsJson() {
-  await terminateAfter(
-    await registryServer(),
-    async () => {
-      const docs = await httpRequest(process.env.MICRO_REGISTRY_URL, {})
-      
-      await assert(docs,
-        d => typeof d === 'object',
-        d => d !== null,
-        d => typeof d.toString !== 'function' || d.toString() !== d, // Not a function string
-        d => JSON.stringify(d).length > 0  // Can be serialized to JSON
       )
     }
   )

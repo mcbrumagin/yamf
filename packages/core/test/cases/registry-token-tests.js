@@ -1,4 +1,4 @@
-import { assert, assertErr, terminateAfter } from '../core/index.js'
+import { assert, assertErr, terminateAfter, withEnv } from '../core/index.js'
 
 import {
   registryServer,
@@ -12,39 +12,6 @@ import {
 } from '../../src/index.js'
 
 const logger = new Logger()
-
-// Helper to set environment temporarily
-function setEnv(key, value) {
-  if (value === undefined) {
-    delete process.env[key]
-    envConfig.config.delete(key)
-  } else {
-    process.env[key] = value
-    envConfig.set(key, value)
-  }
-}
-
-function withEnv(envVars, fn) {
-  const saved = {}
-  return async (...args) => {
-    for (const key in envVars) {
-      saved[key] = process.env[key]
-      setEnv(key, envVars[key])
-    }
-    
-    try {
-      return await fn(...args)
-    } finally {
-      for (const key in saved) {
-        if (saved[key] === undefined) {
-          setEnv(key, undefined)
-        } else {
-          setEnv(key, saved[key])
-        }
-      }
-    }
-  }
-}
 
 // ============================================================================
 // Environment Validation Tests
@@ -72,7 +39,7 @@ export async function testRegistryStartsWithoutTokenInDev() {
         return result
       }
     )
-  })()
+  })
 }
 
 /**
@@ -90,14 +57,14 @@ export async function testRegistryWarnsInNonDevWithoutToken() {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
         })
         
-        throw new Error('No proper log assertion')
+        throw new Error('TODO: Need proper log assertion')
         await assert(result,
           r => r.status === 'ready'
         )
         return result
       }
     )
-  })()
+  })
 }
 
 /**
@@ -108,32 +75,28 @@ export async function testRegistryFailsInProdWithoutToken() {
     ENVIRONMENT: 'production',
     MICRO_REGISTRY_TOKEN: undefined,
     MICRO_REGISTRY_URL: 'http://localhost:19000'
-  }, async () => {
-    await assertErr(
-      async () => await registryServer(),
+  }, () => assertErr(async () => registryServer(),
       err => err.message.includes('FATAL'),
       err => err.message.includes('MICRO_REGISTRY_TOKEN'),
       err => err.message.includes('PRODUCTION')
     )
-  })()
+  )
 }
 
 /**
  * Test that registry fails to start in staging without token
  */
 export async function testRegistryFailsInStagingWithoutToken() {
-  await withEnv({ 
+  await withEnv({
     ENVIRONMENT: 'staging',
     MICRO_REGISTRY_TOKEN: undefined,
     MICRO_REGISTRY_URL: 'http://localhost:19000'
-  }, async () => {
-    await assertErr(
-      async () => await registryServer(),
+  }, () => assertErr(async () => registryServer(),
       err => err.message.includes('FATAL'),
       err => err.message.includes('MICRO_REGISTRY_TOKEN'),
       err => err.message.toLowerCase().includes('stag')
     )
-  })()
+  )
 }
 
 /**
@@ -141,15 +104,15 @@ export async function testRegistryFailsInStagingWithoutToken() {
  */
 export async function testRegistryStartsWithTokenInProduction() {
   const testToken = 'prod-test-token-xyz'
-  await withEnv({ 
+  await withEnv({
     ENVIRONMENT: 'production',
     MICRO_REGISTRY_TOKEN: testToken,
     MICRO_REGISTRY_URL: 'http://localhost:19001',
     MICRO_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await gatewayServer(),
       await registryServer(),
+      await gatewayServer(),
       async () => {
         const result = await httpRequest('http://localhost:19000', {
           headers: { 
@@ -157,14 +120,13 @@ export async function testRegistryStartsWithTokenInProduction() {
           }
         })
         
-        await assert(result,
+        assert(result,
           r => r.status === 'ready',
           r => typeof r.timestamp === 'number'
         )
-        return result
       }
     )
-  })()
+  })
 }
 
 // ============================================================================
@@ -183,8 +145,8 @@ export async function testProtectedCommandRequiresValidToken() {
     MICRO_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await gatewayServer(),
       await registryServer(),
+      await gatewayServer(),
       async () => {
         // Should succeed with valid token
         const location = await httpRequest('http://localhost:19001', {
@@ -196,15 +158,14 @@ export async function testProtectedCommandRequiresValidToken() {
           }
         })
         
-        await assert(location,
+        assert(location,
           l => typeof l === 'string',
           l => l.startsWith('http://localhost:'),
           l => l.includes('19002') // Allocated port
         )
-        return location
       }
     )
-  })()
+  })
 }
 
 /**
@@ -219,24 +180,22 @@ export async function testRequestWithWrongTokenFails() {
     MICRO_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await gatewayServer(),
       await registryServer(),
-      async () => {
-        await assertErr(
-          async () => await httpRequest('http://localhost:19001', {
-            headers: {
-              [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
-              [HEADERS.SERVICE_NAME]: 'test-service',
-              [HEADERS.SERVICE_HOME]: 'http://localhost',
-              [HEADERS.REGISTRY_TOKEN]: 'wrong-token-789'
-            }
-          }),
-          err => err.status === 403 || err.message.includes('403'),
-          err => err.message.includes('Invalid registry token')
-        )
-      }
+      await gatewayServer(),
+      async () => assertErr(
+        async () => await httpRequest('http://localhost:19001', {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
+            [HEADERS.SERVICE_NAME]: 'test-service',
+            [HEADERS.SERVICE_HOME]: 'http://localhost',
+            [HEADERS.REGISTRY_TOKEN]: 'wrong-token-789'
+          }
+        }),
+        err => err.status === 403 || err.message.includes('403'),
+        err => err.message.includes('Invalid registry token')
+      )
     )
-  })()
+  })
 }
 
 /**
@@ -251,24 +210,22 @@ export async function testRequestWithoutTokenFails() {
     MICRO_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await gatewayServer(),
       await registryServer(),
-      async () => {
-        await assertErr(
-          async () => await httpRequest('http://localhost:19001', {
-            headers: {
-              [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
-              [HEADERS.SERVICE_NAME]: 'test-service',
-              [HEADERS.SERVICE_HOME]: 'http://localhost'
-              // No REGISTRY_TOKEN header
-            }
-          }),
-          err => err.status === 403 || err.message.includes('403'),
-          err => err.message.includes('Registry token required')
-        )
-      }
+      await gatewayServer(),
+      async () => assertErr(
+        async () => await httpRequest('http://localhost:19001', {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
+            [HEADERS.SERVICE_NAME]: 'test-service',
+            [HEADERS.SERVICE_HOME]: 'http://localhost'
+            // No REGISTRY_TOKEN header
+          }
+        }),
+        err => err.status === 403 || err.message.includes('403'),
+        err => err.message.includes('Registry token required')
+      )
     )
-  })()
+  })
 }
 
 /**
@@ -283,8 +240,8 @@ export async function testPublicCommandsDoNotRequireToken() {
     MICRO_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await gatewayServer(),
       await registryServer(),
+      await gatewayServer(),
       async () => {
         // Health check without token should work
         const healthResult = await httpRequest('http://localhost:19000', {
@@ -294,15 +251,13 @@ export async function testPublicCommandsDoNotRequireToken() {
           }
         })
         
-        await assert(healthResult,
+        assert(healthResult,
           r => r.status === 'ready',
           r => typeof r.timestamp === 'number'
         )
-        
-        return healthResult
       }
     )
-  })()
+  })
 }
 
 /**
@@ -317,23 +272,21 @@ export async function testServiceCreationWithValidToken() {
     MICRO_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await gatewayServer(),
       await registryServer(),
-      await createService('token-test-service', async function(payload) {
+      await gatewayServer(),
+      createService('token-test-service', payload => {
         return { success: true, payload }
       }),
-      async ([gateway, registry, service]) => {
+      async (registry, gateway, service) => {
         // Service should be successfully created and registered
-        await assert(service,
+        assert(service,
           s => s.name === 'token-test-service',
           s => typeof s.location === 'string',
           s => s.location.includes('http://localhost:')
         )
-        
-        return service
       }
     )
-  })()
+  })
 }
 
 /**
@@ -348,8 +301,8 @@ export async function testAllProtectedCommandsValidated() {
     MICRO_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await gatewayServer(),
       await registryServer(),
+      await gatewayServer(),
       async () => {
         const protectedCommands = [
           COMMANDS.SERVICE_SETUP,
@@ -380,9 +333,7 @@ export async function testAllProtectedCommandsValidated() {
             }
           }
         }
-        
-        return true
       }
     )
-  })()
+  })
 }

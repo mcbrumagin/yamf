@@ -31,7 +31,7 @@ export async function testAuthServiceWorks() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
-    async ([registry, authServer]) => {
+    async () => {
       // Test authentication
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -59,20 +59,17 @@ export async function testAuthServiceWorks() {
  */
 export async function testAuthServiceBadCredentials() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authServer]) => {
-      // Test invalid credentials
-      await assertErr(
-        () => callService('auth-service', {
-          authenticate: {
-            user: 'invalid',
-            password: 'invalid'
-          }
-        }),
-        err => err.status === 401
-      )
-    }
+    registryServer(),
+    createAuthService(),
+    // Test invalid credentials
+    () => assertErr(async () => callService('auth-service', {
+        authenticate: {
+          user: 'invalid',
+          password: 'invalid'
+        }
+      }),
+      err => err.status === 401
+    )
   )
 }
 
@@ -81,12 +78,12 @@ export async function testAuthServiceBadCredentials() {
  */
 export async function testProtectedServiceWithAuth() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    await createService('protected-service', async function(payload) {
+    registryServer(),
+    createAuthService(),
+    createService('protected-service', payload => {
       return { message: 'Protected data accessed', timestamp: Date.now() }
     }, { useAuthService: 'auth-service' }),
-    async ([registry, authServer, protectedServer]) => {
+    async () => {
       // Get auth token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -105,13 +102,13 @@ export async function testProtectedServiceWithAuth() {
         }
       })
       
-      await assert(result,
+      assert(result,
         r => r.message === 'Protected data accessed'
       )
       
       // Try to call protected service without token
       await assertErr(
-        () => httpRequest(registryHost, {
+        async () => httpRequest(registryHost, {
           body: { test: 'data' },
           headers: buildCallHeaders('protected-service')
           // No AUTH_TOKEN header
@@ -127,15 +124,15 @@ export async function testProtectedServiceWithAuth() {
  */
 export async function testUnprotectedServiceStillWorks() {
   await terminateAfter(
-    await registryServer(),
-    await createService('normal-service', async function(payload) {
+    registryServer(),
+    createService('normal-service', payload => {
       return { message: 'Normal service works', data: payload }
     }),
-    async ([registry, normalServer]) => {
+    async () => {
       // Call normal service without any auth
       const result = await callService('normal-service', { test: 'data' })
       
-      await assert(result,
+      assert(result,
         r => r.message === 'Normal service works',
         r => r.data.test === 'data'
       )
@@ -148,13 +145,13 @@ export async function testUnprotectedServiceStillWorks() {
  */
 export async function testServiceRegistrationWithAuth() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    await createService('protected-service', async function(payload) {
+    registryServer(),
+    createAuthService(),
+    createService('protected-service', payload => {
       return { message: 'Protected data', user: payload.user }
     }, { useAuthService: 'auth-service' }),
-    async ([registry, authService, protectedServer]) => {
-      await assert(protectedServer.name, r => r === 'protected-service')
+    async (registry, authServer, protectedServer) => {
+      assert(protectedServer.name, r => r === 'protected-service')
     }
   )
 }
@@ -164,12 +161,12 @@ export async function testServiceRegistrationWithAuth() {
  */
 export async function testProtectedServiceCallWithValidToken() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    await createService('protected-service', async function(payload) {
+    registryServer(),
+    createAuthService(),
+    createService('protected-service', () => {
       return { message: 'Protected data accessed', timestamp: Date.now() }
     }, { useAuthService: 'auth-service' }),
-    async ([registry, authService, protectedService]) => {
+    async () => {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
@@ -197,15 +194,15 @@ export async function testProtectedServiceCallWithValidToken() {
  */
 export async function testProtectedServiceCallWithoutToken() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    await createService('protected-service', async function(payload) {
+    registryServer(),
+    createAuthService(),
+    createService('protected-service', payload => {
       return { message: 'Should not reach here' }
     }, { useAuthService: 'auth-service' }),
-    async ([registry, authService, protectedService]) => {
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       await assertErr(
-        () => httpRequest(registryHost, {
+        async () => httpRequest(registryHost, {
           body: { test: 'data' },
           headers: buildCallHeaders('protected-service')
         }),
@@ -220,17 +217,17 @@ export async function testProtectedServiceCallWithoutToken() {
  */
 export async function testProtectedServiceCallWithInvalidToken() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    await createService('protected-service', async function(payload) {
+    registryServer(),
+    createAuthService(),
+    createService('protected-service', payload => {
       return { message: 'Should not reach here' }
     }, { useAuthService: 'auth-service' }),
-    async ([registry, authService, protectedService]) => {
+    async () => {
       // Call protected service with invalid token
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       await assertErr(
-        () => httpRequest(registryHost, {
+        async () => httpRequest(registryHost, {
           body: { test: 'data' },
           headers: {
             ...buildCallHeaders('protected-service'),
@@ -248,12 +245,12 @@ export async function testProtectedServiceCallWithInvalidToken() {
  */
 export async function testProtectedServiceCallWithExpiredToken() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       // Test that auth service rejects invalid/expired tokens
       await assertErr(
-        () => callService('auth-service', {
+        async () => callService('auth-service', {
           verifyAccess: 'expired-or-invalid-token'
         }),
         err => err.status === 401,
@@ -268,16 +265,16 @@ export async function testProtectedServiceCallWithExpiredToken() {
  */
 export async function testAuthServiceNotFound() {
   await terminateAfter(
-    await registryServer(),
-    await createService('protected-service', async function(payload) {
+    registryServer(),
+    createService('protected-service', payload => {
       return { message: 'Should not reach here' }
     }, { useAuthService: 'nonexistent-auth-service' }),
-    async ([registry, protectedService]) => {
+    async () => {
       // Call protected service when auth service doesn't exist
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       await assertErr(
-        () => httpRequest(registryHost, {
+        async () => httpRequest(registryHost, {
           body: { test: 'data' },
           headers: {
             ...buildCallHeaders('protected-service'),
@@ -295,9 +292,9 @@ export async function testAuthServiceNotFound() {
  */
 export async function testAuthLoginCommand() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       // Test login command
@@ -311,7 +308,7 @@ export async function testAuthLoginCommand() {
         headers: buildAuthLoginHeaders()
       })
         
-      await assert(loginResult,
+      assert(loginResult,
         r => !!r.accessToken
       )
     }
@@ -323,9 +320,9 @@ export async function testAuthLoginCommand() {
  */
 export async function testAuthRefreshCommand() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       // use fetch so we can parse the Set-Cookie header
@@ -358,7 +355,7 @@ export async function testAuthRefreshCommand() {
         }
       })
 
-      await assert(refreshResult,
+      assert(refreshResult,
         r => r !== null,
         r => r.accessToken !== null
       )
@@ -371,12 +368,12 @@ export async function testAuthRefreshCommand() {
  */
 export async function testRouteWithAuth() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    await createService('route-service', async function(payload) {
+    registryServer(),
+    createAuthService(),
+    createService('route-service', payload => {
       return { message: 'Route accessed', url: payload.url }
     }, { useAuthService: 'auth-service' }),
-    async ([registry, authService, routeService]) => {
+    async () => {
       // Register a route
       await createRoute('/api/protected', 'route-service')
       
@@ -398,13 +395,13 @@ export async function testRouteWithAuth() {
         }
       })
       
-      await assert(result,
+      assert(result,
         r => r.message === 'Route accessed'
       )
       
       // Try to access route without token
       await assertErr(
-        () => httpRequest(`${registryHost}/api/protected`, {
+        async () => httpRequest(`${registryHost}/api/protected`, {
           method: 'POST',
           body: { test: 'data' }
           // No AUTH_TOKEN header
@@ -420,9 +417,9 @@ export async function testRouteWithAuth() {
  */
 export async function testMultipleAuthServices() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    await createService('custom-auth-service', async function(payload) {
+    registryServer(),
+    createAuthService(),
+    createService('custom-auth-service', payload => {
       if (payload.verifyAccess) {
         // Simple custom auth - just check if token is 'custom-token'
         if (payload.verifyAccess === 'custom-token') {
@@ -433,13 +430,13 @@ export async function testMultipleAuthServices() {
       }
       throw new HttpError(400, 'Invalid payload')
     }),
-    await createService('service1', async function(payload) {
+    createService('service1', payload => {
       return { message: 'Service 1 accessed' }
     }, { useAuthService: 'auth-service' }),
-    await createService('service2', async function(payload) {
+    createService('service2', payload => {
       return { message: 'Service 2 accessed' }
     }, { useAuthService: 'custom-auth-service' }),
-    async ([registry, authService, customAuthService, service1, service2]) => {
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       // Get token from first auth service
@@ -472,13 +469,13 @@ export async function testMultipleAuthServices() {
         }
       })
       
-      await assert(result2,
+      assert(result2,
         r => r.message === 'Service 2 accessed'
       )
       
       // Try to access service2 with standard token (should fail)
       await assertErr(
-        () => httpRequest(registryHost, {
+        async () => httpRequest(registryHost, {
           body: { test: 'data' },
           headers: {
             ...buildCallHeaders('service2'),
@@ -496,10 +493,10 @@ export async function testMultipleAuthServices() {
  */
 export async function testAuthServiceUnregistration() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
-      const protectedServer = await createService('protected-service', async function(payload) {
+    registryServer(),
+    createAuthService(),
+    async () => {
+      const protectedServer = await createService('protected-service', payload => {
         return { message: 'Protected data' }
       }, { useAuthService: 'auth-service' })
       
@@ -507,9 +504,7 @@ export async function testAuthServiceUnregistration() {
       await protectedServer.terminate()
       
       // The auth mapping should be cleaned up when the service is unregistered
-      // This is tested implicitly - if there are memory leaks, they would show up in longer test runs
-      // For now, just verify the test completes without errors
-      await assert(true, r => r === true)
+      throw new Error('TODO verify auth service cleanup')
     }
   )
 }

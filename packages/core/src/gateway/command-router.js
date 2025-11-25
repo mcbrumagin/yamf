@@ -151,11 +151,6 @@ export async function routeCommand(state, payload, request, response, options = 
     return routeCommandByHeaders(state, payload, request, response, options)
   }
   
-  logger.debug('routeCommand:', {
-    url: request.url,
-    routes: Object.fromEntries(state.routes)
-  })
-  
   // PRIORITY 2: Check for HTTP routes (most specific - based on URL path)
   // Routes should work without any special headers
   if (request.url) { //&& request.url !== '/health' /* TODO VERIFY */) {
@@ -167,8 +162,7 @@ export async function routeCommand(state, payload, request, response, options = 
     }
   }
   
-  // TODO No route or command matched - return public routes on local/no-env?
-  throw new HttpError(404)
+  throw new HttpError(404, 'Not found')
 }
 
 /**

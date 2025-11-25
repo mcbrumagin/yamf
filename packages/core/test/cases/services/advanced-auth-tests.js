@@ -33,7 +33,7 @@ export async function testAuthServiceWithSessions() {
     await createAuthService({
       useSessions: true
     }),
-    async ([registry, authServer]) => {
+    async () => {
       // Login and get access token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -67,7 +67,7 @@ export async function testAuthServiceWithRefreshOnlySessions() {
     await createAuthService({
       useSessions: 'refresh-only'
     }),
-    async ([registry, authServer]) => {
+    async () => {
       // Login and get access token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -101,7 +101,7 @@ export async function testAuthServiceStateless() {
     await createAuthService({
       useSessions: false
     }), // No sessions (stateless)
-    async ([registry, authServer]) => {
+    async () => {
       // Login and get access token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -133,7 +133,7 @@ export async function testRefreshTokenFlow() {
   await terminateAfter(
     await registryServer(),
     await createAuthService(),
-    async ([registry, authService]) => {
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       // Login using fetch to get Set-Cookie header
@@ -187,15 +187,15 @@ export async function testRefreshTokenFlow() {
  */
 export async function testTokenExpirationDetection() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       // Create an expired token manually by manipulating the payload
       // We can't easily test actual expiration without waiting, so we verify
       // that the expiration check exists by testing with an invalid token
       
       await assertErr(
-        () => callService('auth-service', {
+        async () => callService('auth-service', {
           verifyAccess: 'invalid-token-that-should-fail'
         }),
         err => err.status === 401
@@ -209,9 +209,9 @@ export async function testTokenExpirationDetection() {
  */
 export async function testForwardedHeaderCapture() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       // Login with a forwarded header
@@ -237,7 +237,7 @@ export async function testForwardedHeaderCapture() {
       
       // The forwarded header should be logged/captured in the auth service
       // We can verify the service handles it without errors
-      await assert(loginResult,
+      assert(loginResult,
         r => !!r.accessToken
       )
     }
@@ -249,9 +249,9 @@ export async function testForwardedHeaderCapture() {
  */
 export async function testXForwardedForHeader() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       // Login with X-Forwarded-For header
@@ -275,7 +275,7 @@ export async function testXForwardedForHeader() {
 
       const loginResult = await response.json()
       
-      await assert(loginResult,
+      assert(loginResult,
         r => !!r.accessToken
       )
     }
@@ -287,11 +287,11 @@ export async function testXForwardedForHeader() {
  */
 export async function testSessionInvalidation() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService({
+    registryServer(),
+    createAuthService({
       useSessions: true
     }), // Enable sessions
-    async ([registry, authService]) => {
+    async () => {
       // Login and get access token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -307,7 +307,7 @@ export async function testSessionInvalidation() {
         verifyAccess: accessToken
       })
       
-      await assert(verifyResult1,
+      assert(verifyResult1,
         r => r.status === 'valid access token'
       )
       
@@ -317,7 +317,7 @@ export async function testSessionInvalidation() {
         verifyAccess: accessToken
       })
       
-      await assert(verifyResult2,
+      assert(verifyResult2,
         r => r.status === 'valid access token'
       )
     }
@@ -329,9 +329,9 @@ export async function testSessionInvalidation() {
  */
 export async function testConcurrentAuthRequests() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       // Make multiple concurrent auth requests
       const promises = []
       for (let i = 0; i < 5; i++) {
@@ -349,7 +349,7 @@ export async function testConcurrentAuthRequests() {
       const results = await Promise.all(promises)
       
       // All should succeed
-      await assert(results,
+      assert(results,
         r => r.length === 5,
         r => r.every(res => !!res.accessToken),
         r => new Set(r.map(res => res.accessToken)).size === 5 // All unique tokens
@@ -363,9 +363,9 @@ export async function testConcurrentAuthRequests() {
  */
 export async function testConcurrentTokenValidation() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       // Get a single token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -389,7 +389,7 @@ export async function testConcurrentTokenValidation() {
       const results = await Promise.all(promises)
       
       // All validations should succeed
-      await assert(results,
+      assert(results,
         r => r.length === 10,
         r => r.every(res => res.status === 'valid access token')
       )
@@ -402,11 +402,11 @@ export async function testConcurrentTokenValidation() {
  */
 export async function testRefreshTokenWithSessions() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService({
+    registryServer(),
+    createAuthService({
       useSessions: true
     }), // Enable sessions
-    async ([registry, authService]) => {
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       // Login using fetch to get Set-Cookie header
@@ -433,7 +433,7 @@ export async function testRefreshTokenWithSessions() {
         }
       })
       
-      await assert(refreshResult1,
+      assert(refreshResult1,
         r => !!r.accessToken
       )
       
@@ -446,7 +446,7 @@ export async function testRefreshTokenWithSessions() {
         }
       })
       
-      await assert(refreshResult2,
+      assert(refreshResult2,
         r => !!r.accessToken
       )
     }
@@ -458,14 +458,14 @@ export async function testRefreshTokenWithSessions() {
  */
 export async function testInvalidRefreshToken() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
       
       // Try to use an invalid refresh token
       await assertErr(
-        () => httpRequest(registryHost, {
+        async () => httpRequest(registryHost, {
           body: {},
           headers: {
             'Cookie': 'refresh-token=invalid-token-here',
@@ -484,12 +484,12 @@ export async function testInvalidRefreshToken() {
  */
 export async function testMissingRefreshToken() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       // Try to refresh without providing cookie
       await assertErr(
-        () => callService('auth-service', {}), // Empty payload, no cookie
+        async () => callService('auth-service', {}), // Empty payload, no cookie
         err => err.status === 400
       )
     }
@@ -501,14 +501,14 @@ export async function testMissingRefreshToken() {
  */
 export async function testProtectedServiceWithSessionAuth() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService({
+    registryServer(),
+    createAuthService({
       useSessions: true
     }), // Enable sessions
     await createService('protected-service', async function(payload) {
       return { message: 'Protected data', data: payload }
     }, { useAuthService: 'auth-service' }),
-    async ([registry, authServer, protectedServer]) => {
+    async () => {
       // Get auth token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -527,7 +527,7 @@ export async function testProtectedServiceWithSessionAuth() {
         }
       })
       
-      await assert(result,
+      assert(result,
         r => r.message === 'Protected data',
         r => r.data.test === 'data'
       )
@@ -540,9 +540,9 @@ export async function testProtectedServiceWithSessionAuth() {
  */
 export async function testTokenBase64Encoding() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       // Get auth token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -554,7 +554,7 @@ export async function testTokenBase64Encoding() {
       const accessToken = authResult.accessToken
       
       // Token should be valid base64
-      await assert(accessToken,
+      assert(accessToken,
         t => typeof t === 'string',
         t => t.length > 0,
         t => {
@@ -569,7 +569,7 @@ export async function testTokenBase64Encoding() {
       
       // Decode and verify structure
       const decoded = Buffer.from(accessToken, 'base64').toString('utf8')
-      await assert(decoded,
+      assert(decoded,
         d => d.includes('.'), // Should have payload.signature format
         d => {
           const [payload, signature] = d.split('.')
@@ -590,9 +590,9 @@ export async function testTokenBase64Encoding() {
  */
 export async function testTokenPayloadStructure() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
-    async ([registry, authService]) => {
+    registryServer(),
+    createAuthService(),
+    async () => {
       // Get auth token
       const authResult = await callService('auth-service', {
         authenticate: {
@@ -608,7 +608,7 @@ export async function testTokenPayloadStructure() {
       const [payloadStr] = decoded.split('.')
       const payload = JSON.parse(payloadStr)
       
-      await assert(payload,
+      assert(payload,
         p => p.user === TEST_ADMIN_USER,
         p => typeof p.expire === 'number',
         p => p.expire > Date.now() // Should not be expired

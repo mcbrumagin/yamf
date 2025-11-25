@@ -7,7 +7,7 @@
  * - Health checks
  */
 
-import { assert, assertErr, sleep, terminateAfter } from '../core/index.js'
+import { assert, assertErr, sleep, terminateAfter, withEnv } from '../core/index.js'
 
 import {
   registryServer,
@@ -28,39 +28,6 @@ const REGISTRY_PORT = 15001
 const GATEWAY_URL = `http://localhost:${GATEWAY_PORT}`
 const REGISTRY_URL = `http://localhost:${REGISTRY_PORT}`
 
-// Helper to set environment temporarily
-function setEnv(key, value) {
-  if (value === undefined) {
-    delete process.env[key]
-    envConfig.config.delete(key)
-  } else {
-    process.env[key] = value
-    envConfig.set(key, value)
-  }
-}
-
-function withEnv(envVars, fn) {
-  const saved = {}
-  return async (...args) => {
-    for (const key in envVars) {
-      saved[key] = process.env[key]
-      setEnv(key, envVars[key])
-    }
-    
-    try {
-      return await fn(...args)
-    } finally {
-      for (const key in saved) {
-        if (saved[key] === undefined) {
-          setEnv(key, undefined)
-        } else {
-          setEnv(key, saved[key])
-        }
-      }
-    }
-  }
-}
-
 /**
  * Test 1: Gateway health check
  */
@@ -71,19 +38,19 @@ export async function testGatewayHealthCheck() {
     MICRO_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      gatewayServer(GATEWAY_PORT),
-      async ([gateway]) => {
+      gatewayServer(),
+      async () => {
         const response = await httpRequest(GATEWAY_URL, {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
         })
         
-        await assert(response,
+        assert(response,
           r => r.status === 'ready',
           r => typeof r.timestamp === 'number'
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -96,8 +63,8 @@ export async function testGatewayPreRegistration() {
     MICRO_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      async ([registry]) => {
+      registryServer(),
+      async () => {
         await sleep(100) // Give registry time to pre-register gateway
         
         // Query registry for gateway service
@@ -109,12 +76,12 @@ export async function testGatewayPreRegistration() {
           }
         })
         
-        await assert(gatewayLocation,
+        assert(gatewayLocation,
           loc => loc === GATEWAY_URL
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -128,9 +95,9 @@ export async function testGatewayPullsState() {
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      gatewayServer(GATEWAY_PORT),
-      async ([registry, gateway]) => {
+      registryServer(),
+      gatewayServer(),
+      async () => {
         // Register a test service with registry
         const testServiceUrl = 'http://localhost:16000'
         await httpRequest(REGISTRY_URL, {
@@ -142,14 +109,14 @@ export async function testGatewayPullsState() {
           }
         })
         
-        await sleep(200) // Give time for async notification
+        await sleep(100) // Give time for async notification
         
         // Trigger manual pull to verify
         const registryState = await httpRequest(REGISTRY_URL, {
           headers: buildRegistryPullHeaders('test-token')
         })
         
-        await assert(registryState,
+        assert(registryState,
           s => s.services !== undefined,
           s => s.services['test-service'] !== undefined,
           s => Array.isArray(s.services['test-service']),
@@ -158,7 +125,7 @@ export async function testGatewayPullsState() {
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -171,9 +138,9 @@ export async function testGatewayUpdateNotification() {
     MICRO_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      gatewayServer(GATEWAY_PORT),
-      async ([registry, gateway]) => {
+      registryServer(),
+      gatewayServer(),
+      async () => {
         await sleep(100)
         
         // Send update notification to gateway
@@ -182,7 +149,7 @@ export async function testGatewayUpdateNotification() {
           headers: buildRegistryUpdatedHeaders('test-token')
         })
         
-        await assert(response,
+        assert(response,
           r => r.status === 'updated',
           r => typeof r.servicesCount === 'number',
           r => typeof r.routesCount === 'number',
@@ -190,7 +157,7 @@ export async function testGatewayUpdateNotification() {
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -203,13 +170,13 @@ export async function testGatewayRejectsUnauthorizedUpdates() {
     MICRO_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      gatewayServer(GATEWAY_PORT),
-      async ([gateway]) => {
+      gatewayServer(),
+      async () => {
         await sleep(50)
         
         // Try to send update without token
         await assertErr(
-          () => httpRequest(GATEWAY_URL, {
+          async () => httpRequest(GATEWAY_URL, {
             body: { service: 'malicious-service', location: 'http://evil.com' },
             headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_UPDATED }
           }),
@@ -217,7 +184,7 @@ export async function testGatewayRejectsUnauthorizedUpdates() {
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -231,13 +198,13 @@ export async function testGatewayIsNotSubscribed() {
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      gatewayServer(GATEWAY_PORT),
-      await createService('normal-service', async () => {
+      registryServer(),
+      gatewayServer(),
+      createService('normal-service', () => {
         return { received: 'cache-update' }
       }),
-      async ([registry, gateway, normalService]) => {
-        await sleep(200)
+      async () => {
+        await sleep(100)
         
         // Register another service - this will trigger cache updates
         await httpRequest(REGISTRY_URL, {
@@ -249,7 +216,7 @@ export async function testGatewayIsNotSubscribed() {
           }
         })
         
-        await sleep(200)
+        await sleep(100)
         
         // Pull registry state to verify metadata
         const registryState = await httpRequest(REGISTRY_URL, {
@@ -258,7 +225,7 @@ export async function testGatewayIsNotSubscribed() {
         
         const gatewayMetadata = registryState.serviceMetadata?.['yamf-gateway']
         
-        await assert(gatewayMetadata,
+        assert(gatewayMetadata,
           m => m !== undefined,
           m => m.pullOnly === true,
           m => m.public === true,
@@ -266,7 +233,7 @@ export async function testGatewayIsNotSubscribed() {
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -280,14 +247,14 @@ export async function testGatewayRoutesToServices() {
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await createService('echo-service', async (payload) => {
+      registryServer(),
+      createService('echo-service', payload => {
         return { echo: payload }
       }),
-      await createRoute('/api/echo', 'echo-service'),
-      await gatewayServer(),
-      async ([registry, echoService, route, gateway]) => {
-        await sleep(300) // Give time for gateway to do initial pull
+      createRoute('/api/echo', 'echo-service'),
+      gatewayServer(),
+      async () => {
+        await sleep(100) // Give time for gateway to do initial pull
         
         // Call service through gateway via route
         const response = await httpRequest(`${GATEWAY_URL}/api/echo`, {
@@ -295,13 +262,13 @@ export async function testGatewayRoutesToServices() {
           body: { message: 'hello' }
         })
         
-        await assert(response,
+        assert(response,
           r => r.echo !== undefined,
           r => r.echo.message === 'hello'
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -314,8 +281,8 @@ export async function testGatewayMetadataStorage() {
     MICRO_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      async ([registry]) => {
+      registryServer(),
+      async () => {
         await sleep(100)
         
         // Pull registry state to check metadata
@@ -325,7 +292,7 @@ export async function testGatewayMetadataStorage() {
         
         const gatewayMetadata = state.serviceMetadata?.['yamf-gateway']
         
-        await assert(gatewayMetadata,
+        assert(gatewayMetadata,
           m => m !== undefined,
           m => m.pullOnly === true,
           m => m.public === true,
@@ -335,7 +302,7 @@ export async function testGatewayMetadataStorage() {
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -350,11 +317,11 @@ export async function testGatewayStateReflectsRegistry() {
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await createService('test-service', async () => ({ test: true })),
+      registryServer(),
+      createService('test-service', () => ({ test: true })),
       gatewayServer(),
-      async ([registry, testService, gateway]) => {
-        await sleep(200)
+      async () => {
+        await sleep(100)
         
         // Register a route (should trigger gateway pull)
         await httpRequest(REGISTRY_URL, {
@@ -366,14 +333,14 @@ export async function testGatewayStateReflectsRegistry() {
           }
         })
         
-        await sleep(200) // Give gateway time to pull
+        await sleep(100) // Give gateway time to pull
         
         // Pull gateway state (dev/test only endpoint)
         const gatewayState = await httpRequest(GATEWAY_URL, {
           headers: buildGatewayPullHeaders('test-token')
         })
         
-        await assert(gatewayState,
+        assert(gatewayState,
           s => s.services !== undefined,
           s => s.routes !== undefined,
           s => s.controllerRoutes !== undefined,
@@ -384,7 +351,7 @@ export async function testGatewayStateReflectsRegistry() {
         )
       }
     )
-  })()
+  })
 }
 
 /**
@@ -398,18 +365,15 @@ export async function testGatewayRequiresRegistryUrl() {
   }, async () => {
     // Gateway should fail to process updates without registry URL
     await terminateAfter(
-      gatewayServer(GATEWAY_PORT),
-      async ([gateway]) => {
-        await assertErr(
-          () => httpRequest(GATEWAY_URL, {
-            body: { service: 'test', location: 'http://localhost:16000' },
-            headers: buildRegistryUpdatedHeaders('test-token')
-          }),
-          err => err.message.includes('MICRO_REGISTRY_URL') || 
-                 err.message.includes('required') ||
-                 err.message.includes('503')
-        )
-      }
+      await gatewayServer(),
+      async () => assertErr(
+        async () => httpRequest(GATEWAY_URL, {
+          body: { service: 'test', location: 'http://localhost:16000' },
+          headers: buildRegistryUpdatedHeaders('test-token')
+        }),
+        err => err.message.includes('MICRO_REGISTRY_URL'),
+        err => err.message.includes('Required')
+      )
     )
-  })()
+  })
 }

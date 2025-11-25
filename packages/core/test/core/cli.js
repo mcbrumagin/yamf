@@ -1,9 +1,11 @@
 
 /* TODO add cli options and flags
 
-
 --name <name> (matching text or wildcard)
 --file <file> (matching file name text or wildcard; is a test suite by default)
+
+
+---TODO determine features and flags from the following suggested list---
 
 Essential test CLI options and flags vary significantly depending on the specific testing framework or tool being used. However, common categories of options and flags found across many testing CLIs include:
 Execution Control:

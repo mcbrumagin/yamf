@@ -385,10 +385,12 @@ export default async function createFileUploadService({
   onSuccess = null,
   onError = null,
   useAuthService = null,
-  publishFileEvents = true,  // NEW: auto-publish upload events
-  updateChannel = 'micro:file-updated',  // NEW: customizable channel
-  deleteChannel = 'micro:file-deleted',  // NEW: customizable channel
-  urlPathPrefix = '/uploads'  // NEW: URL path prefix for uploaded files
+  urlPathPrefix = '/uploads',
+  
+  // auto-publish upload events
+  publishFileEvents = false,
+  updateChannel = 'micro:file-updated',
+  deleteChannel = 'micro:file-deleted'
 } = {}) {
   let logger = new Logger({ logGroup: serviceName })
   // Ensure upload directory exists

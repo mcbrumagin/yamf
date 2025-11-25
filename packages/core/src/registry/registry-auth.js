@@ -55,7 +55,10 @@ export function validateRegistryEnvironment() {
     }
   }
   
-  if (environment && !environment.includes('dev') && !hasToken) {
+  if (environment
+  && !environment.includes('local')
+  && !environment.includes('dev')
+  && !hasToken) {
     logger.warn(
       `Registry starting in ${environment.toUpperCase()} without MICRO_REGISTRY_TOKEN - ` +
       'consider setting this for better security'

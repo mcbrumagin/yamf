@@ -440,7 +440,7 @@ export async function testNoLoadBalancingWhenCreatingMultipleRoutesSameService()
     await createRoutes({
       '/route1': serviceFn,
       '/route2': serviceFn,
-    }), async ([registry]) => {
+    }), async () => {
       const results = []
       for (let i = 0; i < 10; i++) {
         results.push(await callService('routeService'))

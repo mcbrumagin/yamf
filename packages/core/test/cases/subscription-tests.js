@@ -21,8 +21,8 @@ const logger = new Logger()
  */
 export async function testBasicSubscription() {
   await terminateAfter(
-    await registryServer(),
-    async ([registry]) => {
+    registryServer(),
+    async () => {
       const messages = []
       
       const subscription = await createSubscriptionService('test-subscription', {
@@ -68,8 +68,8 @@ export async function testBasicSubscription() {
  */
 export async function testMultipleSubscriptionsToSameChannel() {
   await terminateAfter(
-    await registryServer(),
-    async ([registry]) => {
+    registryServer(),
+    async () => {
       const messages1 = []
       const messages2 = []
       
@@ -106,8 +106,8 @@ export async function testMultipleSubscriptionsToSameChannel() {
  */
 export async function testMultipleChannelSubscriptions() {
   await terminateAfter(
-    await registryServer(),
-    async ([registry]) => {
+    registryServer(),
+    async () => {
       const channelAMessages = []
       const channelBMessages = []
       
@@ -141,8 +141,8 @@ export async function testMultipleChannelSubscriptions() {
  */
 export async function testSubscriptionTermination() {
   await terminateAfter(
-    await registryServer(),
-    async ([registry]) => {
+    registryServer(),
+    async () => {
       const messages = []
       
       const subscription = await createSubscriptionService('term-service', {
@@ -175,20 +175,20 @@ export async function testSubscriptionTermination() {
  */
 export async function testInvalidHandler() {
   await terminateAfter(
-    await registryServer(),
-    async ([registry]) => {
+    registryServer(),
+    async () => {
       await assertErr(
-        () => createSubscriptionService('test-service', { 'test-channel': 'not-a-function' }),
+        async () => createSubscriptionService('test-service', { 'test-channel': 'not-a-function' }),
         err => err.message.includes('must be a function')
       )
       
       await assertErr(
-        () => createSubscriptionService('test-service2', { 'test-channel': null }),
+        async () => createSubscriptionService('test-service2', { 'test-channel': null }),
         err => err.message.includes('must be a function')
       )
       
       await assertErr(
-        () => createSubscriptionService('test-service3', {}),
+        async () => createSubscriptionService('test-service3', {}),
         err => err.message.includes('at least one channel')
       )
     }
@@ -200,8 +200,8 @@ export async function testInvalidHandler() {
  */
 export async function testSubscriptionHandlerError() {
   await terminateAfter(
-    await registryServer(),
-    await createSubscriptionService('error-service', {
+    registryServer(),
+    createSubscriptionService('error-service', {
       'error-channel': async (message) => {
         if (message.shouldError) {
           throw new Error('Intentional handler error')
@@ -209,12 +209,12 @@ export async function testSubscriptionHandlerError() {
         return { success: true }
       }
     }),
-    async ([registry, subscription]) => {
+    async () => {
       // Publish message that causes handler error
       const result = await publishMessage('error-channel', { shouldError: true })
       
       // Check that error is captured in errors array
-      await assert(result,
+      assert(result,
         r => r.results && r.results.length > 0,
         r => r.results[0].errors && r.results[0].errors.length > 0
       )
@@ -229,13 +229,13 @@ export async function testComplexMessagePayloads() {
   const messages = []
   
   await terminateAfter(
-    await registryServer(),
-    await createSubscriptionService('complex-service', {
+    registryServer(),
+    createSubscriptionService('complex-service', {
       'complex-channel': async (message) => {
         messages.push(message)
       }
     }),
-    async ([registry, subscription]) => {
+    async () => {
       
       // Send various complex payloads
       await publishMessage('complex-channel', {
@@ -251,7 +251,7 @@ export async function testComplexMessagePayloads() {
         null: null
       })
       
-      await assert(messages,
+      assert(messages,
         m => m.length === 2,
         m => m[0].nested.deeply.nested.value === 123,
         m => m[0].array.length === 3,
@@ -270,19 +270,19 @@ export async function testComplexMessagePayloads() {
  */
 export async function testSubscriptionPublishResults() {
   await terminateAfter(
-    await registryServer(),
-    await createSubscriptionService('rpc-service', {
+    registryServer(),
+    createSubscriptionService('rpc-service', {
       'rpc-channel': async (message) => {
         return { echo: message, processed: true }
       }
     }),
-    async ([registry, subscription]) => {
+    async () => {
       
       // Publish returns results from all handlers
       const result = await publishMessage('rpc-channel', { test: 'data' })
       
       console.log(JSON.stringify(result, null, 2))
-      await assert(result,
+      assert(result,
         r => r.results.length === 1,
         r => r.results[0].results[0].echo.test === 'data',
         r => r.results[0].results[0].processed === true
@@ -298,14 +298,14 @@ export async function testConcurrentMessages() {
   const messages = []
   
   await terminateAfter(
-    await registryServer(),
-    await createSubscriptionService('concurrent-service', {
+    registryServer(),
+    createSubscriptionService('concurrent-service', {
       'concurrent-channel': async (message) => {
         await sleep(10) // Simulate async processing
         messages.push(message.id)
       }
     }),
-    async ([registry, subscription]) => {
+    async () => {
       // Send multiple messages concurrently
       const promises = []
       for (let i = 0; i < 5; i++) {
@@ -314,7 +314,7 @@ export async function testConcurrentMessages() {
       
       await Promise.all(promises)
       
-      await assert(messages,
+      assert(messages,
         m => m.length === 5,
         m => new Set(m).size === 5, // All unique IDs received
         m => m.includes(0) && m.includes(4) // First and last received
@@ -330,8 +330,8 @@ export async function testSubscriptionStartsClean() {
   const messages = []
   
   await terminateAfter(
-    await registryServer(),
-    async ([registry]) => {
+    registryServer(),
+    async () => {
       // Publish before subscription exists
       await publishMessage('clean-channel', { id: 0 })
       
@@ -347,7 +347,7 @@ export async function testSubscriptionStartsClean() {
       // But should receive new messages
       await publishMessage('clean-channel', { id: 1 })
       
-      await assert(messages,
+      assert(messages,
         m => m.length === 1,
         m => m[0].id === 1
       )
@@ -363,11 +363,11 @@ export async function testSubscriptionStartsClean() {
 export async function testSubscriptionCreationOnRegularService() {
   const messages = []
   await terminateAfter(
-    await registryServer(),
-    await createService('regular-service', async () => {
+    registryServer(),
+    createService('regular-service', async () => {
       return { totalMessages: messages.length }
     }),
-    async ([registry, service]) => {
+    async (registry, service) => {
 
       await service.createSubscription({
         'middleware-channel': async (message) => {
@@ -378,7 +378,7 @@ export async function testSubscriptionCreationOnRegularService() {
       await publishMessage('middleware-channel', { data: 'test message' })
       let result = await callService('regular-service')
 
-      await assert([messages, result],
+      assert([messages, result],
         ([m, r]) => m.length === 1,
         ([m, r]) => m[0].data === 'test message',
         ([m, r]) => r.totalMessages === 1
@@ -393,11 +393,11 @@ export async function testSubscriptionCreationOnRegularService() {
 export async function testSubscriptionCreationOnMiddlewareService() {
   const messages = []
   await terminateAfter(
-    await registryServer(),
-    await createService('middleware-service', async (payload) => {
+    registryServer(),
+    createService('middleware-service', async (payload) => {
       return { totalMessages: messages.length, ...payload }
     }),
-    async ([registry, service]) => {
+    async (registry, service) => {
 
       service.before(async (payload, request, response) => {
         payload.before = true
@@ -413,7 +413,7 @@ export async function testSubscriptionCreationOnMiddlewareService() {
       await publishMessage('middleware-channel', { data: 'test message' })
       let result = await callService('middleware-service', { call: 'test' })
 
-      await assert([messages, result],
+      assert([messages, result],
         ([m, r]) => m.length === 1,
         ([m, r]) => m[0].data === 'test message',
         ([m, r]) => r.totalMessages === 1,
@@ -431,11 +431,11 @@ export async function testSubscriptionCreationOnMiddlewareService() {
 export async function testSubscriptionCreationBeforeMiddlewareOverride() {
   const messages = []
   await terminateAfter(
-    await registryServer(),
-    await createService('middleware-service', async (payload) => {
+    registryServer(),
+    createService('middleware-service', async (payload) => {
       return { totalMessages: messages.length, ...payload }
     }),
-    async ([registry, service]) => {
+    async (registry, service) => {
 
       await service.createSubscription({
         'middleware-channel': async (message) => {
@@ -455,16 +455,16 @@ export async function testSubscriptionCreationBeforeMiddlewareOverride() {
       await publishMessage('middleware-channel', { data: 'test message 2' })
       let afterOverrideResult = await callService('middleware-service', { call: 'test2' })
 
-      await assert([messages, beforeOverrideResult, afterOverrideResult],
-        ([m, r1, r2]) => m.length === 2,
-        ([m, r1, r2]) => m[0].data === 'test message 1',
-        ([m, r1, r2]) => m[1].data === 'test message 2',
-        ([m, r1, r2]) => r1.totalMessages === 1,
-        ([m, r1, r2]) => r1.call === 'test1',
-        ([m, r1, r2]) => r1.before === undefined,
-        ([m, r1, r2]) => r2.totalMessages === 2,
-        ([m, r1, r2]) => r2.call === 'test2',
-        ([m, r1, r2]) => r2.before === true
+      assert([messages, beforeOverrideResult, afterOverrideResult],
+        ([m,   ,   ]) => m.length === 2,
+        ([m,   ,   ]) => m[0].data === 'test message 1',
+        ([m,   ,   ]) => m[1].data === 'test message 2',
+        ([ , r1,   ]) => r1.totalMessages === 1,
+        ([ , r1,   ]) => r1.call === 'test1',
+        ([ , r1,   ]) => r1.before === undefined,
+        ([ ,   , r2]) => r2.totalMessages === 2,
+        ([ ,   , r2]) => r2.call === 'test2',
+        ([ ,   , r2]) => r2.before === true
       )
     }
   )

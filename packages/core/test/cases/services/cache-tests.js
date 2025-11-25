@@ -21,7 +21,7 @@ export async function testBasicSetAndGet() {
   await terminateAfter(
     await registryServer(),
     await createCacheService(),
-    async ([registry, cache]) => {
+    async () => {
       // Set a value
       const setResult = await callService('cache-service', { set: { key1: 'value1' } })
       await assert(setResult, 
@@ -729,19 +729,19 @@ export async function testInvalidExpireTimeValidation() {
     async () => {
       // Test negative expireTime
       await assertErr(
-        () => createCacheService({ expireTime: -100 }),
+        async () => createCacheService({ expireTime: -100 }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be positive')
       )
       
       // Test invalid type (string that's not 'None')
       await assertErr(
-        () => createCacheService({ expireTime: 'invalid' }),
+        async () => createCacheService({ expireTime: 'invalid' }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be a number or \'None\'')
       )
       
       // Test zero expireTime
       await assertErr(
-        () => createCacheService({ expireTime: 0 }),
+        async () => createCacheService({ expireTime: 0 }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be positive')
       )
       
@@ -759,19 +759,19 @@ export async function testInvalidEvictionIntervalValidation() {
     async () => {
       // Test negative evictionInterval
       await assertErr(
-        () => createCacheService({ evictionInterval: -100 }),
+        async () => createCacheService({ evictionInterval: -100 }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be positive')
       )
       
       // Test invalid type
       await assertErr(
-        () => createCacheService({ evictionInterval: 'invalid' }),
+        async () => createCacheService({ evictionInterval: 'invalid' }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be a number or \'None\'')
       )
       
       // Test zero evictionInterval
       await assertErr(
-        () => createCacheService({ evictionInterval: 0 }),
+        async () => createCacheService({ evictionInterval: 0 }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be positive')
       )
       
@@ -790,13 +790,13 @@ export async function testRuntimeValidation() {
     async () => {
       // Try to update to invalid expireTime
       await assertErr(
-        () => callService('cache-service', { settings: { expireTime: -100 } }),
+        async () => callService('cache-service', { settings: { expireTime: -100 } }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be positive')
       )
       
       // Try to update to invalid evictionInterval
       await assertErr(
-        () => callService('cache-service', { settings: { evictionInterval: 0 } }),
+        async () => callService('cache-service', { settings: { evictionInterval: 0 } }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be positive')
       )
       
@@ -874,7 +874,7 @@ export async function testInvalidGetAction() {
     async () => {
       // Test get with invalid type (number)
       await assertErr(
-        () => callService('cache-service', { get: 123 }),
+        async () => callService('cache-service', { get: 123 }),
         err => err.message.includes('get action requires a string key')
       )
       
@@ -893,13 +893,13 @@ export async function testInvalidSetAction() {
     async () => {
       // Test set with invalid type (string)
       await assertErr(
-        () => callService('cache-service', { set: 'invalid' }),
+        async () => callService('cache-service', { set: 'invalid' }),
         err => err.message.includes('set action requires an object')
       )
       
       // Test set with null
       await assertErr(
-        () => callService('cache-service', { set: null }),
+        async () => callService('cache-service', { set: null }),
         err => err.message.includes('set action requires an object')
       )
       
@@ -918,11 +918,9 @@ export async function testInvalidSetexAction() {
     async () => {
       // Test setex with invalid type
       await assertErr(
-        () => callService('cache-service', { setex: 'invalid' }),
+        async () => callService('cache-service', { setex: 'invalid' }),
         err => err.message.includes('setex action requires an object')
       )
-      
-      logger.info('✓ Invalid setex action validation works')
     }
   )
 }
@@ -937,11 +935,9 @@ export async function testInvalidExAction() {
     async () => {
       // Test ex with invalid type
       await assertErr(
-        () => callService('cache-service', { ex: 'invalid' }),
+        async () => callService('cache-service', { ex: 'invalid' }),
         err => err.message.includes('ex action requires an object')
       )
-      
-      logger.info('✓ Invalid ex action validation works')
     }
   )
 }
@@ -956,11 +952,9 @@ export async function testInvalidDelAction() {
     async () => {
       // Test del with invalid type
       await assertErr(
-        () => callService('cache-service', { del: {'invalid': true} }),
+        async () => callService('cache-service', { del: {'invalid': true} }),
         err => err.message.includes('del action requires a key-string or array of strings')
       )
-      
-      logger.info('✓ Invalid del action validation works')
     }
   )
 }
@@ -975,11 +969,9 @@ export async function testUnknownAction() {
     async () => {
       // Test unknown action
       await assertErr(
-        () => callService('cache-service', { unknownAction: 'test' }),
+        async () => callService('cache-service', { unknownAction: 'test' }),
         err => err.message.includes('Unknown cache action')
       )
-      
-      logger.info('✓ Unknown action validation works')
     }
   )
 }
@@ -994,7 +986,7 @@ export async function testActionResults() {
     async () => {
       // Test set result
       const setResult = await callService('cache-service', { set: { key1: 'value1', key2: 'value2' } })
-      await assert(setResult,
+      assert(setResult,
         r => r.success === true,
         r => r.action === 'set',
         r => Array.isArray(r.keys),
@@ -1005,7 +997,7 @@ export async function testActionResults() {
       
       // Test ex result
       const exResult = await callService('cache-service', { ex: { key1: 1000 } })
-      await assert(exResult,
+      assert(exResult,
         r => r.success === true,
         r => r.action === 'ex',
         r => r.keys.includes('key1')
@@ -1013,13 +1005,11 @@ export async function testActionResults() {
       
       // Test del result
       const delResult = await callService('cache-service', { del: 'key1' })
-      await assert(delResult,
+      assert(delResult,
         r => r.success === true,
         r => r.action === 'del',
         r => r.keys.key1 === 1
       )
-      
-      logger.info('✓ Action results have proper structure')
     }
   )
 }

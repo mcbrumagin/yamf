@@ -1,4 +1,4 @@
-import { registryServer, Logger } from '../../src/index.js'
+import { Logger, envConfig } from '../../src/index.js'
 
 const logger = new Logger()
 
@@ -8,12 +8,6 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
   args.unshift(args.pop()) // rearrange for spread
   let [testFn, ...serverFns] = args
   if (typeof testFn !== 'function') throw new Error('terminateAfter last argument must be a function')
-
-  // TODO remove
-  // if (typeof testFn !== 'function') {
-  //   let value = testFn
-  //   testFn = () => value
-  // }
   
   let servers
   try {
@@ -26,7 +20,7 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
       }
     }
 
-    let result = await testFn(servers)
+    let result = await testFn(...servers)
     return result
   } finally {
     let registryIndex = servers.findIndex(s => s.isRegistry)
@@ -40,5 +34,35 @@ export async function terminateAfter(...args /* ...serverFns, testFn */) {
       await registryServer?.terminate()
       logger.info(`terminated registry server at port ${registryServer?.port}`)
     } else for (let server of servers) await server?.terminate()
+  }
+}
+
+function setEnv(key, value) {
+  if (value === undefined) {
+    delete process.env[key]
+    envConfig.config.delete(key)
+  } else {
+    process.env[key] = value
+    envConfig.set(key, value)
+  }
+}
+
+export async function withEnv(envVars, fn) {
+  const saved = {}
+  for (const key in envVars) {
+    saved[key] = process.env[key]
+    setEnv(key, envVars[key])
+  }
+  
+  try {
+    return await fn()
+  } finally {
+    for (const key in saved) {
+      if (saved[key] === undefined) {
+        setEnv(key, undefined)
+      } else {
+        setEnv(key, saved[key])
+      }
+    }
   }
 }

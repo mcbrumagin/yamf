@@ -1,6 +1,7 @@
-import { assert, assertErr, terminateAfter } from '../core/index.js'
+import { assert, assertErr, terminateAfter, withEnv, sleep } from '../core/index.js'
 
 import {
+  gatewayServer,
   registryServer,
   createRoute,
   callRoute,
@@ -56,6 +57,7 @@ export async function testGetWithQueryParams() {
       }
     }),
     async () => {
+      throw new Error('TODO: GET with query parameters implementation')
       // Need to include trailing slash for wildcard routes
       const result = await callRoute('/search/', {
         params: { q: 'test', page: 2 }
@@ -149,6 +151,7 @@ export async function testDeleteRequest() {
       }
     }),
     async () => {
+      throw new Error('TODO: DELETE request implementation')
       const result = await callRoute('/users/123', {
         method: 'DELETE'
       })
@@ -195,7 +198,7 @@ export async function testInvalidEmptyPath() {
     await registryServer(),
     async () => {
       await assertErr(
-        () => callRoute(''),
+        async () => callRoute(''),
         err => err.status === 400,
         err => err.message.includes('Route path is required')
       )
@@ -213,7 +216,7 @@ export async function testInvalidNullPath() {
     await registryServer(),
     async () => {
       await assertErr(
-        () => callRoute(null),
+        async () => callRoute(null),
         err => err.status === 400,
         err => err.message.includes('Route path is required')
       )
@@ -231,7 +234,7 @@ export async function testInvalidPathCharacters() {
     await registryServer(),
     async () => {
       await assertErr(
-        () => callRoute('/api/test<script>'),
+        async () => callRoute('/api/test<script>'),
         err => err.status === 400,
         err => err.message.includes('invalid characters')
       )
@@ -313,6 +316,7 @@ export async function testVariousHttpMethods() {
       return { method: request.method }
     }),
     async () => {
+      throw new Error('TODO: Http methods implementations')
       const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
       
       for (const method of methods) {
@@ -401,26 +405,21 @@ export async function testCustomContentType() {
  * Note: In dev mode, registry may return documentation instead of 404
  */
 export async function testNonExistentRoute() {
-  await terminateAfter(
-    await registryServer(),
-    async () => {
-      try {
-        const result = await callRoute('/does-not-exist-route-test-123')
-        // In dev mode, may return documentation
-        if (result && result.name === '@yamf/core') {
-          logger.info('✓ Non-existent route returns documentation (dev mode)')
-          return
-        }
-        throw new Error('Expected error for non-existent route')
-      } catch (err) {
-        if (err.status === 404 || err.message.includes('No route')) {
-          logger.info('✓ Non-existent route returns 404')
-        } else {
-          throw err
-        }
+  await withEnv({
+    MICRO_GATEWAY_URL: 'http://localhost:15000',
+  }, async () => {
+    await terminateAfter(
+      registryServer(),
+      async () => {
+        await sleep(100)
+        await assertErr(
+          async () => callRoute('/does-not-exist-route-test-123'),
+          err => err.status === 404,
+          err => err.message?.includes('Not found')
+        )
       }
-    }
-  )
+    )
+  })
 }
 
 /**
@@ -434,7 +433,7 @@ export async function testServiceErrorPropagation() {
     }),
     async () => {
       await assertErr(
-        () => callRoute('/error'),
+        async () => callRoute('/error'),
         err => err.status === 418,
         err => err.message.includes('teapot')
       )
@@ -464,6 +463,7 @@ export async function testComplexQueryParams() {
       }
     }),
     async () => {
+      throw new Error('TODO: Query param implementation')
       const result = await callRoute('/filter/', {
         params: {
           name: 'John Doe',
@@ -497,6 +497,7 @@ export async function testNullQueryParamsFiltered() {
       }
     }),
     async () => {
+      throw new Error('TODO: Query params implementation')
       const result = await callRoute('/test/', {
         params: {
           valid: 'value',
@@ -585,6 +586,7 @@ export async function testMixedMethodsSequence() {
       return { method, received: true }
     }),
     async () => {
+      throw new Error('TODO: Http methods implementations')
       // POST to create users
       const user1 = await callRoute('/users', {
         method: 'POST',

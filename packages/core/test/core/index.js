@@ -1,34 +1,32 @@
 import {
   assert,
-  assertOn,
   assertErr,
-  assertErrOn,
-  MultiAssertError
+  MultiAssertError,
+  AssertError
 } from './assert.js'
 
 import {
   sleep,
-  terminateAfter
+  terminateAfter,
+  withEnv
 } from './helpers.js'
 
-import {
-  runTests
-} from './runner.js'
-
-import {
+import runTests, {
   mergeAllTestsSafely,
-  TestRunner
-} from './suite-runner.js'
+  TestRunner,
+  runTestFnsSequentially
+} from './runner.js'
 
 export {
   assert,
-  assertOn,
   assertErr,
-  assertErrOn,
   MultiAssertError,
+  AssertError,
   sleep,
   terminateAfter,
   mergeAllTestsSafely,
   runTests,
-  TestRunner
+  runTestFnsSequentially,
+  TestRunner,
+  withEnv
 }

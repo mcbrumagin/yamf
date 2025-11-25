@@ -24,7 +24,7 @@ const logger = new Logger({ logGroup: 'yamf-registry' })
  */
 export async function preRegisterGatewayIfItExists(state) {
   const gatewayUrl = envConfig.get('MICRO_GATEWAY_URL')
-  const env = envConfig.get('ENVIRONMENT', 'dev')
+  const env = envConfig.get('ENVIRONMENT', 'local')
   
   if (gatewayUrl) {
     // Register gateway with special metadata
@@ -46,10 +46,10 @@ export async function preRegisterGatewayIfItExists(state) {
         'MICRO_GATEWAY_URL required in production/staging. ' +
         'Set this to your publicly accessible gateway endpoint.'
       )
-    } else if (env.includes('dev')) {
+    } else if (env.includes('dev') || env.includes('test')) {
       logger.warn(
         `No MICRO_GATEWAY_URL configured for ENVIRONMENT "${env}". ` +
-        `Registry will act as gateway in development mode. ` +
+        `Registry will act as gateway in dev/test/local mode. ` +
         logger.writeColor('red', 'This configuration will fail in production.')
       )
     }

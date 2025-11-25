@@ -9,6 +9,7 @@ import { findControllerRoute } from './route-registry.js'
 import { streamProxyServiceCall } from './service-registry.js'
 import { detectContentType } from './content-type-detector.js'
 import { Next } from '../http-primitives/next.js'
+import envConfig from '../shared/env-config.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
 
@@ -140,7 +141,8 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   }
 
   logger.debug('no route matched')
-  if (process.env.ENVIRONMENT?.toLowerCase().includes('dev')) {
+  let env = envConfig.get('ENVIRONMENT', 'local')
+  if (env.includes('dev') || env.includes('local')) {
     logger.debug('returning routes for debugging', { routes: Object.fromEntries(state.routes) })
     return { 
       payload: Object.fromEntries(state.routes),
