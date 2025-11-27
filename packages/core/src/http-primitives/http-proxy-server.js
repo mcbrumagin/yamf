@@ -48,25 +48,11 @@ export default async function createProxyServer(port, serverFn, options = {}) {
         
       } catch (err) {
         if (err instanceof HttpError) {
-          prependServiceNameToErrorStack(err, serverFn.name)
-          if (!response.writableEnded) {
-            response.setHeader('content-type', 'text/plain')
-            response.writeHead(err.status || 500)
-            response.end(err.stack)
-          } else {
-            logger.warn('response already ended', { port, name: serverFn.name })
-            logger.error(err.stack)
-          }
-        } else {
-          if (!response.writableEnded) {
-            response.setHeader('content-type', 'text/plain')
-            response.writeHead(500)
-            response.end(err.stack)
-          } else {
-            logger.warn('response already ended', { port, name: serverFn.name })
-            logger.error(err.stack)
-          }
+          prependServiceNameToErrorStack(err, serverFn.name) 
         }
+        response.setHeader('content-type', 'text/plain')
+        response.writeHead(err.status || 500)
+        response.end(err.stack)
       }
     })
 

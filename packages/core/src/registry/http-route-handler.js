@@ -86,6 +86,7 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody /* 
     return result
   }
 
+  logger.debug('controllerRoute - normalized result:', result)
   const normalizedResult = normalizeResult(result, url)
   
   if (!response.isEnded) {
