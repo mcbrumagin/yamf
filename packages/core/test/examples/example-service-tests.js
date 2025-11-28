@@ -12,6 +12,10 @@
 import {
   assert,
   assertErr,
+  assertEach,
+  assertSequence,
+  assertErrEach,
+  assertErrSequence,
   terminateAfter,
   TestRunner
 } from '../core/index.js'
@@ -179,7 +183,7 @@ export async function testWildcardRoute() {
 // Advanced Patterns
 // ============================================================================
 
-// Example 6: Test concurrent service calls
+// Example 6: Test concurrent service calls with assertEach
 export async function testConcurrentCalls() {
   await terminateAfter(
     await registryServer(),
@@ -193,9 +197,16 @@ export async function testConcurrentCalls() {
       
       const results = await Promise.all(promises)
       
+      // Use assertEach to verify all results have the expected shape
+      assertEach(results,
+        r => r.count > 0,
+        r => typeof r.timestamp === 'number',
+        r => r.timestamp > 0
+      )
+      
+      // Additional checks
       assert(results,
         r => r.length === 10,
-        r => r.every(result => result.count > 0),
         r => r.some(result => result.count === 10)
       )
     }
@@ -241,6 +252,137 @@ export async function testStatefulService() {
 }
 
 // ============================================================================
+// Advanced Array Assertion Examples
+// ============================================================================
+
+// Example 8: Test multiple services return expected formats
+export async function testMultipleServicesWithAssertEach() {
+  await terminateAfter(
+    await registryServer(),
+    await createService('service1', () => ({ id: 1, status: 'ready' })),
+    await createService('service2', () => ({ id: 2, status: 'ready' })),
+    await createService('service3', () => ({ id: 3, status: 'ready' })),
+    async () => {
+      const results = await Promise.all([
+        callService('service1'),
+        callService('service2'),
+        callService('service3')
+      ])
+      
+      // All services should return objects with id and status
+      assertEach(results,
+        r => typeof r.id === 'number',
+        r => r.status === 'ready',
+        r => r.id > 0
+      )
+    }
+  )
+}
+
+// Example 9: Test validation sequence with assertSequence
+export async function testValidationSequence() {
+  await terminateAfter(
+    await registryServer(),
+    await createService('validator', (payload) => {
+      if (!payload.value) return { valid: false, reason: 'missing' }
+      if (typeof payload.value !== 'number') return { valid: false, reason: 'type' }
+      if (payload.value < 0) return { valid: false, reason: 'range' }
+      return { valid: true }
+    }),
+    async () => {
+      const testCases = [
+        callService('validator', {}),
+        callService('validator', { value: 'string' }),
+        callService('validator', { value: -5 }),
+        callService('validator', { value: 10 })
+      ]
+      
+      // Each test case has a specific expected result
+      await assertSequence(testCases,
+        r => r.valid === false && r.reason === 'missing',
+        r => r.valid === false && r.reason === 'type',
+        r => r.valid === false && r.reason === 'range',
+        r => r.valid === true
+      )
+    }
+  )
+}
+
+// Example 10: Test multiple error conditions with assertErrEach
+export async function testMultipleErrorConditions() {
+  await terminateAfter(
+    await registryServer(),
+    await createService('strict', (payload) => {
+      if (!payload.name) throw new HttpError(400, 'Name required')
+      if (payload.name.length < 3) throw new HttpError(400, 'Name too short')
+      return { name: payload.name }
+    }),
+    async () => {
+      // All these should throw 400 errors
+      await assertErrEach([
+        async () => await callService('strict', {}),
+        async () => await callService('strict', { name: 'AB' })
+      ],
+        err => err.status === 400,
+        err => err instanceof HttpError,
+        err => err.message.length > 0
+      )
+    }
+  )
+}
+
+// Example 11: Test specific error sequence with assertErrSequence
+export async function testErrorSequence() {
+  await terminateAfter(
+    await registryServer(),
+    await createService('errors', (payload) => {
+      if (payload.code === 400) throw new HttpError(400, 'Bad Request')
+      if (payload.code === 401) throw new HttpError(401, 'Unauthorized')
+      if (payload.code === 404) throw new HttpError(404, 'Not Found')
+      if (payload.code === 500) throw new HttpError(500, 'Server Error')
+      return { success: true }
+    }),
+    async () => {
+      // Each should throw a specific error
+      await assertErrSequence([
+        async () => await callService('errors', { code: 400 }),
+        async () => await callService('errors', { code: 401 }),
+        async () => await callService('errors', { code: 404 }),
+        async () => await callService('errors', { code: 500 })
+      ],
+        err => err.status === 400 && err.message.includes('Bad Request'),
+        err => err.status === 401 && err.message.includes('Unauthorized'),
+        err => err.status === 404 && err.message.includes('Not Found'),
+        err => err.status === 500 && err.message.includes('Server Error')
+      )
+    }
+  )
+}
+
+// Example 12: Test pipeline of dependent services
+export async function testServicePipeline() {
+  await terminateAfter(
+    await registryServer(),
+    await createService('step1', (payload) => ({ value: payload.input * 2 })),
+    await createService('step2', (payload) => ({ value: payload.input + 10 })),
+    await createService('step3', (payload) => ({ value: payload.input * 3 })),
+    async () => {
+      // Process through pipeline
+      const step1Result = await callService('step1', { input: 5 })  // 10
+      const step2Result = await callService('step2', { input: step1Result.value })  // 20
+      const step3Result = await callService('step3', { input: step2Result.value })  // 60
+      
+      // Use assertSequence to verify each step
+      assertSequence([step1Result, step2Result, step3Result],
+        r => r.value === 10,
+        r => r.value === 20,
+        r => r.value === 60
+      )
+    }
+  )
+}
+
+// ============================================================================
 // Run Tests with TestRunner
 // ============================================================================
 
@@ -255,7 +397,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     testHttpRoute,
     testWildcardRoute,
     testConcurrentCalls,
-    testStatefulService
+    testStatefulService,
+    testMultipleServicesWithAssertEach,
+    testValidationSequence,
+    testMultipleErrorConditions,
+    testErrorSequence,
+    testServicePipeline
   })
   
   // Run all test suites
@@ -275,6 +422,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
  * 6. Concurrent service testing
  * 7. Test organization with TestRunner
  * 8. Wildcard routes for controller patterns
+ * 9. assertEach() - Test multiple results with same criteria
+ * 10. assertSequence() - Test ordered results with specific criteria
+ * 11. assertErrEach() - Test multiple errors with same criteria
+ * 12. assertErrSequence() - Test ordered errors with specific criteria
  * 
  * Best Practices:
  * 
@@ -284,5 +435,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
  * - Organize related tests into suites
  * - Name test functions descriptively
  * - Test service dependencies and state management
+ * - Use assertEach when testing many similar results
+ * - Use assertSequence when each result has specific expectations
+ * - Use assertErrEach/assertErrSequence for comprehensive error testing
  */
 

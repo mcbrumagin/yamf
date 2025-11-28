@@ -1,181 +1,220 @@
-import { Logger } from '../../src/index.js'
+import {
+  AssertionFailure,
+  AssertionFailureDetail,
+  MultiAssertionFailure,
+} from './assertion-errors.js'
 
+import { Logger } from '../../src/index.js'
 const logger = new Logger()
 
-export class AssertError extends Error {
 
-  constructor(val, assertType, assertFnMessage) {
-    super() // Don't pass message to super yet
-    this.val = val
-    if (!assertFnMessage) {
-      assertFnMessage = assertType
-      assertType = 'assert'
-    }
-    this.assertType = assertType
-    this.name = 'AssertError'
-
-    const getValOrErrString = () => {
-      if (val instanceof Error) {
-        return `err = ${val.message}`
-      } else {
-        if (typeof val === 'object') {
-          return JSON.stringify(val)
-        } else {
-          return `val = ${val}`
-        }
-      }
-    }
-
-    let targetMessageString = getValOrErrString()
-    
-    // Set both assertMessage (for compatibility) and message (for standard Error)
-    this.assertMessage = this.name
-      + `: "${assertType}" failed\n  for `
-      + targetMessageString + '\n'
-      + assertFnMessage
-    
-    // Set the standard message property
-    this.message = this.assertMessage
-  }
+function isAsyncOrPromise(arg) {
+  return arg instanceof Promise || arg?.constructor?.name === 'AsyncFunction'
 }
 
-export class MultiAssertError extends Error {
-  constructor(val, assertType, errors) {
-    super() // Don't pass message to super yet
-    this.val = val
-    if (!errors) {
-      errors = assertType
-      assertType = 'assert'
-    }
-    this.assertType = assertType
-    this.errors = errors
-    this.name = 'MultiAssertError'
-
-    const getValOrErrString = () => {
-      if (val instanceof Error) {
-        return `err = ${val.message}`
-      } else {
-        if (typeof val === 'object') {
-          return JSON.stringify(val)
-        } else {
-          return `val = ${val}`
-        }
-      }
-    }
-    
-    let targetMessageString = getValOrErrString()
-
-    logger.warn('errors:', targetMessageString, errors.map(e => e.message))
-    
-    // Set both assertMessage (for compatibility) and message (for standard Error)
-    this.assertMessage = this.name
-      + `: "${assertType}" failed\n  for `
-      + targetMessageString + '\n'
-      + errors.map(e => e.message).join('\n')
-    
-    // Set the standard message property
-    this.message = this.assertMessage
-  }
-}
-
-/**
- * Core assertion function with automatic async detection
- * 
- * Automatically detects if async behavior is needed by checking:
- * - If valOrFn is a Promise
- * - If valOrFn is an AsyncFunction
- * - If the function returns a Promise (runtime check)
- * 
- * @param {*|Function|Promise} valOrFn - Value, function, or Promise to test
- * @param {Function[]} assertFns - Assertion functions that return true/false
- * @param {string} assertType - Type of assertion ('assert' or 'assertErr')
- * @returns {void|Promise<void>} - Throws AssertError or MultiAssertError on failure
- */
-function assertCore(valOrFn, assertFns, assertType = 'assert') {
-  // Check if we need async BEFORE evaluating the function
-  const needsAsync = valOrFn instanceof Promise || 
-                     (typeof valOrFn === 'function' && valOrFn.constructor.name === 'AsyncFunction')
-
-  if (needsAsync) {
-    // Async path
-    let resultPromise
-    if (typeof valOrFn === 'function') {
-      resultPromise = valOrFn()
-    } else {
-      resultPromise = valOrFn
-    }
-    
-    return resultPromise.then(result => {
-      return runAssertions(result, assertFns, assertType, true)
-    })
+// used to check what mode to run in
+function scanAllArgumentsForAsyncOrPromise(args, assertFns) {
+  if (!Array.isArray(args)) {
+    if (isAsyncOrPromise(args)) return true
   } else {
-    // Sync path
-    let result
-    if (typeof valOrFn === 'function') {
-      result = valOrFn()
-    } else {
-      result = valOrFn
-    }
+    for (let arg of args) if (isAsyncOrPromise(arg)) return true
+    for (let fn of assertFns) if (isAsyncOrPromise(fn)) return true
+  }
+  return false
+}
 
-    // help to maintain a promise chain even if it wasn't marked as async
-    if (result instanceof Promise) {
-      return result.then(result => {
-        return runAssertions(result, assertFns, assertType, false)
-      })
-    } else return runAssertions(result, assertFns, assertType, false)
+// validator for sequence fns (expects a matching assertionFn length)
+function validateSequenceAssertionCount(targets, assertFns) {
+  if (!Array.isArray(targets) || !Array.isArray(assertFns))
+    throw new Error('Expected sequence assertion arguments to be arrays')
+  if (targets.length !== assertFns.length)
+    throw new Error('Expected sequence assertion arguments to be the same length')
+}
+
+// for multi-assertion meta-helpers (each, sequence)
+function checkFailuresAndThrowMultiAssertionFailure(assertionName, failures) {
+  if (failures.length === 0) return
+  if (failures.length > 1) {
+    throw new MultiAssertionFailure(assertionName, failures)
+  } else if (failures.length === 1) {
+    throw failures[0]
   }
 }
 
-/**
- * Run assertion functions against a result
- * @param {*} result - The resolved value to test
- * @param {Function[]} assertFns - Array of assertion functions
- * @param {string} assertType - Type of assertion for error messages
- * @param {boolean} isAsync - Whether to run assertions asynchronously
- */
-function runAssertions(result, assertFns, assertType, isAsync) {
-  const fnLabel = assertType === 'assert' ? 'assertFn' : 'assertErrFn'
+function distillValueFromTestArgument(val) {
+  try {
+    if (typeof val === 'function') val = val()
+  } catch (err) {
+    val = err
+  }
+  // if we find a promise, throw so we can attempt to run as async
+  if (val instanceof Promise) {
+    let err = new Error('Found Promise in Sync Fn')
+    err.promise = val
+    throw err
+  }
   
-  // Handle single assertion function
-  if (assertFns.length === 1) {
-    if (isAsync) {
-      return Promise.resolve(assertFns[0](result)).then(assertResult => {
-        if (assertResult != true) {
-          throw new AssertError(result, assertType, `  ${fnLabel}: ${assertFns[0].toString()}`)
-        }
-      })
-    } else {
-      let assertResult = assertFns[0](result)
-      if (assertResult != true) {
-        throw new AssertError(result, assertType, `  ${fnLabel}: ${assertFns[0].toString()}`)
-      }
-      return
+  return val
+}
+
+async function distillValueFromTestArgumentAsync(val) {
+  try {
+    if (typeof val === 'function') {
+      val = await val()
+    } else if (val instanceof Promise) {
+      return val.then(a => val = a).catch(e => val = e)
     }
+  } catch (err) {
+    val = err
   }
+  return val
+}
 
-  // Handle multiple assertion functions
-  if (isAsync) {
-    return Promise.all(assertFns.map(async assertFn => {
-      let assertResult = await assertFn(result)
-      if (assertResult != true) {
-        return new Error(`  ${fnLabel}: ${assertFn.toString()}`)
+
+function getAssertionFailuresForValue(val, ...assertFns) {
+  let assertionFailures = []
+  if (!(val instanceof Error)) {
+    let failedAssertFns = []
+    assertFns.forEach(assertFn => {
+      try {
+        let isValid = assertFn(val)
+        if (!isValid) {
+          failedAssertFns.push(assertFn)
+        }
+      } catch (assertionErr) {
+        failedAssertFns.push(assertionErr)
       }
-    })).then(errors => {
-      errors = errors.filter(e => e instanceof Error)
-      if (errors.length > 1) throw new MultiAssertError(result, assertType, errors)
-      else if (errors.length === 1) throw new AssertError(result, assertType, errors[0].message)
     })
+    if (failedAssertFns.length > 0) {
+      assertionFailures.push(new AssertionFailureDetail(val, failedAssertFns))
+    }
   } else {
-    let errors = assertFns.map(assertFn => {
-      let assertResult = assertFn(result)
-      if (assertResult != true) {
-        return new Error(`  ${fnLabel}: ${assertFn.toString()}`)
+    assertionFailures.push(new AssertionFailureDetail(val, 'expected no error'))
+  }
+  return assertionFailures
+}
+
+async function getAssertionFailuresForValueAsync(val, ...assertFns) {
+  let assertionFailures = []
+  if (!(val instanceof Error)) {
+    let failedAssertFns = []
+    await Promise.all(assertFns.map(async assertFn => {
+      try {
+        let isValid = await assertFn(val)
+        if (!isValid) {
+          failedAssertFns.push(assertFn)
+        }
+      } catch (assertionErr) {
+        failedAssertFns.push(assertionErr)
+      }
+    }))
+    if (failedAssertFns.length > 0) {
+      assertionFailures.push(new AssertionFailureDetail(val, failedAssertFns))
+    }
+  } else {
+    assertionFailures.push(new AssertionFailureDetail(val, 'expected no error'))
+  }
+  return assertionFailures
+}
+
+function getErrorAssertionFailuresForValue(val, ...assertFns) {
+  let assertionFailures = []
+  if (val instanceof Error) {
+    let failedAssertFns = []
+    assertFns.forEach(assertFn => {
+      try {
+        let isValid = assertFn(val)
+        if (!isValid) {
+          failedAssertFns.push(assertFn)
+        }
+      } catch (assertionErr) {
+        failedAssertFns.push(assertionErr)
       }
     })
+    if (failedAssertFns.length > 0) {
+      assertionFailures.push(new AssertionFailureDetail(val, failedAssertFns))
+    }
+  } else {
+    assertionFailures.push(new AssertionFailureDetail(val, 'expected an error'))
+  }
+  return assertionFailures
+}
 
-    errors = errors.filter(e => e instanceof Error)
-    if (errors.length > 1) throw new MultiAssertError(result, assertType, errors)
-    else if (errors.length === 1) throw new AssertError(result, assertType, errors[0].message)
+async function getErrorAssertionFailuresForValueAsync(val, ...assertFns) {
+  let assertionFailures = []
+  if (val instanceof Error) {
+    let failedAssertFns = []
+    await Promise.all(assertFns.map(async assertFn => {
+      try {
+        let isValid = await assertFn(val)
+        if (!isValid) {
+          failedAssertFns.push(assertFn)
+        }
+      } catch (assertionErr) {
+        failedAssertFns.push(assertionErr)
+      }
+    }))
+    if (failedAssertFns.length > 0) {
+      assertionFailures.push(new AssertionFailureDetail(val, failedAssertFns))
+    }
+  } else {
+    assertionFailures.push(new AssertionFailureDetail(val, 'expected an error'))
+  }
+  return assertionFailures
+}
+
+function getTransformedAssertionFailuresforValue(val, ...assertFns) {
+  let assertionFailures = getAssertionFailuresForValue(val, ...assertFns)
+  let failure = checkAndTransformErrorsToMultiAssertError(val, assertionFailures)
+  return failure
+}
+
+async function getTransformedAssertionFailuresforValueAsync(val, ...assertFns) {
+  let assertionFailures = await getAssertionFailuresForValueAsync(val, ...assertFns)
+  let failure = checkAndTransformErrorsToMultiAssertError(val, assertionFailures)
+  return failure
+}
+
+function getTransformedErrorAssertionFailuresforValue(val, ...assertFns) {
+  let assertionFailures = getErrorAssertionFailuresForValue(val, ...assertFns)
+  let failure = checkAndTransformErrorsToMultiAssertError(val, assertionFailures)
+  return failure
+}
+
+async function getTransformedErrorAssertionFailuresforValueAsync(val, ...assertFns) {
+  let assertionFailures = await getErrorAssertionFailuresForValueAsync(val, ...assertFns)
+  let failure = checkAndTransformErrorsToMultiAssertError(val, assertionFailures)
+  return failure
+}
+
+function checkAndTransformErrorsToMultiAssertError(val, assertionFailures) {
+  if (Array.isArray(assertionFailures) && assertionFailures.length > 0) {
+    let failure
+    if (assertionFailures.length === 1) {
+      failure = new AssertionFailure(val, assertionFailures[0])
+    } else {
+      failure = new AssertionFailure(val, assertionFailures)
+    }
+    return failure
+  }
+}
+
+// main assertion helper entry-point
+function processAssertionAndChooseSyncOrAsyncPath(assertionHelper, target, ...assertFns) {
+  const doAsyncPath = (thrownPromise) => new Promise((resolve, reject) => assertionHelper
+    // use the val from the (sync) thrown promise target
+    .async(thrownPromise || target, ...assertFns)
+    .catch(reject)
+    .finally(resolve)
+  )
+  if (scanAllArgumentsForAsyncOrPromise(target, assertFns)) {
+    return doAsyncPath()
+  } else try {
+    return assertionHelper.sync(target, ...assertFns)
+  } catch (err) {
+    if (err.message?.includes('Found Promise')) {
+      return doAsyncPath(err.promise)
+    } else throw err
   }
 }
 
@@ -203,8 +242,21 @@ function runAssertions(result, assertFns, assertType, isAsync) {
  * await assert(async () => await fetchData(), d => d.status === 'ok')
  * await assert(() => fetchData(), d => d.status === 'ok') // Promise-returning
  */
+
 export function assert(valOrFn, ...assertFns) {
-  return assertCore(valOrFn, assertFns, 'assert')
+  return processAssertionAndChooseSyncOrAsyncPath(assert, valOrFn, ...assertFns)
+}
+
+assert.sync = function assertSync(valOrFn, ...assertFns) {
+  let val = distillValueFromTestArgument(valOrFn)
+  let failure = getTransformedAssertionFailuresforValue(val, ...assertFns)
+  if (failure) throw failure
+}
+
+assert.async = async function assertAsync(valOrFn, ...assertFns) {
+  let val = await distillValueFromTestArgumentAsync(valOrFn)
+  let failure = await getTransformedAssertionFailuresforValueAsync(val, ...assertFns)
+  if (failure) throw failure
 }
 
 /**
@@ -230,68 +282,212 @@ export function assert(valOrFn, ...assertFns) {
  * await assertErr(() => rejectingPromiseFn(), err => err.message === 'rejected')
  */
 export function assertErr(errOrFn, ...assertFns) {
-  // Handle direct Error object
-  if (errOrFn instanceof Error) {
-    return runAssertions(errOrFn, assertFns, 'assertErr', false)
+  return processAssertionAndChooseSyncOrAsyncPath(assertErr, errOrFn, ...assertFns)
+}
+
+assertErr.sync = function assertErrSync(errOrFn, ...assertFns) {
+  let val = distillValueFromTestArgument(errOrFn)
+  let failure = getTransformedErrorAssertionFailuresforValue(val, ...assertFns)
+  if (failure) throw failure
+}
+
+assertErr.async = async function assertErrAsync(errOrFn, ...assertFns) {
+  let val = await distillValueFromTestArgumentAsync(errOrFn)
+  let failure = await getTransformedErrorAssertionFailuresforValueAsync(val, ...assertFns)
+  if (failure) throw failure
+}
+
+
+/**
+ * Assert that each value in an array passes all assertion functions
+ * 
+ * Automatically detects and handles async when needed.
+ * Applies each assertion function to each value in the array.
+ * 
+ * @param {Array} values - Array of values to test
+ * @param {...Function} assertFns - Assertion functions returning true/false
+ * @returns {void|Promise<void>} - Throws AssertError or MultiAssertError on failure
+ * 
+ * @example
+ * // Sync usage
+ * assertEach([1, 2, 3], 
+ *   n => n > 0,
+ *   n => n < 10
+ * )
+ * 
+ * // Async usage (auto-detected, just add await)
+ * await assertEach([promise1, promise2], 
+ *   val => val !== null,
+ *   val => val.status === 'ok'
+ * )
+ */
+export function assertEach(values, ...assertFns) {
+  return processAssertionAndChooseSyncOrAsyncPath(assertEach, values, ...assertFns)
+}
+
+assertEach.sync = function assertEachSync(values, ...assertFns) {
+  let failures = []
+  for (let val of values) {
+    val = distillValueFromTestArgument(val)
+    let failure = getTransformedAssertionFailuresforValue(val, ...assertFns)
+    if (failure) failures.push(failure)
   }
+  checkFailuresAndThrowMultiAssertionFailure('assertEachSync', failures)
+}
 
-  // Handle function that should throw
-  if (typeof errOrFn === 'function') {
-    const isAsync = errOrFn.constructor.name === 'AsyncFunction'
-    
-    if (isAsync) {
-      // Async error catching
-      return errOrFn()
-        .then(
-          (val) => {
-            throw new AssertError(val, 'assertErr', `Expected an error for fn: ${errOrFn}`)
-          },
-          (err) => {
-            if (!(err instanceof Error)) {
-              throw new AssertError(err, 'assertErr', `Expected an error for fn: ${errOrFn}`)
-            }
-            return runAssertions(err, assertFns, 'assertErr', true)
-          }
-        )
-        .finally(() => {
-          // Cleanup if needed
-          if (errOrFn.terminate) return errOrFn.terminate()
-        })
-    } else {
-      // Sync error catching
-      let err
-      let result
-      try {
-        result = errOrFn()
-      } catch (e) {
-        err = e
-      } finally {
-        if (errOrFn.terminate) errOrFn.terminate()
-      }
-
-      // TODO move or duplicate for promise check?
-      const validateError = () => {
-        if (!(err instanceof Error)) {
-          let prettyPrintVal = logger.prettyPrint(err)
-          let message = `Expected an error but received \nval: ${prettyPrintVal}`
-          if (typeof errOrFn === 'function') message += `\n fn: ${errOrFn}`
-          throw new AssertError(err, 'assertErr', message)
-        }
-      }
-
-      // TODO verify and fix (needs catch)
-      // help to maintain a promise chain even if it wasn't marked as async
-      if (result instanceof Promise) {
-        return result.catch(e => err = e).finally(() => {
-          validateError()
-          return runAssertions(err, assertFns, 'assertErr', false)
-        })
-      } else {
-        validateError()
-        return runAssertions(err, assertFns, 'assertErr', false)
-      }
-    }
+assertEach.async = async function assertEachAsync(values, ...assertFns) {
+  let failures = []
+  for (let val of values) {
+    val = await distillValueFromTestArgumentAsync(val)
+    let failure = await getTransformedAssertionFailuresforValueAsync(val, ...assertFns)
+    if (failure) failures.push(failure)
   }
+  checkFailuresAndThrowMultiAssertionFailure('assertEachAsync', failures)
+}
 
-  throw new Error('assertErr requires an Error object or a function')
+/**
+ * Assert that each value in an array passes the corresponding assertion function
+ * 
+ * Automatically detects and handles async when needed.
+ * Applies the corresponding assertion function to each value in the array.
+ * Errors early if the number of values and assertion functions do not match.
+ * 
+ * @param {Array} values - Array of values to test
+ * @param {...Function} assertFns - Assertion functions returning true/false
+ * @returns {void|Promise<void>} - Throws AssertError or MultiAssertError on failure
+ * 
+ * @example
+ * // Sync usage
+ * assertSequence([1, 2, 3], 
+ *   n => n === 1,
+ *   n => n === 2,
+ *   n => n === 3
+ * )
+ * 
+ * // Async usage (auto-detected, just add await)
+ * await assertSequence([promise1, promise2, promise3], 
+ *   val => val !== null,
+ *   val => val.status === 'ok',
+ *   val => val.count > 0
+ * )
+ */
+export function assertSequence(values, ...assertFns) {
+  validateSequenceAssertionCount(values, assertFns)
+  return processAssertionAndChooseSyncOrAsyncPath(assertSequence, values, ...assertFns)
+}
+
+assertSequence.sync = function assertSequenceSync(values, ...assertFns) {
+  let failures = []
+  let index = 0
+  for (let val of values) {
+    val = distillValueFromTestArgument(val)
+    let failure = getTransformedAssertionFailuresforValue(val, assertFns[index])
+    if (failure) failures.push(failure)
+    index++
+  }
+  checkFailuresAndThrowMultiAssertionFailure('assertSequenceSync', failures)
+}
+
+assertSequence.async = async function assertSequenceAsync(values, ...assertFns) {
+  let failures = []
+  let index = 0
+  for (let val of values) {
+    val = await distillValueFromTestArgumentAsync(val)
+    let failure = await getTransformedAssertionFailuresforValueAsync(val, assertFns[index])
+    if (failure) failures.push(failure)
+    index++
+  }
+  checkFailuresAndThrowMultiAssertionFailure('assertSequenceAsync', failures)
+}
+
+
+/**
+ * Assert that each error in an array passes all assertion functions
+ * Assert that each function in an array throws an error matching all assertion functions
+ * 
+ * Automatically detects and handles async when needed.
+ * 
+ * @param {Array} errsOrFns - Array of errors or functions that should throw
+ * @param {...Function} assertFns - Assertion functions returning true/false
+ * @returns {void|Promise<void>} - Throws AssertError or MultiAssertError on failure
+ * 
+ * @example
+ * // Sync usage with error objects
+ * assertErrEach([new Error('test'), new Error('test2')], 
+ *   err => err instanceof Error,
+ *   err => err.message.includes('test')
+ * )
+ * 
+ * // Sync usage with throwing functions
+ * assertErrEach([
+ *   () => { throw new Error('error1') },
+ *   () => { throw new Error('error2') }
+ * ], 
+ *   err => err instanceof Error,
+ *   err => err.message.includes('error')
+ * )
+ * 
+ * // Async usage (auto-detected, just add await)
+ * await assertErrEach([
+ *   async () => { throw new Error('async1') },
+ *   async () => { throw new Error('async2') }
+ * ], 
+ *   err => err instanceof Error,
+ *   err => err.message.includes('async')
+ * )
+ */
+export function assertErrEach(errsOrFns, ...assertFns) {
+  return processAssertionAndChooseSyncOrAsyncPath(assertErrEach, errsOrFns, ...assertFns)
+}
+
+assertErrEach.sync = function assertErrEachSync(errsOrFns, ...assertFns) {
+  let failures = []
+  for (let errOrFn of errsOrFns) {
+    let val = distillValueFromTestArgument(errOrFn)
+    let failure = getTransformedErrorAssertionFailuresforValue(val, ...assertFns)
+    if (failure) failures.push(failure)
+  }
+  checkFailuresAndThrowMultiAssertionFailure('assertErrEachSync', failures)
+}
+
+assertErrEach.async = async function assertErrEachAsync(errsOrFns, ...assertFns) {
+  let failures = []
+  for (let errOrFn of errsOrFns) {
+    let val = await distillValueFromTestArgumentAsync(errOrFn)
+    let failure = await getTransformedErrorAssertionFailuresforValueAsync(val, ...assertFns)
+    if (failure) failures.push(failure)
+  }
+  checkFailuresAndThrowMultiAssertionFailure('assertErrEachAsync', failures)
+}
+
+
+/* TODO documentation comment
+*/
+export function assertErrSequence(errsOrFns, ...assertFns) {
+  validateSequenceAssertionCount(errsOrFns, assertFns)
+  return processAssertionAndChooseSyncOrAsyncPath(assertErrSequence, errsOrFns, ...assertFns)
+}
+
+assertErrSequence.sync = function assertErrSequenceSync(errsOrFns, ...assertFns) {
+  let failures = []
+  let index = 0
+  for (let errOrFn of errsOrFns) {
+    let val = distillValueFromTestArgument(errOrFn)
+    let failure = getTransformedErrorAssertionFailuresforValue(val, assertFns[index])
+    if (failure) failures.push(failure)
+    index++
+  }
+  checkFailuresAndThrowMultiAssertionFailure('assertErrSequenceSync', failures)
+}
+
+assertErrSequence.async = async function assertErrSequenceAsync(errsOrFns, ...assertFns) {
+  let failures = []
+  let index = 0
+  for (let errOrFn of errsOrFns) {
+    let val = await distillValueFromTestArgumentAsync(errOrFn)
+    let failure = await getTransformedErrorAssertionFailuresforValueAsync(val, assertFns[index])
+    if (failure) failures.push(failure)
+    index++
+  }
+  checkFailuresAndThrowMultiAssertionFailure('assertErrSequenceAsync', failures)
 }

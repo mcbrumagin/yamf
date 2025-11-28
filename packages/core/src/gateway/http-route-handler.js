@@ -7,10 +7,11 @@ import { Buffer } from 'node:buffer'
 import Logger from '../utils/logger.js'
 import { findControllerRoute } from './route-registry.js'
 import { streamProxyServiceCall } from './service-registry.js'
-import { detectContentType } from './content-type-detector.js'
+import { detectContentType } from '../http-primitives/content-type-detector.js'
 import { Next } from '../http-primitives/next.js'
+import envConfig from '../shared/env-config.js'
 
-const logger = new Logger({ logGroup: 'yamf-gateway' })
+const logger = new Logger({ logGroup: 'yamf-registry' })
 
 /**
  * Wrap result in standard format if needed
@@ -85,6 +86,7 @@ async function handleControllerRoute(state, controllerInfo, url, requestBody /* 
     return result
   }
 
+  logger.debug('controllerRoute - normalized result:', result)
   const normalizedResult = normalizeResult(result, url)
   
   if (!response.isEnded) {
@@ -138,9 +140,10 @@ export async function resolvePossibleRoute(state, request, response, payload) {
   if (redirectResult === false) {
     return false
   }
-  
+
   logger.debug('no route matched')
-  if (process.env.ENVIRONMENT?.toLowerCase().includes('dev')) {
+  let env = envConfig.get('ENVIRONMENT', 'local')
+  if (env.includes('dev') || env.includes('local')) {
     logger.debug('returning routes for debugging', { routes: Object.fromEntries(state.routes) })
     return { 
       payload: Object.fromEntries(state.routes),

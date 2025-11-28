@@ -13,7 +13,7 @@ import { findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
 import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand, buildRegistryPullHeaders } from '../shared/yamf-headers.js'
 import HttpError from '../http-primitives/http-error.js'
-import { validateRegistryToken } from './gateway-auth.js'
+import { validateRegistryToken } from '../registry/registry-auth.js'
 import httpRequest from '../http-primitives/http-request.js'
 import envConfig from '../shared/env-config.js'
 

@@ -1,7 +1,12 @@
-import { TestRunner } from './core/index.js'
-
 import path from 'path'
 import fs from 'fs'
+
+import { TestRunner } from './core/index.js'
+import { overrideConsoleGlobally } from '../src/index.js'
+
+overrideConsoleGlobally({
+  includeLogLineNumbers: true
+})
 
 let fileSearch = process.argv[2]
 if (!fileSearch) {

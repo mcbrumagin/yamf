@@ -1,4 +1,4 @@
-import { assert, assertErr, terminateAfter } from '../core/index.js'
+import { assert, assertErr, terminateAfter, withEnv } from '../core/index.js'
 
 import {
   registryServer,
@@ -8,7 +8,8 @@ import {
   HttpError,
   Logger,
   HEADERS,
-  COMMANDS
+  COMMANDS,
+  gatewayServer
 } from '../../src/index.js'
 
 const logger = new Logger()
@@ -45,6 +46,27 @@ export async function testRouteWithService() {
       await assert(result, r => r.includes('Hello World!'))
     }
   )
+}
+
+
+export async function testRouteWithServiceThroughGateway() {
+  await withEnv({
+    MICRO_GATEWAY_URL: 'http://localhost:15000'
+  }, async () => await terminateAfter(
+    await registryServer(),
+    await gatewayServer(),
+    await createService('greetingService', function greetingService(payload) {
+      return `Hello ${payload.name || 'World'}!`
+    }),
+    async () => {
+      await createRoute('/greet', 'greetingService')
+
+      let response = await fetch(`${process.env.MICRO_GATEWAY_URL}/greet`)
+      let result = await response.text()
+      
+      await assert(result, r => r.includes('Hello World!'))
+    }
+  ))
 }
 
 export async function testRouteBulkCreate() {
@@ -115,6 +137,29 @@ export async function testRouteControllerWildcard() {
       )
     }
   )
+}
+
+
+export async function testRouteControllerWildcardThroughGateway() {
+  await withEnv({
+    MICRO_GATEWAY_URL: 'http://localhost:15000'
+  }, async () => await terminateAfter(
+    await registryServer(),
+    await gatewayServer(),
+    await createRoute('/api/*', async function apiController(payload, request) {
+      return { path: request.url, message: 'API response' }
+    }),
+    async () => {
+      let response = await fetch(`${process.env.MICRO_GATEWAY_URL}/api/users`)
+      let result = await response.text()
+      let parsed = JSON.parse(result)
+      
+      await assert(parsed,
+        p => p.path === '/api/users',
+        p => p.message === 'API response'
+      )
+    }
+  ))
 }
 
 export async function testRouteMissingService() {

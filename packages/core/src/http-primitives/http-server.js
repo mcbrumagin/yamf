@@ -3,7 +3,7 @@ import readStream from './read-stream.js'
 import HttpError from './http-error.js'
 import Logger from '../utils/logger.js'
 import fs from 'node:fs'
-import { detectContentType } from '../registry/content-type-detector.js'
+import { detectContentType } from './content-type-detector.js'
 
 const logger = new Logger({ logGroup: 'http-primitives' })
 
@@ -151,7 +151,7 @@ export default async function createServer(port, serverFn, options = {}) {
 
     server.on('error', err => {
       logger.warn(`server "${serverFn.name}" failed to start at port ${port}`)
-      logger.warn(err.stack)
+      // logger.warn(err.stack)
       reject(err)
     })
 

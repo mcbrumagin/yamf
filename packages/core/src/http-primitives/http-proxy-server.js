@@ -61,7 +61,7 @@ export default async function createProxyServer(port, serverFn, options = {}) {
 
     server.on('error', err => {
       logger.warn(`proxy server "${serverFn.name}" failed to start at port ${port}`)
-      logger.warn(err.stack)
+      // logger.warn(err.stack)
       reject(err)
     })
 

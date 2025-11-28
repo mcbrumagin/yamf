@@ -1,9 +1,19 @@
 import {
   assert,
   assertErr,
-  MultiAssertError,
-  AssertError
+  assertEach,
+  assertSequence,
+  assertErrEach,
+  assertErrSequence,
+  // MultiAssertError,
+  // AssertError
 } from './assert.js'
+
+import {
+  AssertionFailure,
+  AssertionFailureDetail,
+  MultiAssertionFailure
+} from './assertion-errors.js'
 
 import {
   sleep,
@@ -20,8 +30,15 @@ import runTests, {
 export {
   assert,
   assertErr,
-  MultiAssertError,
-  AssertError,
+  assertEach,
+  assertSequence,
+  assertErrEach,
+  assertErrSequence,
+
+  AssertionFailure,
+  AssertionFailureDetail,
+  MultiAssertionFailure,
+
   sleep,
   terminateAfter,
   mergeAllTestsSafely,

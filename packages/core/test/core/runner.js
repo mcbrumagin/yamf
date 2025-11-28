@@ -182,14 +182,6 @@ function reportTestResults({
 
   logger.info('\n')
   logger.info(`----- Testing Complete -----`)
-  logger.info(`ℹ tests ${testSuccess + testFail}`)
-  if (testSuitesCount > 0) logger.info(`ℹ suites ${testSuitesCount}`)
-  logger.info(`ℹ pass ${testSuccess}`)
-  logger.info(`ℹ fail ${testFail}`)
-  logger.info(`ℹ skipped ${skippedCases.length}`)
-  logger.info(`ℹ todo ${todoCases.length}`)
-  logger.info(`ℹ duration_ms ${durationMs}`)
-  logger.info('')
 
   if (testSuccess > 0 && process.env.MUTE_SUCCESS_CASES !== 'true') {
     logger.info(logger.writeColor('green', '✔ ✔ ✔  Success Report  ✔ ✔ ✔'))
@@ -202,6 +194,16 @@ function reportTestResults({
     logger.info(logger.writeColor('red', '\n  ' + failedCases.map(f => f.name).join('\n  ')))
     logger.info(logger.writeColor('red', '\n' + formatErrorDetails(failedCases)))
   } else logger.info(logger.writeColor('green', '✔ ✔ ✔  All Tests Passed!  ✔ ✔ ✔'))
+
+  logger.info('\n----- Test Overview -----')
+  logger.info(`ℹ tests ${testSuccess + testFail}`)
+  if (testSuitesCount > 0) logger.info(`ℹ suites ${testSuitesCount}`)
+  logger.info(`ℹ pass ${testSuccess}`)
+  logger.info(`ℹ fail ${testFail}`)
+  logger.info(`ℹ skipped ${skippedCases.length}`)
+  logger.info(`ℹ todo ${todoCases.length}`)
+  logger.info(`ℹ duration_ms ${durationMs}`)
+  logger.info('')
 
   if (isSoloRun) logger.warn(logger.writeColor('magenta', 'This was a solo test run, remove "solo" flags for a full test run'))
   if (isMuteRun) logger.warn(logger.writeColor('magenta', 'This was a partially muted test run, remove "mute" flags for a full test run'))

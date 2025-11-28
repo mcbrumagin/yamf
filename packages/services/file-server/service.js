@@ -5,7 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import fsAsync from 'fs/promises'
 import { next } from '../../core/src/http-primitives/next.js'
-import { detectContentType } from '../../core/src/registry/content-type-detector.js'
+import { detectContentType } from '../../core/src/http-primitives/content-type-detector.js'
 
 let logger = new Logger({ logGroup: 'static-file-service' })
 

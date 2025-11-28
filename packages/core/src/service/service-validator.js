@@ -26,19 +26,25 @@ export function getRegistryHost() {
  * Returns { protocol, hostname, port }
  */
 export function parseUrl(url) {
-  const match = url.match(/^(https?:\/\/)?([^:\/]+)(?::(\d+))?/)
-  if (!match) {
-    throw new Error(`Invalid URL format: ${url}`)
-  }
-
-  const protocol = match[1] || 'http://'
-  const hostname = match[2] || os.hostname()
-  const port = match[3] || (protocol === 'https://' ? 443 : 8080)
+  const urlObject = new URL(url)
   
+  let {
+    protocol,
+    hostname,
+    port,
+    pathname,
+    search
+  } = urlObject
+
+  // edgecase: no proto results in weird parse, so just error [eg. localhost:8000]
+  if (protocol && !hostname && pathname) throw new Error('Invalid URL')
+
   return {
     protocol,
     hostname,
     port,
+    pathname,
+    search,
     full: url
   }
 }
@@ -62,13 +68,13 @@ export function determineServiceHome(registryHost) {
       logger.warn(logger.removeWhitespace(`Registering configured port ${parsed.port} for service ${parsed.hostname};
         if errors occur, try creating the service earlier or removing the port from MICRO_SERVICE_URL`
       ))
-      return `${parsed.protocol}${parsed.hostname}:${parsed.port}`
-    } else return `${parsed.protocol}${parsed.hostname}` 
+      return `${parsed.protocol}//${parsed.hostname}:${parsed.port}`
+    } else return `${parsed.protocol}//${parsed.hostname}` 
   }
   
   // Default mode: assume we are on the registryHost, let the registry assign the port
   const parsed = parseUrl(registryHost)
-  return `${parsed.protocol}${parsed.hostname}`
+  return `${parsed.protocol}//${parsed.hostname}`
 }
 
 /**

@@ -18,7 +18,7 @@ import {
   isJsonString, 
   detectFromBuffer, 
   detectContentType 
-} from '../../src/registry/content-type-detector.js'
+} from '../../src/http-primitives/content-type-detector.js'
 
 import { 
   getServiceAddresses, 

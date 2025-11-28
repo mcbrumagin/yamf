@@ -16,7 +16,11 @@
 
 import {
   assert,
+  assertEach,
+  assertSequence,
   assertErr,
+  assertErrEach,
+  assertErrSequence,
   runTests
 } from '../core/index.js'
 
@@ -127,16 +131,150 @@ export async function testPromiseRejection() {
 }
 
 // ============================================================================
-// Examples of Test Failures (commented out)
+// Array Assertion Examples - assertEach
 // ============================================================================
 
-// Example 12: Single assertion failure
-export function testThisWillShowSingleFailure() {
+// Example 12: Assert on each value in an array (all must pass all assertions)
+export function testAssertEach() {
+  const numbers = [1, 2, 3, 4, 5]
+  assertEach(numbers,
+    n => n > 0,
+    n => n < 10
+  )
+}
+
+// Example 13: Assert on each async value
+export async function testAssertEachAsync() {
+  const promises = [
+    Promise.resolve({ status: 'ok', code: 200 }),
+    Promise.resolve({ status: 'ok', code: 200 }),
+    Promise.resolve({ status: 'ok', code: 200 })
+  ]
+  
+  await assertEach(promises,
+    r => r.status === 'ok',
+    r => r.code === 200
+  )
+}
+
+// ============================================================================
+// Sequence Assertion Examples - assertSequence
+// ============================================================================
+
+// Example 14: Assert on each value with corresponding assertion
+export function testAssertSequence() {
+  const results = ['first', 'second', 'third']
+  assertSequence(results,
+    v => v === 'first',
+    v => v === 'second',
+    v => v === 'third'
+  )
+}
+
+// Example 15: Assert on async sequence
+export async function testAssertSequenceAsync() {
+  const promises = [
+    Promise.resolve(10),
+    Promise.resolve(20),
+    Promise.resolve(30)
+  ]
+  
+  await assertSequence(promises,
+    n => n === 10,
+    n => n === 20,
+    n => n === 30
+  )
+}
+
+// ============================================================================
+// Error Array Assertion Examples - assertErrEach
+// ============================================================================
+
+// Example 16: Assert on each error in an array
+export function testAssertErrEach() {
+  assertErrEach([
+    new Error('Connection failed'),
+    new Error('Timeout occurred'),
+    new Error('Network error')
+  ],
+    err => err instanceof Error,
+    err => err.message.length > 0
+  )
+}
+
+// Example 17: Assert each function throws
+export function testAssertErrEachFunctions() {
+  assertErrEach([
+    () => { throw new Error('error1') },
+    () => { throw new Error('error2') },
+    () => { throw new Error('error3') }
+  ],
+    err => err instanceof Error,
+    err => err.message.includes('error')
+  )
+}
+
+// Example 18: Assert each async function throws
+export async function testAssertErrEachAsync() {
+  await assertErrEach([
+    async () => { throw new Error('async1') },
+    async () => { throw new Error('async2') }
+  ],
+    err => err instanceof Error,
+    err => err.message.includes('async')
+  )
+}
+
+// ============================================================================
+// Error Sequence Assertion Examples - assertErrSequence
+// ============================================================================
+
+// Example 19: Assert on each error with corresponding assertion
+export function testAssertErrSequence() {
+  assertErrSequence([
+    new Error('First error'),
+    new Error('Second error')
+  ],
+    err => err.message === 'First error',
+    err => err.message === 'Second error'
+  )
+}
+
+// Example 20: Assert each function throws with specific assertion
+export function testAssertErrSequenceFunctions() {
+  assertErrSequence([
+    () => { throw new Error('Step 1 failed') },
+    () => { throw new Error('Step 2 failed') },
+    () => { throw new Error('Step 3 failed') }
+  ],
+    err => err.message.includes('Step 1'),
+    err => err.message.includes('Step 2'),
+    err => err.message.includes('Step 3')
+  )
+}
+
+// Example 21: Assert each async function throws with specific assertion
+export async function testAssertErrSequenceAsync() {
+  await assertErrSequence([
+    async () => { throw new Error('Phase 1 error') },
+    async () => { throw new Error('Phase 2 error') }
+  ],
+    err => err.message.includes('Phase 1'),
+    err => err.message.includes('Phase 2')
+  )
+}
+
+// ============================================================================
+// Examples of Test Failures (not exported, commented out below)
+// ============================================================================
+
+// Example 22: Single assertion failure
+function testThisWillShowSingleFailure() {
   assert(5, n => n > 10) // Fails - shows the failing assertion function
 }
 
-// Example 13: Multiple assertion failures
-export function testThisWillShowMultipleFailures() {
+// Example 23: Multiple assertion failures
+function testThisWillShowMultipleFailures() {
   const user = { name: 'Alice', age: 15 }
   assert(user,
     u => u.name === 'Bob',    // Fails
@@ -163,8 +301,18 @@ const tests = {
   testDirectError,
   testAsyncError,
   testPromiseRejection,
-  testThisWillShowSingleFailure,
-  testThisWillShowMultipleFailures
+  testAssertEach,
+  testAssertEachAsync,
+  testAssertSequence,
+  testAssertSequenceAsync,
+  testAssertErrEach,
+  testAssertErrEachFunctions,
+  testAssertErrEachAsync,
+  testAssertErrSequence,
+  testAssertErrSequenceFunctions,
+  testAssertErrSequenceAsync,
+  // testThisWillShowSingleFailure,
+  // testThisWillShowMultipleFailures
 }
 
 // Run tests without using test suites
@@ -183,5 +331,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
  * 4. Error messages show the exact assertion function(s) that failed
  * 5. Tests can run without test suites using runTests() directly
  * 6. Test functions should be named for clear test reporting
+ * 7. Use assertEach when all values must pass the same assertions
+ * 8. Use assertSequence when each value has a specific corresponding assertion
+ * 9. Use assertErrEach when testing multiple errors with the same criteria
+ * 10. Use assertErrSequence when each error has specific expected behavior
  */
 
