@@ -1,0 +1,39 @@
+{
+  "name": "@yamf/test",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Functional testing module - with polymorphic async/await and simultaneous assertion reports",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "./tests/test.sh"
+  },
+  "homepage": "https://github.com/mcbrumagin/yamf",
+  "exports": {
+    ".": "./src/index.js",
+    "./validators": "./src/validators.js",
+    "./utils": "./src/utils.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "testing",
+    "async/await",
+    "assert",
+    "zero-dependency"
+  ],
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": "Matthew C Brumagin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcbrumagin/yamf"
+  },
+  "devDependencies": {
+    "@yamf/core": "link:../core"
+  }
+}

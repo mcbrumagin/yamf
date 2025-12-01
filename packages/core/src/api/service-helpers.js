@@ -30,19 +30,26 @@ export function getRegistryConfig() {
   const serviceHost = envConfig.get('MICRO_SERVICE_URL')
   const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
   const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  return { serviceHost, registryHost, registryToken }
+}
+
+function getServiceHomeFromConfig(serviceHost, registryHost) {
+  serviceHost = envConfig.get('MICRO_SERVICE_URL', serviceHost)
+  registryHost = envConfig.getRequired('MICRO_REGISTRY_URL', registryHost)
 
   let serviceHome
   if (serviceHost) {
-    logger.info(`setting service home for serivceHost ${serviceHost}`)
-    serviceHome = serviceHost // include port so the registry can figure out what this host has setup already
+    serviceHome = serviceHost
+    // include port so the registry can figure out what this host has setup already
     // NOTE skip port remove? // TODO REFACTOR
     // serviceHome = serviceHost.replace(/:\d+$/, '')
+    logger.info(`setting service home "${serviceHome}" for serivceHost "${serviceHost}"`)
   } else {
-    logger.info(`setting service home for registryHost ${registryHost}`)
     serviceHome = registryHost.replace(/:\d+$/, '')
+    logger.info(`setting service home "${serviceHome}" for registryHost "${registryHost}"`)
   }
   
-  return { serviceHost, registryHost, registryToken, serviceHome }
+  return { serviceHost, registryHost, serviceHome }
 }
 
 /**
@@ -181,7 +188,7 @@ export async function createAndRegisterService(serviceName, handler, options = {
     micro-registry |   http://127.0.0.1:4001: 4021
    *
    */
-  const { serviceHome } = retryInfo || getRegistryConfig()
+  const { serviceHome } = retryInfo || getServiceHomeFromConfig()
   
   // 1. Setup with registry (allocate port)
   const location = await setupServiceWithRegistry(serviceName, serviceHome, options)

@@ -32,8 +32,8 @@
     "zero-dependency"
   ],
   "scripts": {
-    "test": "./test/test.sh",
-    "test:search": "./test/test-search.sh"
+    "test": "./tests/test.sh",
+    "test:search": "./tests/test-search.sh"
   },
   "files": [
     "src",
@@ -56,6 +56,8 @@
     }
   },
   "devDependencies": {
+    "@yamf/client": "link:../client",
+    "@yamf/test": "link:../test",
     "form-data": "^4.0.4"
   }
 }
