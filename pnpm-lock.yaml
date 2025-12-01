@@ -12,8 +12,57 @@ importers:
 
   packages/core:
     devDependencies:
+      '@yamf/client':
+        specifier: link:../client
+        version: link:../client
+      '@yamf/test':
+        specifier: link:../test
+        version: link:../test
       form-data:
         specifier: ^4.0.4
+        version: 4.0.5
+
+  packages/services/auth:
+    devDependencies:
+      '@yamf/core':
+        specifier: link:../../core
+        version: link:../../core
+      '@yamf/test':
+        specifier: link:../../test
+        version: link:../../test
+
+  packages/services/cache:
+    devDependencies:
+      '@yamf/core':
+        specifier: link:../../core
+        version: link:../../core
+      '@yamf/test':
+        specifier: link:../../test
+        version: link:../../test
+
+  packages/services/file-server:
+    devDependencies:
+      '@yamf/core':
+        specifier: link:../../core
+        version: link:../../core
+      '@yamf/test':
+        specifier: link:../../test
+        version: link:../../test
+
+  packages/services/file-upload:
+    dependencies:
+      busboy:
+        specifier: ^1.6.0
+        version: 1.6.0
+    devDependencies:
+      '@yamf/core':
+        specifier: link:../../core
+        version: link:../../core
+      '@yamf/test':
+        specifier: link:../../test
+        version: link:../../test
+      form-data:
+        specifier: ^4.0.5
         version: 4.0.5
 
   packages/services/file-write:
@@ -23,6 +72,12 @@ importers:
         version: 1.6.0
 
   packages/shared: {}
+
+  packages/test:
+    devDependencies:
+      '@yamf/core':
+        specifier: link:../core
+        version: link:../core
 
 packages:
 

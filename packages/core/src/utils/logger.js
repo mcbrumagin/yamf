@@ -162,7 +162,7 @@ export default class Logger {
     options = {},
 
     // whatever level is set will include all subsequent levels
-    logLevel = process.env.LOG_LEVEL || 'debug',
+    logLevel = envConfig.get('LOG_LEVEL', 'debug'),
     logLevels = [
       'debug',
       'debugErr',
@@ -178,15 +178,17 @@ export default class Logger {
       return printWarningOnceAndReturnVanillaConsole()
     }
 
+    // console.warn("envConfig.get('LOG_INCLUDE_LINES')", envConfig.get('LOG_INCLUDE_LINES') === 'true')
+    // setTimeout(() => process.exit(0), 50)
 
     this.options = Object.assign({
       logGroup: '',
       useLogFile: false, // TODO
       logFilePath: './logs',
       logFileRetainLineLimit: 0,
-      includeLogLineNumbers: process.env.LOG_INCLUDE_LINES === 'true',
-      excludeFullPathInLogLines: process.env.LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES === 'true',
-      muteLogGroupOutput: process.env.MUTE_LOG_GROUP_OUTPUT === 'true',
+      includeLogLineNumbers: envConfig.get('LOG_INCLUDE_LINES'),
+      excludeFullPathInLogLines: envConfig.get('LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES'),
+      muteLogGroupOutput: envConfig.get('MUTE_LOG_GROUP_OUTPUT'),
       includeLogLevelInOutput: false,
       outputJson: false, // TODO for cloudwatch and other log aggregators
       warnLevel: false,

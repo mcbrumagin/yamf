@@ -3,7 +3,7 @@ import {
   assertErr
 } from '@yamf/test'
 
-import { Logger } from '../../src/index.js'
+import { Logger, envConfig } from '../../src/index.js'
 const logger = new Logger()
 
 export function testLoggerStringify() {
@@ -151,29 +151,21 @@ export function testLoggerDepthWarning() {
 }
 
 export function testLoggerEnvironmentConfig() {
-  // Test environment variable configuration for log lines
-  const originalEnv = process.env.LOG_INCLUDE_LINES
+  const originalEnv = envConfig.get('LOG_INCLUDE_LINES')
   
-  // Test with environment variable enabled
-  process.env.LOG_INCLUDE_LINES = 'true'
+  envConfig.set('LOG_INCLUDE_LINES', true)
   let testLogger1 = new Logger({ warnLevel: false })
   assert(
     testLogger1.options.includeLogLineNumbers,
     val => val === true
   )
   
-  // Test with environment variable disabled
-  process.env.LOG_INCLUDE_LINES = 'false'
+  envConfig.set('LOG_INCLUDE_LINES', false)
   let testLogger2 = new Logger({ warnLevel: false })
   assert(
     testLogger2.options.includeLogLineNumbers,
     val => val === false
   )
-  
-  // Restore original environment
-  if (originalEnv !== undefined) {
-    process.env.LOG_INCLUDE_LINES = originalEnv
-  } else {
-    delete process.env.LOG_INCLUDE_LINES
-  }
+
+  envConfig.set('LOG_INCLUDE_LINES', originalEnv)
 }

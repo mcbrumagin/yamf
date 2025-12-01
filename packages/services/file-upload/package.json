@@ -19,7 +19,7 @@
     "yamf"
   ],
   "scripts": {
-    "test": "echo \"Tests are run via @yamf/core test suite\" && exit 0"
+    "test": "node run-tests.js"
   },
   "files": [
     "service.js",
@@ -37,5 +37,10 @@
   },
   "peerDependencies": {
     "@yamf/core": "^0.3.0"
+  },
+  "devDependencies": {
+    "@yamf/core": "link:../../core",
+    "@yamf/test": "link:../../test",
+    "form-data": "^4.0.5"
   }
 }

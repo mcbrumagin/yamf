@@ -1,6 +1,5 @@
 // Modern environment configuration utility for Node.js 24+
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 // NOTE no custom logger here, this config is required for Logger initialization
 
 // TODO implement secret management

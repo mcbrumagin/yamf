@@ -1,8 +1,6 @@
-# pnpm-workspace.yaml
 packages:
   - 'packages/core'
-  # TODO - 'packages/test'
+  - 'packages/test'
   - 'packages/client'
   - 'packages/shared'
   - 'packages/services/*'
-

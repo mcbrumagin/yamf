@@ -4,14 +4,13 @@
  */
 
 import { Buffer } from 'node:buffer'
-import Logger from '../utils/logger.js'
 import { findControllerRoute } from './route-registry.js'
 import { streamProxyServiceCall } from './service-registry.js'
-import { detectContentType } from '../http-primitives/content-type-detector.js'
-import { Next } from '../http-primitives/next.js'
+import { detectContentType, Next } from '../http-primitives/index.js'
 import envConfig from '../shared/env-config.js'
 
-const logger = new Logger({ logGroup: 'yamf-registry' })
+import Logger from '../utils/logger.js'
+const logger = new Logger({ logGroup: 'yamf-registry' }) // TODO test setting log group from envConfig
 
 /**
  * Wrap result in standard format if needed

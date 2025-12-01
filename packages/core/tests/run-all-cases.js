@@ -76,20 +76,27 @@ import * as headerCommandTests from './cases/header-command-tests.js'
 import * as errorHandlingTests from './cases/error-handling-tests.js'
 import * as edgeCaseTests from './cases/edge-case-tests.js'
 import * as loadBalancerTests from './cases/load-balancer-tests.js'
-
-import * as cacheServiceTests from './cases/services/cache-tests.js'
 import * as subscriptionTests from './cases/subscription-tests.js'
-import * as staticFileServiceTests from './cases/services/static-file-tests.js'
-import * as fileUploadTests from './cases/services/file-upload-tests.js'
-import * as authTests from './cases/services/auth-tests.js'
-import * as advancedAuthTests from './cases/services/advanced-auth-tests.js'
 import * as registryTokenTests from './cases/registry-token-tests.js'
 import * as cryptoTests from './cases/crypto-tests.js'
-import * as autoRefreshTests from './cases/services/autorefresh-tests.js'
 import * as contentTypeDetectorTests from './cases/content-type-detector-tests.js'
 import * as routeRegistryTests from './cases/route-registry-tests.js'
 import * as registryAuthTests from './cases/registry-auth-tests.js'
 import * as serviceValidatorTests from './cases/service-validator-tests.js'
+
+
+// --- External Module Tests --- //
+
+import * as testTests from '../../test/tests/tests.js'
+import * as exampleBasicTests from '../../test/examples/example-basic-tests.js'
+import * as exampleServiceTests from '../../test/examples/example-service-tests.js'
+
+import * as authTests from '../../services/auth/auth-tests.js'
+import * as cacheServiceTests from '../../services/cache/cache-tests.js'
+import * as staticFileServiceTests from '../../services/file-server/tests/static-file-tests.js'
+import * as fileUploadTests from '../../services/file-upload/file-upload-tests.js'
+import * as autoRefreshTests from '../../services/file-server/tests/autorefresh-tests.js'
+
 
 // ============================================================================
 // Test Suite Configuration
@@ -118,17 +125,21 @@ runner.addSuites({
   loadBalancerTests,
   cacheServiceTests,
   subscriptionTests,
-  staticFileServiceTests,
-  fileUploadTests,
-  authTests,
-  advancedAuthTests,
-  registryTokenTests,
   cryptoTests,
-  autoRefreshTests,
   contentTypeDetectorTests,
   routeRegistryTests,
   registryAuthTests,
-  serviceValidatorTests
+  serviceValidatorTests,
+
+  testTests,
+  exampleBasicTests,
+  exampleServiceTests,
+
+  authTests,
+  registryTokenTests,
+  staticFileServiceTests,
+  fileUploadTests,
+  autoRefreshTests,
 })
 
 // Run all test suites
