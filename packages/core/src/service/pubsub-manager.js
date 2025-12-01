@@ -15,7 +15,7 @@ import Logger from '../utils/logger.js'
 import envConfig from '../shared/env-config.js'
 import { buildSubscribeHeaders, buildUnsubscribeHeaders, buildPublishHeaders } from '../shared/yamf-headers.js'
 
-const logger = new Logger({ logGroup: 'micro-pubsub' })
+const logger = new Logger({ logGroup: 'yamf-pubsub' })
 
 /**
  * Create PubSub manager for a service
@@ -25,8 +25,8 @@ const logger = new Logger({ logGroup: 'micro-pubsub' })
  * @param {string} serviceLocation - HTTP location of the parent service (e.g. 'http://localhost:3000')
  */
 export function createPubSubManager(serviceName, serviceLocation) {
-  const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   
   // Track subscriptions: channel -> Map<subId, handler>
   // Allows multiple handlers per channel within this service
@@ -40,7 +40,7 @@ export function createPubSubManager(serviceName, serviceLocation) {
    * that have subscribed, across the entire cluster.
    * 
    * @param {string} channel - Channel name (e.g. 'user-created', 'order-placed')
-   *                          Convention: Use 'micro:*' prefix for framework events
+   *                          Convention: Use 'yamf:*' prefix for framework events
    * @param {Function} handler - Async function to handle messages: (message, request, response) => result
    * @returns {Promise<string>} Subscription ID for unsubscribe
    * 

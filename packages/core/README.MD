@@ -1,4 +1,4 @@
-# micro-js
+# @yamf/core
 
 A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, pub/sub messaging, HTTP routing, and load balancing.
 
@@ -21,19 +21,19 @@ A lightweight, zero-dependency microservices framework for Node.js with built-in
 ## Installation
 
 ```sh
-npm install micro-js
+npm install @yamf/core
 ```
 
 ## Quick Start
 
 ```sh
-export MICRO_REGISTRY_URL=http://localhost:9999
+export YAMF_REGISTRY_URL=http://localhost:9999
 ```
 
 ### Basic Service Example
 
 ```javascript
-import { registryServer, createService, callService } from 'micro-js'
+import { registryServer, createService, callService } from '@yamf/core'
 
 // Start the registry
 await registryServer()
@@ -52,7 +52,7 @@ console.log(result.message) // "Hello, World"
 
 ### Service Registry
 
-The registry server is the heart of micro-js. It automatically:
+The registry server is the heart of @yamf/core. It automatically:
 - Tracks all service instances and their locations
 - Handles service registration and unregistration
 - Provides service discovery and load balancing
@@ -60,7 +60,7 @@ The registry server is the heart of micro-js. It automatically:
 - Manages pub/sub subscriptions
 
 ```javascript
-import { registryServer } from 'micro-js'
+import { registryServer } from '@yamf/core'
 
 // Start the registry (typically once per application/cluster)
 const registry = await registryServer()
@@ -70,12 +70,12 @@ const registry = await registryServer()
 await registry.terminate()
 ```
 
-### Creating Services
+### Plain Old Services
 
 Services are just functions that receive a payload and return a result:
 
 ```javascript
-import { createService } from 'micro-js'
+import { createService } from '@yamf/core'
 
 // Simple service
 await createService(function calculateService(payload) {
@@ -97,12 +97,48 @@ await createService(function orchestratorService(payload) {
 4. Service is available for calls
 5. On termination, service unregisters gracefully
 
+### Pub/Sub Services
+
+Event-driven services:
+
+```javascript
+import { createSubscriptionService, publishMessage } from '@yamf/core'
+
+const subService = await createSubscriptionService('subService', 'orders', async (message) => {
+  console.log('New order:', message)
+})
+
+// does a lookup/publish through the service registry
+await publishMessage('orders', {
+  orderId: 'order-1',
+  price: '19.99'
+})
+
+const publishingService = await createService('publishingService' async (payload) => {
+  // do some stuff
+  // then publish from this service context (calls subscribers directly)
+  await this.publish('orders', {
+    orderId: 'order-2',
+    price: '21.99'
+  })
+})
+
+```
+
+**Subscription Service Lifecycle:**
+1. Service registers with the registry
+2. Registry assigns a port and location
+3. Service subscribes to registry updates and additional subscription channel(s)
+4. Service is available for publish events
+5. On termination, service unregisters and cleans up subscriptions gracefully
+
+
 ### HTTP Routes
 
 Create HTTP endpoints that map to services:
 
 ```javascript
-import { createRoute } from 'micro-js'
+import { createRoute } from '@yamf/core'
 
 // Route with inline service
 await createRoute('/api/users', function usersService(payload) {
@@ -123,14 +159,15 @@ await createRoute('/api/users/*', function usersController(payload) {
 ```
 
 
-## Built-in Services
+## Built-in Services (separate modules)
+
 
 ### Cache Service
 
 In-memory caching with automatic eviction:
 
 ```javascript
-import { createCacheService } from 'micro-js/src/micro-services/cache-service.js'
+import { createCacheService } from '@yamf/services-cache'
 
 const cache = await createCacheService({
   expireTime: 60000,      // Default TTL: 60 seconds
@@ -144,30 +181,12 @@ await callService('cache', { del: { userId123: true } })
 await callService('cache', { clear: true })
 ```
 
-### Pub/Sub Service
-
-Event-driven messaging with multiple subscribers:
-
-```javascript
-import { createPubSubService } from 'micro-js/src/micro-services/pubsub-service.js'
-
-const pubsub = await createPubSubService()
-
-// Subscribe to events
-await pubsub.subscribe('orders', async (message) => {
-  console.log('New order:', message)
-})
-
-// Publish events
-await pubsub.publish('orders', { orderId: '12345', amount: 99.99 })
-```
-
 ### Static File Service
 
 Serve static files with flexible routing:
 
 ```javascript
-import { createStaticFileService } from 'micro-js/src/micro-services/static-file-service.js'
+import { createStaticFileService } from '@yamf/services-file-server'
 
 const staticServer = await createStaticFileService({
   rootDir: './public',
@@ -182,10 +201,12 @@ const staticServer = await createStaticFileService({
 
 ### File Upload Service
 
+**Note:** Unlike @yamf/core, this service uses busboy as a runtime dependency.
+
 Handle multipart file uploads with validation:
 
 ```javascript
-import { createFileUploadService } from 'micro-js/src/micro-services/file-upload-service/file-upload-service.js'
+import { createFileUploadService } from '@yamf/services-file-upload'
 
 const uploadService = await createFileUploadService({
   uploadDir: './uploads',
@@ -197,21 +218,19 @@ const uploadService = await createFileUploadService({
 })
 ```
 
-**Note:** File services require external dependencies (`busboy` for uploads), while the core framework remains dependency-free.
-
 ## Multi-Language Support
 
-Micro-JS supports multiple programming languages, allowing you to build polyglot microservice architectures. All clients communicate with the same registry using a standard HTTP protocol.
+@yamf/core supports multiple programming languages, allowing you to build polyglot microservice architectures. All clients communicate with the same registry using a standard HTTP protocol.
 
 ### Python Client
 
 Full-featured Python client with support for all core features:
 
 ```python
-from microjs import create_service_sync, call_service_sync
+from yamf import create_service_sync, call_service_sync
 import os
 
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 # Create a Python service
 def my_service(payload):
@@ -285,7 +304,7 @@ const result2 = await callService('workerService', { value: 2 }) // → instance
 Services can throw HTTP errors with status codes:
 
 ```javascript
-import { HttpError } from 'micro-js'
+import { HttpError } from '@yamf/core'
 
 await createService(function validateService(payload) {
   if (!payload.userId) {
@@ -307,10 +326,10 @@ try {
 
 ```sh
 # Required - Registry server URL
-export MICRO_REGISTRY_URL=http://localhost:8080
+export YAMF_REGISTRY_URL=http://localhost:8080
 
 # Optional - Service-specific URL (for containerized deployments)
-export MICRO_SERVICE_URL=http://myservice:10000
+export YAMF_SERVICE_URL=http://myservice:10000
 ```
 
 
@@ -320,7 +339,7 @@ export MICRO_SERVICE_URL=http://myservice:10000
 ### Core Functions
 
 #### `registryServer(port?: number): Promise<Server>`
-Start the registry server. Port defaults to value from `MICRO_REGISTRY_URL`.
+Start the registry server. Port defaults to value from `YAMF_REGISTRY_URL`.
 
 #### `createService(name: string | Function, serviceFn?: Function, options?: Object): Promise<Server>`
 Create and register a service. Accepts named functions or separate name/function parameters.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple Python Microservice Example
+Simple Python Yamf Service Example
 Demonstrates basic service creation and registration
 """
 
@@ -8,13 +8,13 @@ import os
 import sys
 import time
 
-# Add parent directory to path to import microjs
+# Add parent directory to path to import yamf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../languages/python'))
 
-from microjs import create_service_sync
+from yamf import create_service_sync
 
 # Set registry URL (assumes registry is running on localhost:3000)
-os.environ['MICRO_REGISTRY_URL'] = os.getenv('MICRO_REGISTRY_URL', 'http://localhost:3000')
+os.environ['YAMF_REGISTRY_URL'] = os.getenv('YAMF_REGISTRY_URL', 'http://localhost:3000')
 
 def simple_service(payload):
     """
@@ -29,7 +29,7 @@ def simple_service(payload):
 
 if __name__ == '__main__':
     print("Starting simple Python service...")
-    print(f"Registry URL: {os.environ['MICRO_REGISTRY_URL']}")
+    print(f"Registry URL: {os.environ['YAMF_REGISTRY_URL']}")
     
     # Create and register the service
     service = create_service_sync("simple-service", simple_service)

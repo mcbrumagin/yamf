@@ -39,9 +39,9 @@ const REGISTRY_URL = `http://localhost:${REGISTRY_PORT}`
  */
 export async function testGatewayHealthCheck() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token'
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
       gatewayServer(),
@@ -64,9 +64,9 @@ export async function testGatewayHealthCheck() {
  */
 export async function testGatewayPreRegistration() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token'
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
       registryServer(),
@@ -95,9 +95,9 @@ export async function testGatewayPreRegistration() {
  */
 export async function testGatewayPullsState() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token',
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token',
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
@@ -139,9 +139,9 @@ export async function testGatewayPullsState() {
  */
 export async function testGatewayUpdateNotification() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token'
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
       registryServer(),
@@ -171,9 +171,9 @@ export async function testGatewayUpdateNotification() {
  */
 export async function testGatewayRejectsUnauthorizedUpdates() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token'
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
       gatewayServer(),
@@ -198,9 +198,9 @@ export async function testGatewayRejectsUnauthorizedUpdates() {
  */
 export async function testGatewayIsNotSubscribed() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token',
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token',
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
@@ -247,9 +247,9 @@ export async function testGatewayIsNotSubscribed() {
  */
 export async function testGatewayRoutesToServices() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token',
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token',
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
@@ -282,9 +282,9 @@ export async function testGatewayRoutesToServices() {
  */
 export async function testGatewayMetadataStorage() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token'
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
       registryServer(),
@@ -317,9 +317,9 @@ export async function testGatewayMetadataStorage() {
  */
 export async function testGatewayStateReflectsRegistry() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: REGISTRY_URL,
-    MICRO_REGISTRY_TOKEN: 'test-token',
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: REGISTRY_URL,
+    YAMF_REGISTRY_TOKEN: 'test-token',
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
@@ -365,9 +365,9 @@ export async function testGatewayStateReflectsRegistry() {
  */
 export async function testGatewayRequiresRegistryUrl() {
   await withEnv({
-    MICRO_GATEWAY_URL: GATEWAY_URL,
-    MICRO_REGISTRY_URL: undefined,
-    MICRO_REGISTRY_TOKEN: 'test-token'
+    YAMF_GATEWAY_URL: GATEWAY_URL,
+    YAMF_REGISTRY_URL: undefined,
+    YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     // Gateway should fail to process updates without registry URL
     await terminateAfter(
@@ -377,7 +377,7 @@ export async function testGatewayRequiresRegistryUrl() {
           body: { service: 'test', location: 'http://localhost:16000' },
           headers: buildRegistryUpdatedHeaders('test-token')
         }),
-        err => err.message.includes('MICRO_REGISTRY_URL'),
+        err => err.message.includes('YAMF_REGISTRY_URL'),
         err => err.message.includes('Required')
       )
     )

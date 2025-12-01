@@ -44,7 +44,7 @@ export async function publish(state, { type, message }) {
  * Gateway will then pull the full state from registry (pull model for security)
  */
 export async function notifyGatewayOfUpdate(state, { service, location }) {
-  const gatewayUrl = envConfig.get('MICRO_GATEWAY_URL')
+  const gatewayUrl = envConfig.get('YAMF_GATEWAY_URL')
   if (!gatewayUrl) {
     // No separate gateway - registry is acting as gateway in dev mode
     return { notified: false, reason: 'no_gateway' }
@@ -58,7 +58,7 @@ export async function notifyGatewayOfUpdate(state, { service, location }) {
   }
   
   try {
-    const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+    const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
     await httpRequest(gatewayUrl, {
       body: { service, location, timestamp: Date.now() },
       headers: buildRegistryUpdatedHeaders(registryToken)
@@ -74,7 +74,7 @@ export async function notifyGatewayOfUpdate(state, { service, location }) {
 
 /**
  * Publish cache update notifications to all subscribers
- * Uses micro headers to identify internal cache update calls
+ * Uses yamf headers to identify internal cache update calls
  * Also notifies gateway via pull model
  */
 export async function publishCacheUpdate(state, { subscription, service, location }) {

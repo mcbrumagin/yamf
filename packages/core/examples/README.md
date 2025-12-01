@@ -1,6 +1,6 @@
 # Examples
 
-This directory contains various examples demonstrating different features of micro-js.
+This directory contains various examples demonstrating different features of @yamf/core.
 
 ## Media Streaming Example (NEW)
 
@@ -58,7 +58,7 @@ Demonstrates pub/sub messaging between distributed services.
 ### Dockerized Example
 **Directory**: `dockerized/`
 
-Shows how to containerize micro-js services with Docker.
+Shows how to containerize @yamf/core services with Docker.
 
 ### Kubernetes Example
 **Directory**: `kubernetes/`
@@ -68,7 +68,7 @@ Complete Kubernetes deployment with config maps, pods, and services.
 ### Python Services Example
 **Directory**: `python-services/`
 
-Examples of using Python services with JavaScript micro-js registry. Includes:
+Examples of using Python services with JavaScript @yamf/core registry. Includes:
 - Simple Python service
 - Python pub/sub publisher/subscriber
 - Mixed JavaScript/Python examples

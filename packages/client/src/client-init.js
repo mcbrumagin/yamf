@@ -1,4 +1,4 @@
-window.micro = {
+window.yamf = {
   __listeners__: {},
 
   routes: {},
@@ -18,3 +18,5 @@ window.micro = {
     this.modules[fn.name] = fn
   }
 }
+
+// NOTE the setter helpers here are largely irrelevant and unreadable "magic" with the move to ESM from CJS

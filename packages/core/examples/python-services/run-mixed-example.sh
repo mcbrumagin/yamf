@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Run mixed Node.js + Python example
-# This script demonstrates polyglot microservices
+# This script demonstrates polyglot yamf services
 
 set -e
 
 echo "======================================"
-echo "Mixed Language Microservices Example"
+echo "Mixed Language Yamf Services Example"
 echo "======================================"
 echo ""
 
@@ -16,7 +16,7 @@ if ! curl -s http://localhost:3000/health > /dev/null 2>&1; then
     echo ""
     echo "Please start the registry first:"
     echo "  cd ../.."
-    echo "  node src/micro-core/registry/registry-server.js"
+    echo "  node ./registry.js"
     echo ""
     exit 1
 fi
@@ -25,7 +25,7 @@ echo "✓ Registry detected"
 echo ""
 
 # Set environment variable
-export MICRO_REGISTRY_URL=http://localhost:3000
+export YAMF_REGISTRY_URL=http://localhost:3000
 
 # Start Node.js services in background
 echo "Starting Node.js services..."
@@ -64,8 +64,8 @@ echo ""
 # Test 1: Node calling Python
 echo "Test 1: Node.js → Python"
 curl -s -X POST http://localhost:3000/api/call \
-  -H "micro-command: service-call" \
-  -H "micro-service-name: nodeToPythonService" \
+  -H "yamf-command: service-call" \
+  -H "yamf-service-name: nodeToPythonService" \
   -H "Content-Type: application/json" \
   -d '{"test": "Node calling Python"}' | python -m json.tool
 echo ""
@@ -73,8 +73,8 @@ echo ""
 # Test 2: Python calling Node
 echo "Test 2: Python → Node.js"
 curl -s -X POST http://localhost:3000/api/call \
-  -H "micro-command: service-call" \
-  -H "micro-service-name: service-with-calls" \
+  -H "yamf-command: service-call" \
+  -H "yamf-service-name: service-with-calls" \
   -H "Content-Type: application/json" \
   -d '{"callService": "nodeService", "from": "Python"}' | python -m json.tool
 echo ""
@@ -82,8 +82,8 @@ echo ""
 # Test 3: Python calling Python
 echo "Test 3: Python → Python"
 curl -s -X POST http://localhost:3000/api/call \
-  -H "micro-command: service-call" \
-  -H "micro-service-name: service-with-calls" \
+  -H "yamf-command: service-call" \
+  -H "yamf-service-name: service-with-calls" \
   -H "Content-Type: application/json" \
   -d '{"callService": "simple-service", "from": "Python"}' | python -m json.tool
 echo ""

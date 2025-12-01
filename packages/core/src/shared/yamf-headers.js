@@ -1,5 +1,5 @@
 /**
- * Micro Headers
+ * Yamf Headers
  * Constants and utilities for header-based command routing
  * 
  * Phase 1-Light: Essential headers only for streaming support
@@ -10,30 +10,30 @@
  */
 export const HEADERS = {
   // Command routing
-  COMMAND: 'micro-command',
+  COMMAND: 'yamf-command',
   
   // Service operations
-  SERVICE_NAME: 'micro-service-name',
-  SERVICE_LOCATION: 'micro-service-location',
-  USE_AUTH_SERVICE: 'micro-use-auth-service',
-  SERVICE_HOME: 'micro-service-home',
+  SERVICE_NAME: 'yamf-service-name',
+  SERVICE_LOCATION: 'yamf-service-location',
+  USE_AUTH_SERVICE: 'yamf-use-auth-service',
+  SERVICE_HOME: 'yamf-service-home',
   
   // Authentication // TODO Authorization: Bearer <token>
-  AUTH_TOKEN: 'micro-auth-token',           // User auth token for service calls
-  REGISTRY_TOKEN: 'micro-registry-token',   // Internal registry/service token
+  AUTH_TOKEN: 'yamf-auth-token',           // User auth token for service calls
+  REGISTRY_TOKEN: 'yamf-registry-token',   // Internal registry/service token
   
   // TODO VERIFY
   // Route operations (for registration only - routes use request.url for routing)
-  ROUTE_DATATYPE: 'micro-route-datatype',
-  ROUTE_TYPE: 'micro-route-type',  // 'route' or 'controller'
-  ROUTE_PATH: 'micro-route-path',  // Only used during route registration
+  ROUTE_DATATYPE: 'yamf-route-datatype',
+  ROUTE_TYPE: 'yamf-route-type',  // 'route' or 'controller'
+  ROUTE_PATH: 'yamf-route-path',  // Only used during route registration
   
   // Pub/sub operations
-  PUBSUB_CHANNEL: 'micro-pubsub-channel'
+  PUBSUB_CHANNEL: 'yamf-pubsub-channel'
 }
 
 /**
- * Command types (values for micro-command header)
+ * Command types (values for yamf-command header)
  */
 export const COMMANDS = {
   // Shared

@@ -3,10 +3,10 @@ mkdir -p build/registry
 cp registry/index.js build/registry/
 cp registry/package.json build/registry/
 cp registry/Dockerfile build/registry/
-# Copy micro-js source for registry
-mkdir -p build/registry/micro-js
-cp -R ../../src build/registry/micro-js/
-cp ../../package.json build/registry/micro-js/
+# Copy yamf/core source for registry
+mkdir -p build/registry/yamf/core
+cp -R ../../src build/registry/yamf/core/
+cp ../../package.json build/registry/yamf/core/
 
 # Build services
 mkdir -p build/service1
@@ -23,19 +23,19 @@ cp services/service-package.json build/service1/package.json
 cp services/service-package.json build/service2/package.json
 cp services/service-package.json build/service3/package.json
 
-# Copy micro-js source for each service
-mkdir -p build/service1/micro-js
-mkdir -p build/service2/micro-js
-mkdir -p build/service3/micro-js
+# Copy yamf/core source for each service
+mkdir -p build/service1/yamf/core
+mkdir -p build/service2/yamf/core
+mkdir -p build/service3/yamf/core
 
-cp -R ../../src build/service1/micro-js/
-cp ../../package.json build/service1/micro-js/
+cp -R ../../src build/service1/yamf/core/
+cp ../../package.json build/service1/yamf/core/
 
-cp -R ../../src build/service2/micro-js/
-cp ../../package.json build/service2/micro-js/
+cp -R ../../src build/service2/yamf/core/
+cp ../../package.json build/service2/yamf/core/
 
-cp -R ../../src build/service3/micro-js/
-cp ../../package.json build/service3/micro-js/
+cp -R ../../src build/service3/yamf/core/
+cp ../../package.json build/service3/yamf/core/
 
 # Copy Dockerfile
 cp services/Dockerfile build/service1/Dockerfile

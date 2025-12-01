@@ -13,7 +13,7 @@ const logger = new Logger({ logGroup: 'yamf-api' })
 
 /**
  * Check if request is a cache update from registry
- * Uses micro headers to identify internal cache update calls
+ * Uses yamf headers to identify internal cache update calls
  * 
  * @param {Object} request - HTTP request object with headers
  * @returns {boolean} True if this is a cache update request
@@ -29,7 +29,7 @@ export function isCacheUpdateRequest(request) {
 
 /**
  * Check if request is a subscription message from registry
- * Uses micro headers to identify pubsub subscription messages
+ * Uses yamf headers to identify pubsub subscription messages
  * 
  * @param {Object} request - HTTP request object with headers
  * @returns {boolean} True if this is a subscription message
@@ -60,7 +60,7 @@ export function isSubscriptionMessage(request) {
  */
 export function createCacheAwareHandler(serviceFn, cache, context) {
   return async function cacheAwareHandler(payload, request, response) {
-    // Check if this is a cache update from registry using micro headers
+    // Check if this is a cache update from registry using yamf headers
     if (isCacheUpdateRequest(request)) {
       const { pubsubChannel, serviceName, serviceLocation } = parseCommandHeaders(request.headers)
       
@@ -129,7 +129,7 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
  */
 export function createSecureCacheAwareHandler(serviceFn, cache, context, registryToken) {
   return async function secureCacheAwareHandler(payload, request, response) {
-    // Check if this is a cache update from registry using micro headers
+    // Check if this is a cache update from registry using yamf headers
     if (isCacheUpdateRequest(request)) {
       // TODO!!! Validate request headers contain matching token
       // const authHeader = request?.headers?.['x-registry-token']

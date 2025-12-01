@@ -2,8 +2,8 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-# Copy micro-js source first
-COPY micro-js micro-js
+# Copy yamf/core source first
+COPY yamf/core yamf/core
 
 # Copy package files
 COPY package.json ./
@@ -19,7 +19,7 @@ RUN npx esbuild ./index.js --bundle --platform=node --outfile=build/index.js
 
 FROM node:24-alpine AS app
 
-ENV MICRO_REGISTRY_URL=http://0.0.0.0:13000
+ENV YAMF_REGISTRY_URL=http://0.0.0.0:13000
 ENV NODE_ENV=production
 
 WORKDIR /app

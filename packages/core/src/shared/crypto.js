@@ -22,41 +22,6 @@ export function calculateSHA512Checksum(data) {
   return crypto.createHash('sha512').update(data).digest('hex')
 }
 
-// --- Ed25519 key pair generation and signing --------------------------------
-export async function generateAndSignEd25519() {
-
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: 'Ed25519',
-      namedCurve: 'Ed25519' // Specify the curve
-    },
-    true, // extractable
-    ['sign', 'verify']
-  )
-
-  const message = new TextEncoder().encode('This is a test message.')
-
-  // Sign the message
-  const signature = await crypto.subtle.sign(
-    {
-      name: 'Ed25519'
-    },
-    keyPair.privateKey,
-    message
-  )
-
-  // Verify the signature
-  const isValid = await crypto.subtle.verify(
-    {
-      name: 'Ed25519'
-    },
-    keyPair.publicKey,
-    signature,
-    message
-  )
-
-  console.log('Signature valid:', isValid)
-}
 
 // --- Ed25519 key pair generation, signing, and verification ----------------
 
@@ -66,7 +31,7 @@ export const ed25519 = {
     return await crypto.subtle.generateKey(
       {
         name: 'Ed25519',
-        namedCurve: 'Ed25519' // Specify the curve
+        namedCurve: 'Ed25519'
       },
       true, // extractable
       ['sign', 'verify']
@@ -110,6 +75,7 @@ export async function createSaltedHash(password) {
 }
 
 // --- AES-256-GCM encryption/decryption -------------------------------------
+// quantum-resistant, but not guarenteed
 
 export function encryptAES256GCM(plaintext, key) {
   const iv = crypto.randomBytes(12)
@@ -137,23 +103,4 @@ export function decryptAES256GCM(encryptedData, ivHex, authTagHex) {
   return decrypted
 }
 
-/* ----- Example usage: ---------------------------------------------
-const message = 'This is a secret message for the encrypted session!'
-const encryptedSession = encryptAES256GCM(message)
-
-console.log('Encrypted Data:', encryptedSession.encryptedData)
-console.log('IV:', encryptedSession.iv)
-console.log('Auth Tag:', encryptedSession.authTag)
-
-try {
-  const decryptedMessage = decryptAES256GCM(
-    encryptedSession.encryptedData,
-    encryptedSession.iv,
-    encryptedSession.authTag
-  )
-  console.log('Decrypted Message:', decryptedMessage)
-} catch (error) {
-  console.error('Decryption failed:', error.message)
-}
-
-------------------------------------------------------------------- */
+// TODO quantum-ready encryption (PQC) - https://csrc.nist.gov/pubs/fips/205/final

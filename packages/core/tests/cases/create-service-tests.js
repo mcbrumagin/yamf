@@ -28,7 +28,7 @@ export async function testCreateService() {
       return payload
     }),
     async () => {
-      let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      let result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         body: { prop1: 'test', prop2: 'test' },
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -272,7 +272,7 @@ export async function testDependentServicesContextCall() {
 
 // callService (instead of using this.call) forces an eager lookup
 export async function testDependentServiceWithEagerLookup() {
-  // process.env.MICRO_REGISTRY_URL = 'http://localhost:10000' // this just gets used in our registryServer fn
+  // process.env.YAMF_REGISTRY_URL = 'http://localhost:10000' // this just gets used in our registryServer fn
   await terminateAfter(
     await registryServer(),
     await createService('test2', async payload => await callService('test3', payload)),
@@ -304,7 +304,7 @@ export async function testServiceLookup() {
     await createService('lookup2', function test2() { return 'test2' }),
     async () => {
       // Test lookup single service
-      let service1Location = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      let service1Location = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_LOOKUP,
           [HEADERS.SERVICE_NAME]: 'lookup1'
@@ -314,7 +314,7 @@ export async function testServiceLookup() {
       await assert(service1Location, l => typeof l === 'string' && l.includes(':'))
       
       // Test lookup all services
-      let allServices = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      let allServices = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_LOOKUP,
           [HEADERS.SERVICE_NAME]: '*'
@@ -354,8 +354,8 @@ export async function testDependentServiceThrowsError() {
 
 export async function testServiceRegistrationFailure() {
   // Test what happens when registry is not available
-  let originalEndpoint = process.env.MICRO_REGISTRY_URL
-  process.env.MICRO_REGISTRY_URL = 'http://localhost:42069' // nice
+  let originalEndpoint = process.env.YAMF_REGISTRY_URL
+  process.env.YAMF_REGISTRY_URL = 'http://localhost:42069' // nice
   
   try {
     logger.muteWarn()
@@ -365,7 +365,7 @@ export async function testServiceRegistrationFailure() {
         || err.message.includes('ECONNREFUSED')
     )
   } finally {
-    process.env.MICRO_REGISTRY_URL = originalEndpoint
+    process.env.YAMF_REGISTRY_URL = originalEndpoint
     logger.unmuteWarn()
   }
 }
@@ -514,7 +514,7 @@ export async function testFileStreamService() {
     }),
     async () => {
       // Test streaming file via HTTP request to registry
-      let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      let result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
           [HEADERS.SERVICE_NAME]: 'fileStream'
@@ -568,7 +568,7 @@ export async function testLargeFileStreamService() {
       const startTime = Date.now()
       
       // Test streaming large file via HTTP request to registry (through proxy)
-      let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      let result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
           [HEADERS.SERVICE_NAME]: 'largeFileStream'

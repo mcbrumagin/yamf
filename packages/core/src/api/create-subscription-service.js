@@ -15,7 +15,7 @@ import {
   unregisterServiceFromRegistry
 } from './service-helpers.js'
 
-const logger = new Logger({ logGroup: 'micro-subscription-service' })
+const logger = new Logger({ logGroup: 'yamf-subscription-service' })
 
 /**
  * Create a subscription service to handle event channels

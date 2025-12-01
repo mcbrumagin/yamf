@@ -78,8 +78,8 @@ function handleGatewayPull(state) {
 async function handleRegistryUpdated(state, payload, headers) {
   logger.info('Registry update notification received, pulling latest state...')
   
-  const registryUrl = envConfig.getRequired('MICRO_REGISTRY_URL')
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  const registryUrl = envConfig.getRequired('YAMF_REGISTRY_URL')
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   
   try {
     // Pull full registry state
@@ -138,7 +138,7 @@ export function updateGatewayStateFromRegistry(state, registryState) {
 
 /**
  * Route incoming commands to their handlers
- * PRIORITY 1: Command headers (micro-command)
+ * PRIORITY 1: Command headers (yamf-command)
  * PRIORITY 2: HTTP routes (URL-based)
  */
 export async function routeCommand(state, payload, request, response, options = {}) {

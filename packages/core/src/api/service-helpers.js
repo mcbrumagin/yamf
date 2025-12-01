@@ -11,15 +11,15 @@ import retry from '../shared/retry-helper.js'
 import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../shared/yamf-headers.js'
 import Logger from '../utils/logger.js'
 
-const logger = new Logger({ logGroup: 'micro-service-helpers' })
+const logger = new Logger({ logGroup: 'yamf-service-helpers' })
 
 /**
  * Default configuration for service operations
  */
 const DEFAULT_RETRY_CONFIG = {
-  tryRegisterLimit: envConfig.get('MICRO_RETRY_LIMIT', 3),
-  retryInitialDelay: envConfig.get('MICRO_RETRY_DELAY', 20),
-  muteRetryWarnings: envConfig.get('MICRO_MUTE_RETRY_WARNINGS', false)
+  tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
+  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 20),
+  muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false)
 }
 
 /**
@@ -27,15 +27,15 @@ const DEFAULT_RETRY_CONFIG = {
  * @returns {Object} { registryHost, registryToken, serviceHome }
  */
 export function getRegistryConfig() {
-  const serviceHost = envConfig.get('MICRO_SERVICE_URL')
-  const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  const serviceHost = envConfig.get('YAMF_SERVICE_URL')
+  const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   return { serviceHost, registryHost, registryToken }
 }
 
 function getServiceHomeFromConfig(serviceHost, registryHost) {
-  serviceHost = envConfig.get('MICRO_SERVICE_URL', serviceHost)
-  registryHost = envConfig.getRequired('MICRO_REGISTRY_URL', registryHost)
+  serviceHost = envConfig.get('YAMF_SERVICE_URL', serviceHost)
+  registryHost = envConfig.getRequired('YAMF_REGISTRY_URL', registryHost)
 
   let serviceHome
   if (serviceHost) {
@@ -165,7 +165,7 @@ export async function createServiceHttpServer(port, handler, options = {}) {
  * @param {Object} options - Configuration options
  * @returns {Promise<Object>} Service instance with { name, location, port, server, registryData }
  */
-const serviceRegistrationRetryLimit = envConfig.get('MICRO_REGISTRATION_RETRY_LIMIT', 50)
+const serviceRegistrationRetryLimit = envConfig.get('YAMF_REGISTRATION_RETRY_LIMIT', 50)
 export async function createAndRegisterService(serviceName, handler, options = {}, retryInfo) {
   validateServiceName(serviceName)
   
@@ -175,17 +175,17 @@ export async function createAndRegisterService(serviceName, handler, options = {
    * orchestrating second service run (using 127.0.0.1:3998 to simulate a different host)
    * the registry leaves some 
    * 
-    micro-registry | map[domainPorts]
-    micro-registry |   http://localhost: 4019 <--- normal initial registry home + services run
-    micro-registry |   http://127.0.0.1:3998: 4001 <--- problem state, will cause more errors for next service
-    micro-registry |   http://127.0.0.1:4000: 4020 <--- this service home doesn't make sense though either
+    yamf-registry | map[domainPorts]
+    yamf-registry |   http://localhost: 4019 <--- normal initial registry home + services run
+    yamf-registry |   http://127.0.0.1:3998: 4001 <--- problem state, will cause more errors for next service
+    yamf-registry |   http://127.0.0.1:4000: 4020 <--- this service home doesn't make sense though either
 
     ---another example with 127.0.0.1:3999---
-    micro-registry | map[domainPorts]
-    micro-registry |   http://localhost: 4019
-    micro-registry |   http://127.0.0.1:3999: 4002
-    micro-registry |   http://127.0.0.1:4000: 4020
-    micro-registry |   http://127.0.0.1:4001: 4021
+    yamf-registry | map[domainPorts]
+    yamf-registry |   http://localhost: 4019
+    yamf-registry |   http://127.0.0.1:3999: 4002
+    yamf-registry |   http://127.0.0.1:4000: 4020
+    yamf-registry |   http://127.0.0.1:4001: 4021
    *
    */
   const { serviceHome } = retryInfo || getServiceHomeFromConfig()

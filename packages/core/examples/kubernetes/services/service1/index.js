@@ -1,4 +1,4 @@
-const { createService } = require('micro-js')
+const { createService } = require('@yamf/core')
 
 createService(async function service1(payload = {}) {
   payload.service1 = true

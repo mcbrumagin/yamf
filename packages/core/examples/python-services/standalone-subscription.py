@@ -8,13 +8,13 @@ import os
 import sys
 import time
 
-# Add parent directory to path to import microjs
+# Add parent directory to path to import yamf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../languages/python'))
 
-from microjs import create_subscription_sync
+from yamf import create_subscription_sync
 
 # Set registry URL
-os.environ['MICRO_REGISTRY_URL'] = os.getenv('MICRO_REGISTRY_URL', 'http://localhost:3000')
+os.environ['YAMF_REGISTRY_URL'] = os.getenv('YAMF_REGISTRY_URL', 'http://localhost:3000')
 
 def handle_user_events(message):
     """Handler for user events"""
@@ -28,7 +28,7 @@ def handle_order_events(message):
 
 if __name__ == '__main__':
     print("Starting standalone subscriptions...")
-    print(f"Registry URL: {os.environ['MICRO_REGISTRY_URL']}")
+    print(f"Registry URL: {os.environ['YAMF_REGISTRY_URL']}")
     
     # Create subscriptions
     print("\nCreating subscriptions...")

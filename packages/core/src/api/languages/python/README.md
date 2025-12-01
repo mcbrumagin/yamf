@@ -1,6 +1,6 @@
-# Micro-JS Python Client
+# @yamf/core Python Client
 
-Python client library for the Micro-JS microservices framework.
+Python client library for the @yamf/core microservices framework.
 
 ## Installation
 
@@ -12,18 +12,18 @@ pip install -r requirements.txt
 
 Set the following environment variables:
 
-- `MICRO_REGISTRY_URL`: URL of the registry server (e.g., `http://localhost:3000`)
-- `MICRO_REGISTRY_TOKEN`: (Optional) Authentication token for the registry
+- `YAMF_REGISTRY_URL`: URL of the registry server (e.g., `http://localhost:3000`)
+- `YAMF_REGISTRY_TOKEN`: (Optional) Authentication token for the registry
 
 ## Usage
 
 ### Creating a Service
 
 ```python
-from microjs import create_service_sync
+from yamf import create_service_sync
 import os
 
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 # Simple service
 def my_service(payload):
@@ -43,10 +43,10 @@ except KeyboardInterrupt:
 ### Calling a Service
 
 ```python
-from microjs import call_service_sync
+from yamf import call_service_sync
 import os
 
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 result = call_service_sync("my_service", {"name": "Alice"})
 print(result)  # {"message": "Hello Alice!"}
@@ -55,10 +55,10 @@ print(result)  # {"message": "Hello Alice!"}
 ### Creating Routes
 
 ```python
-from microjs import create_route_sync
+from yamf import create_route_sync
 import os
 
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 # Map URL path to service
 def users_handler(payload):
@@ -80,10 +80,10 @@ except KeyboardInterrupt:
 ### Publishing Messages
 
 ```python
-from microjs import publish_message_sync
+from yamf import publish_message_sync
 import os
 
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 result = publish_message_sync("user-created", {
     "userId": 123,
@@ -95,10 +95,10 @@ print(result)  # {"results": [...], "errors": [...]}
 ### Subscribing to Channels
 
 ```python
-from microjs import create_subscription_sync
+from yamf import create_subscription_sync
 import os
 
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 def handle_user_created(message):
     print(f"New user: {message.get('email')}")
@@ -117,11 +117,11 @@ except KeyboardInterrupt:
 ### Service with Context (Calling Other Services)
 
 ```python
-from microjs import create_service_sync
+from yamf import create_service_sync
 import asyncio
 import os
 
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 # Service can call other services using context
 async def my_service(self, payload):
@@ -148,7 +148,7 @@ except KeyboardInterrupt:
 All functions have async versions without the `_sync` suffix:
 
 ```python
-from microjs import create_service, call_service, publish_message
+from yamf import create_service, call_service, publish_message
 import asyncio
 
 async def main():
@@ -171,7 +171,7 @@ Creates and registers a microservice.
 - **options**: Optional configuration dict
   - `useAuthService`: Name of auth service for protected routes
 
-Returns: `MicroService` instance with `terminate()` method
+Returns: `YamfService` instance with `terminate()` method
 
 ### `call_service(name, payload=None, content_type='application/json', auth_token=None)`
 
@@ -192,7 +192,7 @@ Maps a URL path to a service.
 - **service_name_or_fn**: Service name or function
 - **data_type**: Content type
 
-Returns: `MicroService` instance if function provided, None otherwise
+Returns: `YamfService` instance if function provided, None otherwise
 
 ### `publish_message(channel, message)`
 

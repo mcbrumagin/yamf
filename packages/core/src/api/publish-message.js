@@ -14,10 +14,10 @@ const logger = new Logger({ logGroup: 'yamf-api' })
  * @returns {Promise<{results: Array, errors: Array}>} Results and errors from all subscribers
  */
 export default async function publishMessage(channel, message) {
-  let registryHost = process.env.MICRO_REGISTRY_URL
-  if (!registryHost) throw new Error('Please define "MICRO_REGISTRY_URL" env variable')
+  let registryHost = process.env.YAMF_REGISTRY_URL
+  if (!registryHost) throw new Error('Please define "YAMF_REGISTRY_URL" env variable')
   
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
     
   let result = await httpRequest(registryHost, {
     body: message,
@@ -30,9 +30,9 @@ export default async function publishMessage(channel, message) {
 export async function publishMessageWithCache(cache, channel, message) { // TODO consistent naming
   // name could be the function if called "locally", or a noop of the same name for code-completion
   // channel = name.name || name
-  let registryHost = process.env.MICRO_REGISTRY_URL
+  let registryHost = process.env.YAMF_REGISTRY_URL
 
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
 
   logger.debug('cache.subscriptions', cache.subscriptions)
 

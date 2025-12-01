@@ -16,7 +16,7 @@ const logger = new Logger({ logGroup: 'yamf-registry' })
  * @throws {HttpError} If token is invalid or missing when token is configured
  */
 export function validateRegistryToken(request) {
-  const expectedToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  const expectedToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   
   if (!expectedToken) {
     return true
@@ -44,12 +44,12 @@ export function validateRegistryToken(request) {
  */
 export function validateRegistryEnvironment() {
   const environment = (envConfig.get('ENVIRONMENT', '') || '').toLowerCase()
-  const hasToken = !!envConfig.get('MICRO_REGISTRY_TOKEN')
+  const hasToken = !!envConfig.get('YAMF_REGISTRY_TOKEN')
   
   if (environment.includes('prod') || environment.includes('stag')) {
     if (!hasToken) {
-      const error = `FATAL: Cannot start registry in ${environment.toUpperCase()} environment without MICRO_REGISTRY_TOKEN configured. ` +
-        'Set MICRO_REGISTRY_TOKEN to a secure random token before starting the registry.'
+      const error = `FATAL: Cannot start registry in ${environment.toUpperCase()} environment without YAMF_REGISTRY_TOKEN configured. ` +
+        'Set YAMF_REGISTRY_TOKEN to a secure random token before starting the registry.'
       logger.error(error)
       throw new Error(error)
     }
@@ -60,7 +60,7 @@ export function validateRegistryEnvironment() {
   && !environment.includes('dev')
   && !hasToken) {
     logger.warn(
-      `Registry starting in ${environment.toUpperCase()} without MICRO_REGISTRY_TOKEN - ` +
+      `Registry starting in ${environment.toUpperCase()} without YAMF_REGISTRY_TOKEN - ` +
       'consider setting this for better security'
     )
   }

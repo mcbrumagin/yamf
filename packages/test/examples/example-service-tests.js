@@ -132,7 +132,7 @@ export async function testHttpRoute() {
       return { message: `Hello ${payload.name || 'World'}!`, method: request.method }
     }),
     async () => {
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/api/hello`, {
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/api/hello`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: 'Alice' })
@@ -162,14 +162,14 @@ export async function testWildcardRoute() {
       throw new HttpError(404, 'Resource not found')
     }),
     async () => {
-      const usersResp = await fetch(`${process.env.MICRO_REGISTRY_URL}/api/users`)
+      const usersResp = await fetch(`${process.env.YAMF_REGISTRY_URL}/api/users`)
       const users = await usersResp.json()
       assert(users,
         u => u.resource === 'users',
         u => u.data.length === 1
       )
       
-      const postsResp = await fetch(`${process.env.MICRO_REGISTRY_URL}/api/posts`)
+      const postsResp = await fetch(`${process.env.YAMF_REGISTRY_URL}/api/posts`)
       const posts = await postsResp.json()
       assert(posts,
         p => p.resource === 'posts',

@@ -1,6 +1,6 @@
 /**
  * Registry Server
- * Central service registry and router for micro-js
+ * Central service registry and router for @yamf/core
  * Refactored into modular components for better maintainability
  */
 
@@ -41,23 +41,23 @@ export default async function createRegistryServer(port) {
   
   // Determine port from argument or environment
   if (!port) {
-    const registryHost = process.env.MICRO_REGISTRY_URL
+    const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
     if (registryHost) {
       port = registryHost.split(':')[2]
       if (!port || isNaN(port)) {
         throw new Error(
-          'Please specify "port" arg or define "MICRO_REGISTRY_URL" env variable ' +
+          'Please specify "port" arg or define "YAMF_REGISTRY_URL" env variable ' +
           'including protocol and port number'
         )
       }
     }
   }
 
-  // Separately check for MICRO_GATEWAY_URL and pre-register it (for decoupling)
+  // Separately check for YAMF_GATEWAY_URL and pre-register it (for decoupling)
   preRegisterGatewayIfItExists(state)
   
   // Calculate default starting port for services
-  const registryEndpoint = envConfig.getRequired('MICRO_REGISTRY_URL')
+  const registryEndpoint = envConfig.getRequired('YAMF_REGISTRY_URL')
   const registryPort = registryEndpoint.split(':')[2]
   const defaultStartPort = registryPort && (Number(registryPort) + 1) || 10000
   
@@ -69,7 +69,7 @@ export default async function createRegistryServer(port) {
     try {
       // Parse body only for commands that need it (PUBSUB_PUBLISH)
       // For proxy operations (SERVICE_CALL, routes, auth), leave the stream untouched
-      const command = request.headers['micro-command']
+      const command = request.headers['yamf-command']
       const needsBodyParsing = command === 'pubsub-publish'
       
       if (needsBodyParsing) {

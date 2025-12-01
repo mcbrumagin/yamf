@@ -98,7 +98,7 @@ export async function testProtectedServiceWithAuth() {
       })
       
       // Call protected service with token
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       const result = await httpRequest(registryHost, {
         body: { test: 'data' },
         headers: {
@@ -180,7 +180,7 @@ export async function testProtectedServiceCallWithValidToken() {
       })
       
       // Call protected service with token
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       const result = await httpRequest(registryHost, {
         body: { test: 'data' },
         headers: {
@@ -205,7 +205,7 @@ export async function testProtectedServiceCallWithoutToken() {
       return { message: 'Should not reach here' }
     }, { useAuthService: 'auth-service' }),
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       await assertErr(
         async () => httpRequest(registryHost, {
           body: { test: 'data' },
@@ -229,7 +229,7 @@ export async function testProtectedServiceCallWithInvalidToken() {
     }, { useAuthService: 'auth-service' }),
     async () => {
       // Call protected service with invalid token
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       await assertErr(
         async () => httpRequest(registryHost, {
@@ -276,7 +276,7 @@ export async function testAuthServiceNotFound() {
     }, { useAuthService: 'nonexistent-auth-service' }),
     async () => {
       // Call protected service when auth service doesn't exist
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       await assertErr(
         async () => httpRequest(registryHost, {
@@ -300,7 +300,7 @@ export async function testAuthLoginCommand() {
     registryServer(),
     createAuthService(),
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       console.warn({TEST_ADMIN_SECRET})
       const loginResult = await httpRequest(registryHost, {
@@ -328,7 +328,7 @@ export async function testAuthRefreshCommand() {
     registryServer(),
     createAuthService(),
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       // use fetch so we can parse the Set-Cookie header
       const response = await fetch(registryHost, {
@@ -391,7 +391,7 @@ export async function testRouteWithAuth() {
       })
       
       // Access route with token
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       const result = await httpRequest(`${registryHost}/api/protected`, {
         method: 'POST',
         body: { test: 'data' },
@@ -442,7 +442,7 @@ export async function testMultipleAuthServices() {
       return { message: 'Service 2 accessed' }
     }, { useAuthService: 'custom-auth-service' }),
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       // Get token from first auth service
       const authResult = await callService('auth-service', {
@@ -627,7 +627,7 @@ export async function testRefreshTokenFlow() {
     await registryServer(),
     await createAuthService(),
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       // Login using fetch to get Set-Cookie header
       const response = await fetch(registryHost, {
@@ -705,7 +705,7 @@ export async function testForwardedHeaderCapture() {
     registryServer(),
     createAuthService(),
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       // Login with a forwarded header
       const response = await fetch(registryHost, {
@@ -745,7 +745,7 @@ export async function testXForwardedForHeader() {
     registryServer(),
     createAuthService(),
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       // Login with X-Forwarded-For header
       const response = await fetch(registryHost, {
@@ -900,7 +900,7 @@ export async function testRefreshTokenWithSessions() {
       useSessions: true
     }), // Enable sessions
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       // Login using fetch to get Set-Cookie header
       const response = await fetch(registryHost, {
@@ -954,7 +954,7 @@ export async function testInvalidRefreshToken() {
     registryServer(),
     createAuthService(),
     async () => {
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
       // Try to use an invalid refresh token
       await assertErr(
@@ -1011,7 +1011,7 @@ export async function testProtectedServiceWithSessionAuth() {
       })
       
       // Call protected service
-      const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+      const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       const result = await httpRequest(registryHost, {
         body: { test: 'data' },
         headers: {

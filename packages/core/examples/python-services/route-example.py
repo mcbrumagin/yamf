@@ -8,13 +8,13 @@ import os
 import sys
 import time
 
-# Add parent directory to path to import microjs
+# Add parent directory to path to import yamf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../languages/python'))
 
-from microjs import create_route_sync
+from yamf import create_route_sync
 
 # Set registry URL
-os.environ['MICRO_REGISTRY_URL'] = os.getenv('MICRO_REGISTRY_URL', 'http://localhost:3000')
+os.environ['YAMF_REGISTRY_URL'] = os.getenv('YAMF_REGISTRY_URL', 'http://localhost:3000')
 
 def users_handler(payload):
     """Handler for /api/users route"""
@@ -38,16 +38,18 @@ def products_handler(payload):
 
 if __name__ == '__main__':
     print("Starting route examples...")
-    print(f"Registry URL: {os.environ['MICRO_REGISTRY_URL']}")
+    print(f"Registry URL: {os.environ['YAMF_REGISTRY_URL']}")
     
     # Create routes
     print("\nCreating routes...")
+
+    # TODO!!! works with POST but not GET
     service1 = create_route_sync("/api/users", users_handler)
     service2 = create_route_sync("/api/products", products_handler)
     
     print(f"\n✓ Routes created:")
-    print(f"  GET/POST {os.environ['MICRO_REGISTRY_URL']}/api/users")
-    print(f"  GET/POST {os.environ['MICRO_REGISTRY_URL']}/api/products")
+    print(f"  GET/POST {os.environ['YAMF_REGISTRY_URL']}/api/users")
+    print(f"  GET/POST {os.environ['YAMF_REGISTRY_URL']}/api/products")
     print("\nPress Ctrl+C to stop...")
     
     # Keep services running

@@ -3,7 +3,7 @@
 
 run `./bootstrap.sh`
 
-// example: `./micro.cjs call cache '{ set: { name: "test", value: "test" } }'`
+// example: `./yamf.cjs call cache '{ set: { name: "test", value: "test" } }'`
 
 // old examples:
 run `./call.cjs --service cache --payload '{"set": {"name": "test", "value": "test"}}'`

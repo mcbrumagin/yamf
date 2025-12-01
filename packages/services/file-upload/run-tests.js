@@ -1,7 +1,7 @@
 import { runTests, withEnv } from '@yamf/test'
 
 withEnv({
-  MICRO_REGISTRY_URL: 'http://localhost:20000'
+  YAMF_REGISTRY_URL: 'http://localhost:20000'
 }, async () => {
   const fileUploadTests = await import('./file-upload-tests.js')
   await runTests(fileUploadTests)

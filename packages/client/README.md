@@ -1,8 +1,8 @@
-# micro-js-html
+# @yamf/client
 
 **It's *actually* just JavaScript** - A lightweight, reactive HTML-as-JavaScript library for both client and server-side rendering.
 
-[![Version](https://img.shields.io/badge/version-0.0.7-blue.svg)](https://github.com/your-repo/micro-js-html)
+[![Version](https://img.shields.io/badge/version-0.0.7-blue.svg)](https://github.com/your-repo/@yamf/client)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -13,14 +13,14 @@
 - **🔄 Universal** - Works seamlessly on both client and server
 - **📱 Modern** - ES6+ modules with full TypeScript support
 - **🎯 Simple** - Intuitive API with plain old JavaScript
-- **🔧 Extensible** - Easy integration with micro-js ecosystem
+- **🔧 Extensible** - Easy integration with yamf ecosystem
 - **⚡ Fast** - <50ms load time from local server to first DOM render
 - **🧪 Well Tested** - Comprehensive test coverage
 
 ## 📦 Installation
 
 ```bash
-npm install micro-js-html
+npm install @yamf/client
 ```
 
 ## 🎯 Quick Start
@@ -28,14 +28,14 @@ npm install micro-js-html
 ### Basic HTML Generation
 
 ```javascript
-import { htmlTags } from 'micro-js-html'
+import { htmlTags } from '@yamf/client'
 const { html, body, div, h1, p, a } = htmlTags
 
 // Create HTML structure
 const page = html(
   body(
     div({ class: 'container' },
-      h1('Welcome to micro-js-html'),
+      h1('Welcome to @yamf/client'),
       p('Build web apps with just JavaScript!'),
       a({ href: 'https://github.com' }, 'Learn More')
     )
@@ -49,7 +49,7 @@ console.log(page.render())
 ### Reactive State Management
 
 ```javascript
-import { createState, htmlTags } from 'micro-js-html'
+import { createState, htmlTags } from '@yamf/client'
 const { div, h1, p, button } = htmlTags
 
 // Create reactive state
@@ -81,7 +81,7 @@ state.watch((data) => {
 All standard HTML elements are available as JavaScript functions:
 
 ```javascript
-import { htmlTags } from 'micro-js-html'
+import { htmlTags } from '@yamf/client'
 const { 
   // Structure
   html, head, body, div, span, section, article, header, footer,
@@ -149,7 +149,7 @@ const interactive = div(
 ### Creating State
 
 ```javascript
-import { createState } from 'micro-js-html'
+import { createState } from '@yamf/client'
 
 // Simple state
 const appState = createState({
@@ -234,7 +234,7 @@ const dynamicContent = div()
 ## 📋 Form Management
 
 ```javascript
-import { createFormState } from 'micro-js-html'
+import { createFormState } from '@yamf/client'
 
 // Create form with validation
 const formState = createFormState(
@@ -299,7 +299,7 @@ const loginForm = form({
 ### Render Helper
 
 ```javascript
-import { createRenderHelper } from 'micro-js-html'
+import { createRenderHelper } from '@yamf/client'
 
 // Create advanced renderer
 const renderer = createRenderHelper('#app', {
@@ -327,7 +327,7 @@ renderer.destroy()
 ### Reactive Components
 
 ```javascript
-import { createReactiveComponent } from 'micro-js-html'
+import { createReactiveComponent } from '@yamf/client'
 
 // Create self-updating component
 const TodoApp = createReactiveComponent(
@@ -369,7 +369,7 @@ TodoApp.unmount()
 
 ```javascript
 // server.js
-import { htmlTags } from 'micro-js-html'
+import { htmlTags } from '@yamf/client'
 import http from 'http'
 
 const { html, head, body, title, h1, p } = htmlTags
@@ -399,7 +399,7 @@ console.log('Server running at http://localhost:3000')
 Object containing all HTML element functions.
 
 ```javascript
-import { htmlTags } from 'micro-js-html'
+import { htmlTags } from '@yamf/client'
 const { div, p, h1 } = htmlTags
 ```
 
@@ -545,10 +545,10 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- Built for the [micro-js](https://github.com/micro-js) ecosystem
+- Built for the [yamf](https://github.com/mcbrumagin/yamf/) ecosystem
 - Inspired by modern reactive frameworks
 - Designed for simplicity and performance
 
 ---
 
-**micro-js-html** - *It's actually just JavaScript!* 🚀
+**@yamf/client** - *It's actually just JavaScript!* 🚀

@@ -4,7 +4,7 @@
  * Example CLI usage of publishMessage
  * 
  * Usage:
- *   export MICRO_REGISTRY_URL=http://localhost:10000
+ *   export YAMF_REGISTRY_URL=http://localhost:10000
  *   node examples/pubsub-cli-example.js myChannel '{"hello":"world"}'
  */
 

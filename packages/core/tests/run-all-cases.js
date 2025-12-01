@@ -50,7 +50,7 @@ async function testRegistryHealth() {
   await terminateAfter(
     await registryServer(),
     async () => {
-      let result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      let result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
       })
       

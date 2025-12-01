@@ -8,10 +8,10 @@
 import { createService, callService } from '../../src/index.js'
 
 // Set registry URL
-process.env.MICRO_REGISTRY_URL = process.env.MICRO_REGISTRY_URL || 'http://localhost:3000'
+process.env.YAMF_REGISTRY_URL = process.env.YAMF_REGISTRY_URL || 'http://localhost:3000'
 
 console.log('Starting Node.js services...')
-console.log(`Registry URL: ${process.env.MICRO_REGISTRY_URL}`)
+console.log(`Registry URL: ${process.env.YAMF_REGISTRY_URL}`)
 
 // Create a Node.js service that calls Python services
 await createService(async function nodeToPythonService(payload) {

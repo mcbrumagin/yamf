@@ -1,7 +1,7 @@
 const envMap = {
   ENVIRONMENT: 'local',
-  MICRO_REGISTRY_URL: 'http://localhost:10000',
-  MICRO_REGISTRY_TOKEN: 'dev-test-token-12345',
+  YAMF_REGISTRY_URL: 'http://localhost:10000',
+  YAMF_REGISTRY_TOKEN: 'dev-test-token-12345',
   ADMIN_USER: 'testadmin',
   ADMIN_SECRET: 'testsecret123',
   LOG_LEVEL: 'info',

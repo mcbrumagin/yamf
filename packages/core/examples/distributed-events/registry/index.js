@@ -1,4 +1,4 @@
-const { registryServer } = require('micro-js')
+const { registryServer } = require('@yamf/core')
 
 console.log({env: process.env})
 

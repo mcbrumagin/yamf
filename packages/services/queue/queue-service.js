@@ -10,11 +10,9 @@
  * - Message acknowledgment
  */
 
-import createService from '../micro-core/api/create-service.js'
-import HttpError from '../micro-core/http-primitives/http-error.js'
-import Logger from '../utils/logger.js'
+import { createService, HttpError, Logger } from '@yamf/core'
 
-const logger = new Logger({ logGroup: 'micro-services' })
+const logger = new Logger({ logGroup: 'yamf-services' })
 
 /**
  * Create a queue service

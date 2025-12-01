@@ -1,5 +1,5 @@
 /**
- * Micro-Core API
+ * @yamf/core API
  * Public API functions for service creation and communication
  */
 

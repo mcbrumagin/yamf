@@ -17,7 +17,7 @@ import {
 
 const logger = new Logger()
 
-const getRegistryToken = () => process.env.MICRO_REGISTRY_TOKEN
+const getRegistryToken = () => process.env.YAMF_REGISTRY_TOKEN
 
 // ============================================================================
 // Basic Command Header Tests
@@ -30,7 +30,7 @@ export async function testHealthCheckWithHeaders() {
   await terminateAfter(
     await registryServer(),
     async () => {
-      const result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      const result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
       })
       
@@ -51,7 +51,7 @@ export async function testServiceSetupWithHeaders() {
   await terminateAfter(
     await registryServer(),
     async () => {
-      const location = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      const location = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
           [HEADERS.SERVICE_NAME]: 'test-service',
@@ -78,7 +78,7 @@ export async function testServiceLookupWithHeaders() {
     await registryServer(),
     await createService('lookup-test', () => 'result'),
     async () => {
-      const lookupResult = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+      const lookupResult = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_LOOKUP,
           [HEADERS.SERVICE_NAME]: 'lookup-test'
@@ -106,7 +106,7 @@ export async function testServiceCallWithHeadersJson() {
     await createService('echo', payload => payload),
     async () => {
       const result = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: { test: 'data', number: 123 },
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -135,7 +135,7 @@ export async function testServiceCallWithHeadersBinary() {
     async () => {
       const buffer = Buffer.from('binary test data')
       const result = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: buffer,
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -165,7 +165,7 @@ export async function testServiceCallWithHeadersBinary() {
 export async function testInvalidCommandHeader() {
   await terminateAfter(
     await registryServer(),
-    async () => assertErr(async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+    async () => assertErr(async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: { [HEADERS.COMMAND]: 'invalid-command-xyz' }
       }),
       err => err.message.includes('Unknown command')
@@ -181,7 +181,7 @@ export async function testMissingServiceNameForCall() {
     await registryServer(),
     await createService('test', () => 'result'),
     async () => assertErr(
-      async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+      async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
         body: { data: 'test' },
         headers: { 
           [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL
@@ -200,7 +200,7 @@ export async function testMissingServiceNameForCall() {
 export async function testMissingServiceNameForSetup() {
   await terminateAfter(
     await registryServer(),
-    async () => assertErr(async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+    async () => assertErr(async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
             [HEADERS.SERVICE_HOME]: 'http://localhost',
@@ -209,7 +209,7 @@ export async function testMissingServiceNameForSetup() {
         }
       }),
       err => err.status === 400,
-      err => err.message.includes('SERVICE_SETUP requires micro-service-name header')
+      err => err.message.includes('SERVICE_SETUP requires yamf-service-name header')
     )
   )
 }
@@ -220,7 +220,7 @@ export async function testMissingServiceNameForSetup() {
 export async function testMissingServiceLocationForRegister() {
   await terminateAfter(
     await registryServer(),
-    async () => assertErr(async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+    async () => assertErr(async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
             [HEADERS.SERVICE_NAME]: 'test-service',
@@ -229,7 +229,7 @@ export async function testMissingServiceLocationForRegister() {
         }
       }),
       err => err.status === 400,
-      err => err.message.includes('SERVICE_REGISTER requires micro-service-location header')
+      err => err.message.includes('SERVICE_REGISTER requires yamf-service-location header')
     )
   )
 }
@@ -240,7 +240,7 @@ export async function testMissingServiceLocationForRegister() {
 export async function testCallNonExistentServiceWithHeaders() {
   await terminateAfter(
     registryServer(),
-    () => assertErr(async () => httpRequest(process.env.MICRO_REGISTRY_URL, {
+    () => assertErr(async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
         body: {},
         headers: {
           [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -270,7 +270,7 @@ export async function testCommandHeaderPriorityOverRoutes() {
       return `CORRECT: ${request.url}`
     }),
     async () => assert(await httpRequest(
-      `${process.env.MICRO_REGISTRY_URL}/priority-test`, {
+      `${process.env.YAMF_REGISTRY_URL}/priority-test`, {
         headers: {
           // These should be IGNORED because /priority-test matches a route
           [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -294,7 +294,7 @@ export async function testRoutesWithoutCommandHeaders() {
     registryServer(),
     createRoute('/no-headers', () => 'Success without headers'),
     () => assert(
-      async () => fetch(`${process.env.MICRO_REGISTRY_URL}/no-headers`),
+      async () => fetch(`${process.env.YAMF_REGISTRY_URL}/no-headers`),
       // Plain fetch, no custom headers
       r => r.status === 200,
       async r => await r.text() === 'Success without headers'
@@ -313,7 +313,7 @@ export async function testCommandHeadersForNonRouteUrls() {
       // URL doesn't match a route, so command headers should work
       const result = await httpRequest(
         // Root URL, no route path
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: { value: 'test' },
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -342,7 +342,7 @@ export async function testContentTypePreservation() {
     async () => {
       // Test 1: JSON
       const jsonResult = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: { type: 'json', value: 123 },
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -355,7 +355,7 @@ export async function testContentTypePreservation() {
       // Test 2: Binary
       const binaryData = Buffer.from([0x89, 0x50, 0x4E, 0x47])  // PNG header
       const binaryResult = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: binaryData,
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -390,7 +390,7 @@ export async function testPrimitiveTypePreservation() {
     await createService('nullReturner', () => null),
     async () => {
       const number = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: {},
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -400,7 +400,7 @@ export async function testPrimitiveTypePreservation() {
       )
       
       const boolean = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: {},
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -410,7 +410,7 @@ export async function testPrimitiveTypePreservation() {
       )
       
       const nullVal = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: {},
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
@@ -447,7 +447,7 @@ export async function testPubSubSubscribeWithHeaders() {
     await createService('subscriber', message => message),
     async (registry, service) => {
       const result = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.PUBSUB_SUBSCRIBE,
             [HEADERS.PUBSUB_CHANNEL]: 'test-channel',
@@ -472,7 +472,7 @@ export async function testPubSubPublishWithHeaders() {
     await createService('subscriber', message => ({ received: message })),
     async (registry, service) => {
       await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.PUBSUB_SUBSCRIBE,
             [HEADERS.PUBSUB_CHANNEL]: 'test-channel',
@@ -483,7 +483,7 @@ export async function testPubSubPublishWithHeaders() {
       )
       
       const publishResult = await httpRequest(
-        process.env.MICRO_REGISTRY_URL, {
+        process.env.YAMF_REGISTRY_URL, {
           body: { data: 'test message' },
           headers: {
             [HEADERS.COMMAND]: COMMANDS.PUBSUB_PUBLISH,
@@ -527,7 +527,7 @@ export async function testHeaderSizeLimit() {
       
       try {
         const result = await httpRequest(
-          process.env.MICRO_REGISTRY_URL,
+          process.env.YAMF_REGISTRY_URL,
           { data: largeValue },
           {
             headers: {

@@ -5,7 +5,7 @@
 
 import Logger from '../utils/logger.js'
 
-const logger = new Logger({ logGroup: 'micro-utils' })
+const logger = new Logger({ logGroup: 'yamf-utils' })
 
 /**
  * Default retry configuration

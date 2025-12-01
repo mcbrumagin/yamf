@@ -20,15 +20,15 @@ import {
 
 export async function testGetRegistryHost_ValidURL() {
   await withEnv({
-    MICRO_REGISTRY_URL: 'http://localhost:8000'
+    YAMF_REGISTRY_URL: 'http://localhost:8000'
   }, () => assert(getRegistryHost, r => r === 'http://localhost:8000'))
 }
 
 export async function testGetRegistryHost_MissingURL() {
   await withEnv({
-    MICRO_REGISTRY_URL: undefined
+    YAMF_REGISTRY_URL: undefined
   }, () => assertErr(getRegistryHost,
-      err => err.message.includes('MICRO_REGISTRY_URL'),
+      err => err.message.includes('YAMF_REGISTRY_URL'),
       err => err.message.includes('env variable')
     )
   )
@@ -95,7 +95,7 @@ export function testParseUrl_InvalidFormat() {
 
 export async function testDetermineServiceHome_WithServiceURL() {
   await withEnv({
-    MICRO_SERVICE_URL: 'http://service.example.com'
+    YAMF_SERVICE_URL: 'http://service.example.com'
   }, () => {
     const result = determineServiceHome('http://registry.example.com:8000')
     assert(result, r => r === 'http://service.example.com')
@@ -104,7 +104,7 @@ export async function testDetermineServiceHome_WithServiceURL() {
 
 export async function testDetermineServiceHome_WithPort() {
   await withEnv({
-    MICRO_SERVICE_URL: 'http://service.example.com:9000'
+    YAMF_SERVICE_URL: 'http://service.example.com:9000'
   }, () => {
     const result = determineServiceHome('http://registry.example.com:8000')
     assert(result, r => r === 'http://service.example.com:9000')
@@ -113,7 +113,7 @@ export async function testDetermineServiceHome_WithPort() {
 
 export async function testDetermineServiceHome_UsesRegistryHost() {
   await withEnv({
-    MICRO_SERVICE_URL: undefined
+    YAMF_SERVICE_URL: undefined
   }, async () => {
     const result = determineServiceHome('http://registry.example.com:8000')
     
@@ -155,7 +155,7 @@ export function testValidatePort_InvalidPorts() {
 
 export async function testCheckServiceUrlPort_NoURL() {
   await withEnv({
-    MICRO_SERVICE_URL: undefined
+    YAMF_SERVICE_URL: undefined
   }, () => assert(checkServiceUrlPort,
       r => r.hasPort === false,
       r => r.port === null,
@@ -166,7 +166,7 @@ export async function testCheckServiceUrlPort_NoURL() {
 
 export async function testCheckServiceUrlPort_WithPort() {
   await withEnv({
-    MICRO_SERVICE_URL: 'http://localhost:9000'
+    YAMF_SERVICE_URL: 'http://localhost:9000'
   }, () => assert(checkServiceUrlPort,
       r => r.hasPort === true,
       r => r.port === 9000,
@@ -177,7 +177,7 @@ export async function testCheckServiceUrlPort_WithPort() {
 
 export async function testValidateServiceLocation_ValidLocation() {
   await withEnv({
-    MICRO_SERVICE_URL: undefined
+    YAMF_SERVICE_URL: undefined
   }, () => assert(() => validateServiceLocation('http://localhost:8000'),
       r => r.location === 'http://localhost:8000',
       r => r.port === 8000
@@ -187,7 +187,7 @@ export async function testValidateServiceLocation_ValidLocation() {
 
 export async function testValidateServiceLocation_EmptyLocation() {
   await withEnv({
-    MICRO_SERVICE_URL: undefined
+    YAMF_SERVICE_URL: undefined
   }, () => assertErrEach(['', null]
     .map(l => () => validateServiceLocation(l)),
       err => err.message.includes('location cannot be empty')
@@ -197,7 +197,7 @@ export async function testValidateServiceLocation_EmptyLocation() {
 
 export async function testValidateServiceLocation_MissingPort() {
   await withEnv({
-    MICRO_SERVICE_URL: undefined
+    YAMF_SERVICE_URL: undefined
   }, () => assertErr(
       () => validateServiceLocation('http://localhost'),
       err => err.message.includes('missing port')
@@ -207,7 +207,7 @@ export async function testValidateServiceLocation_MissingPort() {
 
 export async function testValidateServiceLocation_PortConflict() {
   await withEnv({
-    MICRO_SERVICE_URL: 'http://localhost:9000'
+    YAMF_SERVICE_URL: 'http://localhost:9000'
   }, () => assertErr(
       () => validateServiceLocation('http://localhost:8000', 8000),
       err => err.message.includes('Port conflict'),

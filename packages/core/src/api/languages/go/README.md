@@ -1,6 +1,6 @@
-# Micro-JS Go Client
+# @yamf/core Go Client
 
-Go client library for the Micro-JS microservices framework.
+Go client library for the @yamf/core microservices framework.
 
 ## Status
 
@@ -20,13 +20,13 @@ Go client library for the Micro-JS microservices framework.
 package main
 
 import (
-    "github.com/yourusername/microjs-go"
+    "github.com/yourusername/yamf-go"
     "log"
 )
 
 func main() {
     // Create a service
-    service, err := microjs.CreateService("my-service", func(payload map[string]interface{}) (interface{}, error) {
+    service, err := yamf.CreateService("my-service", func(payload map[string]interface{}) (interface{}, error) {
         return map[string]interface{}{
             "message": "Hello from Go!",
         }, nil
@@ -47,7 +47,7 @@ func main() {
 
 Contributions are welcome! If you'd like to help develop the Go client, please:
 
-1. Follow the same protocol as the Python client (see `../python/microjs.py`)
+1. Follow the same protocol as the Python client (see `../python/yamf.py`)
 2. Implement the header-based communication protocol
 3. Support async/concurrent operations
 4. Include comprehensive examples

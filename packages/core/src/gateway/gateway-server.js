@@ -1,6 +1,6 @@
 /**
  * Gateway Server
- * Central service gateway and router for micro-js
+ * Central service gateway and router for @yamf/core
  * Refactored into modular components for better maintainability
  */
 
@@ -39,12 +39,12 @@ export default async function createGatewayServer(port) {
   
   // Determine port from argument or environment
   if (!port) {
-    const gatewayHost = process.env.MICRO_GATEWAY_URL
+    const gatewayHost = process.env.YAMF_GATEWAY_URL
     if (gatewayHost) {
       port = gatewayHost.split(':')[2]
       if (!port || isNaN(port)) {
         throw new Error(
-          'Please specify "port" arg or define "MICRO_GATEWAY_URL" env variable ' +
+          'Please specify "port" arg or define "YAMF_GATEWAY_URL" env variable ' +
           'including protocol and port number'
         )
       }
@@ -52,7 +52,7 @@ export default async function createGatewayServer(port) {
   }
   
   // Calculate default starting port for services
-  const gatewayEndpoint = envConfig.getRequired('MICRO_GATEWAY_URL')
+  const gatewayEndpoint = envConfig.getRequired('YAMF_GATEWAY_URL')
   const gatewayPort = gatewayEndpoint.split(':')[2]
   const defaultStartPort = gatewayPort && (Number(gatewayPort) + 1) || 10000
   
@@ -64,7 +64,7 @@ export default async function createGatewayServer(port) {
     try {
       // Parse body only for commands that need it (PUBSUB_PUBLISH)
       // For proxy operations (SERVICE_CALL, routes, auth), leave the stream untouched
-      const command = request.headers['micro-command']
+      const command = request.headers['yamf-command']
       const needsBodyParsing = command === 'pubsub-publish'
       
       if (needsBodyParsing) {
@@ -128,9 +128,9 @@ export default async function createGatewayServer(port) {
   server.isGateway = true
   
   // Do initial pull from registry if available
-  const registryUrl = envConfig.get('MICRO_REGISTRY_URL')
+  const registryUrl = envConfig.get('YAMF_REGISTRY_URL')
   if (registryUrl) {
-    const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+    const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
     try {
       const { buildRegistryPullHeaders } = await import('../shared/yamf-headers.js')
       const httpRequest = (await import('../http-primitives/http-request.js')).default

@@ -433,7 +433,7 @@ export async function testConcurrentOperations() {
 }
 
 /**
- * Test cache update mechanism with micro headers
+ * Test cache update mechanism with yamf headers
  * This tests that services can receive cache updates from the registry
  * without conflicting with their normal service function
  */
@@ -482,7 +482,7 @@ export async function testCacheUpdateWithHeaders() {
 /**
  * Test that service registration triggers cache updates to other services
  * This test verifies that when a new service registers, existing services
- * receive cache update notifications via micro headers
+ * receive cache update notifications via yamf headers
  */
 export async function testServiceRegistrationCacheUpdate() {
   let service1, service2, newService

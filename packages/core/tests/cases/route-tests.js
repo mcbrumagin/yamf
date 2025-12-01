@@ -27,7 +27,7 @@ export async function testBasicRoute() {
     }),
     async () => {
       // Test direct HTTP request to route - no special headers needed!
-      let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/hello`)
+      let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/hello`)
       let result = await response.text()
       
       await assert(result, r => r === 'Hello World!')
@@ -45,7 +45,7 @@ export async function testRouteWithService() {
     async () => {
       await createRoute('/greet', 'greetingService')
 
-      let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/greet`)
+      let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/greet`)
       let result = await response.text()
       
       await assert(result, r => r.includes('Hello World!'))
@@ -56,7 +56,7 @@ export async function testRouteWithService() {
 
 export async function testRouteWithServiceThroughGateway() {
   await withEnv({
-    MICRO_GATEWAY_URL: 'http://localhost:15000'
+    YAMF_GATEWAY_URL: 'http://localhost:15000'
   }, async () => await terminateAfter(
     await registryServer(),
     await gatewayServer(),
@@ -66,7 +66,7 @@ export async function testRouteWithServiceThroughGateway() {
     async () => {
       await createRoute('/greet', 'greetingService')
 
-      let response = await fetch(`${process.env.MICRO_GATEWAY_URL}/greet`)
+      let response = await fetch(`${process.env.YAMF_GATEWAY_URL}/greet`)
       let result = await response.text()
       
       await assert(result, r => r.includes('Hello World!'))
@@ -90,8 +90,8 @@ export async function testRouteBulkCreate() {
         '/greet3': 'greetingService2'
       })
 
-      let result1 = await (await fetch(`${process.env.MICRO_REGISTRY_URL}/greet`)).text()
-      let result2 = await (await fetch(`${process.env.MICRO_REGISTRY_URL}/greet2`)).text()
+      let result1 = await (await fetch(`${process.env.YAMF_REGISTRY_URL}/greet`)).text()
+      let result2 = await (await fetch(`${process.env.YAMF_REGISTRY_URL}/greet2`)).text()
 
       let requestPayloadOptions = {
         method: 'POST',
@@ -101,7 +101,7 @@ export async function testRouteBulkCreate() {
         body: JSON.stringify({ name: 'John' })
       }
 
-      let result3 = await (await fetch(`${process.env.MICRO_REGISTRY_URL}/greet3`, requestPayloadOptions)).text()
+      let result3 = await (await fetch(`${process.env.YAMF_REGISTRY_URL}/greet3`, requestPayloadOptions)).text()
       
       await assert([result1, result2, result3],
         ([r1, r2,   ]) => r1 === r2,
@@ -119,7 +119,7 @@ export async function testRouteInlineServiceCreation() {
       return `Hello ${payload.name || 'World'}!`
     }),
     async () => {
-      let result = await (await fetch(`${process.env.MICRO_REGISTRY_URL}/greet`)).text()
+      let result = await (await fetch(`${process.env.YAMF_REGISTRY_URL}/greet`)).text()
       await assert(result, r => r.includes(`Hello World!`))
     }
   )
@@ -132,7 +132,7 @@ export async function testRouteControllerWildcard() {
       return { path: request.url, message: 'API response' }
     }),
     async () => {
-      let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/api/users`)
+      let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/api/users`)
       let result = await response.text()
       let parsed = JSON.parse(result)
       
@@ -147,7 +147,7 @@ export async function testRouteControllerWildcard() {
 
 export async function testRouteControllerWildcardThroughGateway() {
   await withEnv({
-    MICRO_GATEWAY_URL: 'http://localhost:15000'
+    YAMF_GATEWAY_URL: 'http://localhost:15000'
   }, async () => await terminateAfter(
     await registryServer(),
     await gatewayServer(),
@@ -155,7 +155,7 @@ export async function testRouteControllerWildcardThroughGateway() {
       return { path: request.url, message: 'API response' }
     }),
     async () => {
-      let response = await fetch(`${process.env.MICRO_GATEWAY_URL}/api/users`)
+      let response = await fetch(`${process.env.YAMF_GATEWAY_URL}/api/users`)
       let result = await response.text()
       let parsed = JSON.parse(result)
       
@@ -175,7 +175,7 @@ export async function testRouteMissingService() {
 
       await assertErr(
         async () => {
-          let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/broken`)
+          let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/broken`)
           if (response.status >= 400 && response.status < 600) {
             throw new HttpError(response.status, await response.text())
           } else return await response.text()

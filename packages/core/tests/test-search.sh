@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# export MICRO_GATEWAY_URL=http://localhost:15000
-export MICRO_REGISTRY_URL=http://localhost:10000
+# export YAMF_GATEWAY_URL=http://localhost:15000
+export YAMF_REGISTRY_URL=http://localhost:10000
 
 export ENVIRONMENT=local
 
 # Registry token for testing (individual tests may override)
-export MICRO_REGISTRY_TOKEN=dev-test-token-12345
+export YAMF_REGISTRY_TOKEN=dev-test-token-12345
 
 # TODO dynamically set to info for full test run
 export LOG_LEVEL=debug

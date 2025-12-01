@@ -64,7 +64,7 @@ async function main() {
       } catch (err) { /* ignore */ }
     }
 
-    let url = `${process.env.MICRO_REGISTRY_URL}${target}`
+    let url = `${process.env.YAMF_REGISTRY_URL}${target}`
     logger.debug({url, payload})
     // const response = await fetch(url, {
     //   method: 'POST',

@@ -1,4 +1,4 @@
-import { createSubscription } from 'micro-js'
+import { createSubscription } from '@yamf/core'
 
 console.log({env: process.env})
 

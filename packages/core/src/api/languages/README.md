@@ -1,10 +1,10 @@
-# Micro-JS Client Libraries
+# @yamf/core Client Libraries
 
-Multi-language client libraries for the Micro-JS microservices framework.
+Multi-language client libraries for the @yamf/core microservices framework.
 
 ## Overview
 
-Micro-JS supports multiple programming languages, allowing you to build polyglot microservice architectures. All clients communicate with the same registry using a header-based HTTP protocol.
+@yamf/core supports multiple programming languages, allowing you to build polyglot microservice architectures. All clients communicate with the same registry using a header-based HTTP protocol.
 
 ## Available Languages
 
@@ -26,10 +26,10 @@ Fully implemented Python client with support for all major features.
 
 **Quick Start:**
 ```python
-from microjs import create_service_sync
+from yamf import create_service_sync
 import os
 
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 def my_service(payload):
     return {"message": f"Hello {payload.get('name')}!"}
@@ -59,18 +59,18 @@ Coming soon.
 
 ## Protocol
 
-All language clients communicate with the Micro-JS registry using HTTP with custom headers.
+All language clients communicate with the @yamf/core registry using HTTP with custom headers.
 
 ### Header-Based Protocol
 
 The protocol uses specific HTTP headers for command routing:
 
 **Headers:**
-- `micro-command`: Command type (service-call, service-register, etc.)
-- `micro-service-name`: Service name
-- `micro-service-location`: Service location (URL)
-- `micro-pubsub-channel`: Pub/sub channel name
-- `micro-registry-token`: Authentication token (optional)
+- `yamf-command`: Command type (service-call, service-register, etc.)
+- `yamf-service-name`: Service name
+- `yamf-service-location`: Service location (URL)
+- `yamf-pubsub-channel`: Pub/sub channel name
+- `yamf-registry-token`: Authentication token (optional)
 
 **Commands:**
 - `service-setup`: Request port allocation
@@ -86,8 +86,8 @@ The protocol uses specific HTTP headers for command routing:
 
 ```http
 POST http://localhost:3000/ HTTP/1.1
-micro-command: service-call
-micro-service-name: my-service
+yamf-command: service-call
+yamf-service-name: my-service
 Content-Type: application/json
 
 {"name": "World"}
@@ -124,17 +124,17 @@ To create a client for a new language, implement the following functions:
 
 2. **callService(name, payload, options)**
    - Send HTTP request to registry with service-call command
-   - Include micro-service-name header
+   - Include yamf-service-name header
    - Return response
 
 3. **createRoute(path, serviceNameOrHandler, dataType)**
    - Create service if handler provided
    - Register route with registry (route-register)
-   - Include micro-route-path header
+   - Include yamf-route-path header
 
 4. **publishMessage(channel, message)**
    - Send HTTP request to registry with pubsub-publish command
-   - Include micro-pubsub-channel header
+   - Include yamf-pubsub-channel header
 
 5. **createSubscription(channel, handler, options)**
    - Create HTTP server for receiving messages
@@ -152,7 +152,7 @@ Services should provide a context object with methods:
 ### Reference Implementation
 
 See the Python implementation for a complete reference:
-- [python/microjs.py](./python/microjs.py)
+- [python/yamf.py](./python/yamf.py)
 
 Key aspects to implement:
 1. HTTP client for registry communication
@@ -166,9 +166,9 @@ Key aspects to implement:
 
 All clients should respect these environment variables:
 
-- `MICRO_REGISTRY_URL`: Registry server URL (required)
+- `YAMF_REGISTRY_URL`: Registry server URL (required)
   - Example: `http://localhost:3000`
-- `MICRO_REGISTRY_TOKEN`: Registry authentication token (optional)
+- `YAMF_REGISTRY_TOKEN`: Registry authentication token (optional)
   - Used for securing registry operations
 
 ## Examples
@@ -181,11 +181,7 @@ See language-specific example directories:
 
 To test a new language client:
 
-1. Start the registry:
-```bash
-node src/micro-core/registry/registry-server.js
-```
-
+1. Start the registry with nodejs
 2. Create a test service in your language
 3. Create a Node.js service to call it
 4. Verify bi-directional communication works
@@ -203,5 +199,5 @@ We welcome contributions for new language clients! Please:
 
 ## License
 
-Same as main Micro-JS project.
+Same as main @yamf/core project.
 

@@ -210,7 +210,7 @@ export async function testLargeBinaryPayload() {
       const largeBuffer = Buffer.alloc(500 * 1024) // 500KB
       largeBuffer.fill(0xAB)
       
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/large-binary`, {
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/large-binary`, {
         method: 'POST',
         headers: { 'content-type': 'application/octet-stream' },
         body: largeBuffer
@@ -258,7 +258,7 @@ export async function testLongRoutePath() {
     await registryServer(),
     await createRoute(longPath, () => ({ path: 'long' })),
     async () => {
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}${longPath}`)
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}${longPath}`)
       const result = await response.json()
       
       await assert(result, r => r.path === 'long')
@@ -373,7 +373,7 @@ export async function testConcurrentRouteRegistrations() {
       const callPromises = []
       for (let i = 0; i < 10; i++) {
         callPromises.push(
-          fetch(`${process.env.MICRO_REGISTRY_URL}/route${i}`).then(r => r.json())
+          fetch(`${process.env.YAMF_REGISTRY_URL}/route${i}`).then(r => r.json())
         )
       }
       

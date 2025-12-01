@@ -4,7 +4,7 @@ import envConfig from '../shared/env-config.js'
 import { buildCallHeaders } from '../shared/yamf-headers.js'
 import Logger from '../utils/logger.js'
 
-const logger = new Logger({ logGroup: 'micro-api' })
+const logger = new Logger({ logGroup: 'yamf-api' })
 
 // TODO implement for returned errors? do we need this?
 // function throwErrorFromResult(result) {
@@ -18,7 +18,7 @@ export default async function callService (name, payload, {
   contentType = 'application/json',
   authToken = null
 } = {}) {
-  let registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+  let registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
 
   let customHeaders
   if (payload?.body && payload?.headers) {
@@ -44,7 +44,7 @@ export default async function callService (name, payload, {
 export async function callServiceWithCache (cache, name, payload) {
   // name could be the function if called "locally", or a noop of the same name for code-completion
   name = name.name || name
-  let registryHost = process.env.MICRO_REGISTRY_URL
+  let registryHost = process.env.YAMF_REGISTRY_URL
 
   if (!cache.services[name]) throw new HttpError(404, `No service by name "${name}" in cache`)
   let addresses = cache.services[name].map(s => s)

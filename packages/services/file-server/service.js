@@ -608,8 +608,8 @@ export default async function createStaticFileService({
   // --- Setup auto-refresh based on mode -------------------------------------
   if (autoRefresh && autoRefresh.mode) {
     const mode = autoRefresh.mode
-    const updateChannel = autoRefresh.updateChannel || 'micro:file-updated'
-    const deletionChannel = autoRefresh.deletionChannel || 'micro:file-deleted'
+    const updateChannel = autoRefresh.updateChannel || 'yamf:file-updated'
+    const deletionChannel = autoRefresh.deletionChannel || 'yamf:file-deleted'
     const intervalMs = autoRefresh.intervalMs || 10000
     
     logger.info(`Auto-refresh enabled: mode=${mode}`)

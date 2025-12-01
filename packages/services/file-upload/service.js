@@ -389,8 +389,8 @@ export default async function createFileUploadService({
   
   // auto-publish upload events
   publishFileEvents = false,
-  updateChannel = 'micro:file-updated',
-  deleteChannel = 'micro:file-deleted'
+  updateChannel = 'yamf:file-updated',
+  deleteChannel = 'yamf:file-deleted'
 } = {}) {
   let logger = new Logger({ logGroup: serviceName })
   // Ensure upload directory exists

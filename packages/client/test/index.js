@@ -17,7 +17,7 @@ const {
   blockquote, pre, address
 } = htmlTags
 
-global.micro = { __listeners__: {} }
+global.yamf = { __listeners__: {} }
 
 const removeNewLines = str => str.replace(/\n[\s]+/ig,'')
 
@@ -345,10 +345,10 @@ function testTextFormattingElements() {
 }
 
 function testEventHandlers() {
-  let copyGlobalMicroListeners = Object.assign({}, micro.__listeners__)
+  let copyGlobalListeners = Object.assign({}, yamf.__listeners__)
 
   try {
-    micro.__listeners__ = {}
+    yamf.__listeners__ = {}
     
     let clickCount = 0
     let changeCount = 0
@@ -366,27 +366,27 @@ function testEventHandlers() {
     let result = Element.render()
     
     // Check that event handlers are rendered as attributes (order may vary)
-    if (!result.includes('onclick="micro.__listeners__[1](event)"')) {
+    if (!result.includes('onclick="yamf.__listeners__[1](event)"')) {
       throw new Error('onclick event handler not rendered correctly')
     }
-    if (!result.includes('onchange="micro.__listeners__[2](event)"')) {
+    if (!result.includes('onchange="yamf.__listeners__[2](event)"')) {
       throw new Error('onchange event handler not rendered correctly')
     }
-    if (!result.includes('onsubmit="micro.__listeners__[3](event)"')) {
+    if (!result.includes('onsubmit="yamf.__listeners__[3](event)"')) {
       throw new Error('onsubmit event handler not rendered correctly')
     }
     
-    micro.__listeners__[1]() // simulate click
+    yamf.__listeners__[1]() // simulate click
     if (clickCount === 0) throw new Error('clickHandler not called correctly')
 
-    micro.__listeners__[2]() // simulate change
+    yamf.__listeners__[2]() // simulate change
     if (changeCount === 0) throw new Error('changeHandler not called correctly')
 
-    micro.__listeners__[3]() // simulate submit
+    yamf.__listeners__[3]() // simulate submit
     if (submitCount === 0) throw new Error('submitHandler not called correctly')
     
   } finally {
-    micro.__listeners__ = copyGlobalMicroListeners
+    yamf.__listeners__ = copyGlobalListeners
   }
 }
 

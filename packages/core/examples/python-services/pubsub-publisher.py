@@ -9,13 +9,13 @@ import sys
 import time
 import asyncio
 
-# Add parent directory to path to import microjs
+# Add parent directory to path to import yamf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../languages/python'))
 
-from microjs import create_service_sync
+from yamf import create_service_sync
 
 # Set registry URL
-os.environ['MICRO_REGISTRY_URL'] = os.getenv('MICRO_REGISTRY_URL', 'http://localhost:3000')
+os.environ['YAMF_REGISTRY_URL'] = os.getenv('YAMF_REGISTRY_URL', 'http://localhost:3000')
 
 async def pubsub_publisher(self, payload):
     """
@@ -41,7 +41,7 @@ async def pubsub_publisher(self, payload):
 
 if __name__ == '__main__':
     print("Starting pubsub-publisher service...")
-    print(f"Registry URL: {os.environ['MICRO_REGISTRY_URL']}")
+    print(f"Registry URL: {os.environ['YAMF_REGISTRY_URL']}")
     print("\nThis service publishes messages to channels based on payload")
     print("Example: {\"channel\": \"user-events\", \"message\": {\"userId\": 123}}")
     

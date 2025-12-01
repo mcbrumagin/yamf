@@ -412,7 +412,7 @@ export async function testCustomContentType() {
  */
 export async function testNonExistentRoute() {
   await withEnv({
-    MICRO_GATEWAY_URL: 'http://localhost:15000',
+    YAMF_GATEWAY_URL: 'http://localhost:15000',
   }, async () => {
     await terminateAfter(
       registryServer(),

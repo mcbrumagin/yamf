@@ -359,7 +359,7 @@
                     body: JSON.stringify({ authenticate: { user: 'admin', password: 'password' } }),
                     headers: {
                         'Content-Type': 'application/json',
-                        'micro-command': 'auth-login'
+                        'yamf-command': 'auth-login'
                     }
                 });
 
@@ -401,7 +401,7 @@
 
                 // TODO
                 xhr.open('POST', '/upload/file-test.wav', true);
-                xhr.setRequestHeader('micro-auth-token', authResult.accessToken);
+                xhr.setRequestHeader('yamf-auth-token', authResult.accessToken);
                 xhr.send(formData);
 
             } catch (error) {

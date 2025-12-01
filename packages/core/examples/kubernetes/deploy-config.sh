@@ -1,1 +1,1 @@
-kubectl create configmap micro-config --from-file=config-map.properties
+kubectl create configmap yamf-config --from-file=config-map.properties

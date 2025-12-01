@@ -9,13 +9,13 @@ import sys
 import time
 import asyncio
 
-# Add parent directory to path to import microjs
+# Add parent directory to path to import yamf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../languages/python'))
 
-from microjs import create_service_sync, call_service
+from yamf import create_service_sync, call_service
 
 # Set registry URL
-os.environ['MICRO_REGISTRY_URL'] = os.getenv('MICRO_REGISTRY_URL', 'http://localhost:3000')
+os.environ['YAMF_REGISTRY_URL'] = os.getenv('YAMF_REGISTRY_URL', 'http://localhost:3000')
 
 async def service_with_calls(self, payload):
     """
@@ -50,7 +50,7 @@ async def service_with_calls(self, payload):
 
 if __name__ == '__main__':
     print("Starting service-with-calls...")
-    print(f"Registry URL: {os.environ['MICRO_REGISTRY_URL']}")
+    print(f"Registry URL: {os.environ['YAMF_REGISTRY_URL']}")
     print("\nThis service will call other services based on the 'callService' field in the payload")
     print("Example: {\"callService\": \"simple-service\", \"data\": \"test\"}")
     

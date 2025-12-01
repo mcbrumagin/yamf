@@ -1,14 +1,14 @@
-# Python Microservices Examples
+# Python Yamf Examples
 
-This directory contains example Python microservices demonstrating the Micro-JS Python client library.
+This directory contains example Python microservices demonstrating the @yamf/core Python client library.
 
 ## Prerequisites
 
-1. **Start the Micro-JS Registry:**
+1. **Start the @yamf/core Registry:**
 
 ```bash
-cd /path/to/micro-js
-node src/micro-core/registry/registry-server.js
+cd /path/to/@yamf/core
+node packages/core/src/registry/registry-server.js
 # Or use: npm start
 ```
 
@@ -22,7 +22,7 @@ pip install -r ../../languages/python/requirements.txt
 3. **Set Environment Variable:**
 
 ```bash
-export MICRO_REGISTRY_URL=http://localhost:3000
+export YAMF_REGISTRY_URL=http://localhost:3000
 ```
 
 ## Examples
@@ -40,8 +40,8 @@ Test it:
 python test-client.py
 # Or use curl:
 curl -X POST http://localhost:3000/api/call \
-  -H "micro-command: service-call" \
-  -H "micro-service-name: simple-service" \
+  -H "yamf-command: service-call" \
+  -H "yamf-service-name: simple-service" \
   -H "Content-Type: application/json" \
   -d '{"name": "World"}'
 ```
@@ -73,8 +73,8 @@ Test it:
 ```bash
 # Call the service to publish
 curl -X POST http://localhost:3000/api/call \
-  -H "micro-command: service-call" \
-  -H "micro-service-name: pubsub-publisher" \
+  -H "yamf-command: service-call" \
+  -H "yamf-service-name: pubsub-publisher" \
   -H "Content-Type: application/json" \
   -d '{"channel": "test-channel", "message": {"data": "hello"}}'
 ```
@@ -91,15 +91,15 @@ Test it:
 ```bash
 # Subscribe to a channel
 curl -X POST http://localhost:3000/api/call \
-  -H "micro-command: service-call" \
-  -H "micro-service-name: pubsub-subscriber" \
+  -H "yamf-command: service-call" \
+  -H "yamf-service-name: pubsub-subscriber" \
   -H "Content-Type: application/json" \
   -d '{"action": "subscribe", "channel": "test-channel"}'
 
 # Check status
 curl -X POST http://localhost:3000/api/call \
-  -H "micro-command: service-call" \
-  -H "micro-service-name: pubsub-subscriber" \
+  -H "yamf-command: service-call" \
+  -H "yamf-service-name: pubsub-subscriber" \
   -H "Content-Type: application/json" \
   -d '{"action": "status"}'
 ```
@@ -131,8 +131,8 @@ Test it:
 ```bash
 # Publish messages to the channels
 curl -X POST http://localhost:3000/api/publish \
-  -H "micro-command: pubsub-publish" \
-  -H "micro-pubsub-channel: user-events" \
+  -H "yamf-command: pubsub-publish" \
+  -H "yamf-pubsub-channel: user-events" \
   -H "Content-Type: application/json" \
   -d '{"userId": 123, "action": "created"}'
 ```
@@ -150,24 +150,24 @@ python test-client.py
 
 ```bash
 # Terminal 1: Start registry
-cd /path/to/micro-js
-node src/micro-core/registry/registry-server.js
+cd /path/to/@yamf/core
+node packages/core/src/registry/registry-server.js
 
 # Terminal 2: Start simple service
 cd examples/python-services
-export MICRO_REGISTRY_URL=http://localhost:3000
+export YAMF_REGISTRY_URL=http://localhost:3000
 python simple-service.py
 
 # Terminal 3: Start subscriber
-export MICRO_REGISTRY_URL=http://localhost:3000
+export YAMF_REGISTRY_URL=http://localhost:3000
 python pubsub-subscriber.py
 
 # Terminal 4: Subscribe to channel and test
-export MICRO_REGISTRY_URL=http://localhost:3000
+export YAMF_REGISTRY_URL=http://localhost:3000
 python -c "
-from microjs import call_service_sync, publish_message_sync
+from yamf import call_service_sync, publish_message_sync
 import os
-os.environ['MICRO_REGISTRY_URL'] = 'http://localhost:3000'
+os.environ['YAMF_REGISTRY_URL'] = 'http://localhost:3000'
 
 # Subscribe
 result = call_service_sync('pubsub-subscriber', {'action': 'subscribe', 'channel': 'test-channel'})
@@ -217,11 +217,11 @@ service = create_service_sync("my_service", my_service)
 
 3. **Error Handling:**
 ```python
-from microjs import MicroJSError
+from yamf import YamfError
 
 try:
     result = call_service_sync("my_service", payload)
-except MicroJSError as e:
+except YamfError as e:
     print(f"Error {e.status_code}: {e.message}")
 ```
 
@@ -242,7 +242,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 **Service registration fails:**
 - Ensure registry is running on the correct port
-- Check `MICRO_REGISTRY_URL` environment variable
+- Check `YAMF_REGISTRY_URL` environment variable
 - Verify network connectivity
 
 **Service calls fail:**
@@ -258,7 +258,7 @@ signal.signal(signal.SIGINT, signal_handler)
 ## Next Steps
 
 - Explore the full Python client API in `languages/python/README.md`
-- Review the main Micro-JS documentation
+- Review the main @yamf/core documentation
 - Try creating your own services
 - Integrate with Node.js services for polyglot microservices
 

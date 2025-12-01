@@ -7,7 +7,7 @@ import envConfig from '../../core/src/shared/env-config.js'
 import Logger from '../../core/src/utils/logger.js'
 import { next } from '../../core/src/http-primitives/next.js'
 
-const logger = new Logger({ logGroup: 'micro-services' })
+const logger = new Logger({ logGroup: 'yamf-services' })
 
 
 /*

@@ -84,7 +84,7 @@ export async function testService404Error() {
       throw new HttpError(404, 'Resource not found')
     }),
     async () => {
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/404-test`)
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/404-test`)
       const text = await response.text()
       
       assert(response.status, s => s === 404)
@@ -103,7 +103,7 @@ export async function testService500Error() {
       throw new Error('Internal server error')
     }),
     async () => {
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/500-test`)
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/500-test`)
       
       await assert(response.status, s => s === 500)
     }
@@ -123,7 +123,7 @@ export async function testService400Error() {
       return 'ok'
     }),
     async () => {
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/400-test`, {
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/400-test`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({})
@@ -144,9 +144,9 @@ export async function testCustomErrorStatusCodes() {
     await createRoute('/409-test', () => { throw new HttpError(409, 'Conflict') }),
     await createRoute('/422-test', () => { throw new HttpError(422, 'Unprocessable') }),
     async () => {
-      const resp403 = await fetch(`${process.env.MICRO_REGISTRY_URL}/403-test`)
-      const resp409 = await fetch(`${process.env.MICRO_REGISTRY_URL}/409-test`)
-      const resp422 = await fetch(`${process.env.MICRO_REGISTRY_URL}/422-test`)
+      const resp403 = await fetch(`${process.env.YAMF_REGISTRY_URL}/403-test`)
+      const resp409 = await fetch(`${process.env.YAMF_REGISTRY_URL}/409-test`)
+      const resp422 = await fetch(`${process.env.YAMF_REGISTRY_URL}/422-test`)
       
       await assert([resp403.status, resp409.status, resp422.status],
         statuses => statuses[0] === 403,
@@ -169,7 +169,7 @@ export async function testHtmlContentTypeDetection() {
     await registryServer(),
     await createRoute('/html', () => '<html><body>test</body></html>'),
     async () => {
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/html`)
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/html`)
       const contentType = response.headers.get('content-type')
       
       await assert(contentType,
@@ -188,7 +188,7 @@ export async function testJsonContentTypeDetection() {
     await registryServer(),
     await createRoute('/json', () => ({ data: 'test', number: 123 })),
     async () => {
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/json`)
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/json`)
       const contentType = response.headers.get('content-type')
       
       await assert(contentType,
@@ -207,7 +207,7 @@ export async function testBinaryContentTypeDetection() {
     await registryServer(),
     await createRoute('/binary', () => Buffer.from([0x89, 0x50, 0x4E, 0x47])),
     async () => {
-      const response = await fetch(`${process.env.MICRO_REGISTRY_URL}/binary`)
+      const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/binary`)
       const contentType = response.headers.get('content-type')
       
       await assert(contentType,
@@ -228,9 +228,9 @@ export async function testMultipleContentTypes() {
     await createRoute('/json', () => ({ type: 'json' })),
     await createRoute('/buffer', () => Buffer.from('binary')),
     async () => {
-      const htmlResp = await fetch(`${process.env.MICRO_REGISTRY_URL}/html`)
-      const jsonResp = await fetch(`${process.env.MICRO_REGISTRY_URL}/json`)
-      const bufferResp = await fetch(`${process.env.MICRO_REGISTRY_URL}/buffer`)
+      const htmlResp = await fetch(`${process.env.YAMF_REGISTRY_URL}/html`)
+      const jsonResp = await fetch(`${process.env.YAMF_REGISTRY_URL}/json`)
+      const bufferResp = await fetch(`${process.env.YAMF_REGISTRY_URL}/buffer`)
       
       const htmlCT = htmlResp.headers.get('content-type')
       const jsonCT = jsonResp.headers.get('content-type')
@@ -281,7 +281,7 @@ export async function testRequestTimeout() {
     }),
     async () => {
       // This should timeout with default 30s timeout
-      // TODO: Add configurable timeout via micro-timeout header
+      // TODO: Add configurable timeout via yamf-timeout header
       throw new Error('TODO implement timeout configuration and enable/update this test')
       try {
         await callService('slowService', {})

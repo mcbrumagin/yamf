@@ -14,7 +14,7 @@ import { validateRegistryToken, validateRegistryEnvironment } from '../../src/re
 // Test validateRegistryToken with no token configured
 export async function testValidateRegistryToken_NoTokenConfigured() {
   await withEnv({
-    MICRO_REGISTRY_TOKEN: undefined
+    YAMF_REGISTRY_TOKEN: undefined
   }, async () => {
     const mockRequest = {
       headers: {}
@@ -29,11 +29,11 @@ export async function testValidateRegistryToken_NoTokenConfigured() {
 // Test validateRegistryToken with valid token
 export async function testValidateRegistryToken_ValidToken() {
   await withEnv({
-    MICRO_REGISTRY_TOKEN: 'test-token-123'
+    YAMF_REGISTRY_TOKEN: 'test-token-123'
   }, async () => {
     const mockRequest = {
       headers: {
-        'micro-registry-token': 'test-token-123'
+        'yamf-registry-token': 'test-token-123'
       }
     }
     
@@ -46,7 +46,7 @@ export async function testValidateRegistryToken_ValidToken() {
 // Test validateRegistryToken with missing token
 export async function testValidateRegistryToken_MissingToken() {
   await withEnv({
-    MICRO_REGISTRY_TOKEN: 'required-token'
+    YAMF_REGISTRY_TOKEN: 'required-token'
   }, async () => {
     const mockRequest = {
       headers: {}
@@ -63,11 +63,11 @@ export async function testValidateRegistryToken_MissingToken() {
 // Test validateRegistryToken with invalid token
 export async function testValidateRegistryToken_InvalidToken() {
   await withEnv({
-    MICRO_REGISTRY_TOKEN: 'correct-token'
+    YAMF_REGISTRY_TOKEN: 'correct-token'
   }, async () => {
     const mockRequest = {
       headers: {
-        'micro-registry-token': 'wrong-token'
+        'yamf-registry-token': 'wrong-token'
       }
     }
     
@@ -83,12 +83,12 @@ export async function testValidateRegistryToken_InvalidToken() {
 export async function testValidateRegistryEnvironment_ProductionWithoutToken() {
   await withEnv({
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: undefined
+    YAMF_REGISTRY_TOKEN: undefined
   }, async () => {
     await assertErr(
       () => validateRegistryEnvironment(),
       err => err.message.includes('FATAL'),
-      err => err.message.includes('MICRO_REGISTRY_TOKEN'),
+      err => err.message.includes('YAMF_REGISTRY_TOKEN'),
       err => err.message.toUpperCase().includes('PRODUCTION')
     )
   })
@@ -98,12 +98,12 @@ export async function testValidateRegistryEnvironment_ProductionWithoutToken() {
 export async function testValidateRegistryEnvironment_StagingWithoutToken() {
   await withEnv({
     ENVIRONMENT: 'staging',
-    MICRO_REGISTRY_TOKEN: undefined
+    YAMF_REGISTRY_TOKEN: undefined
   }, async () => {
     await assertErr(
       () => validateRegistryEnvironment(),
       err => err.message.includes('FATAL'),
-      err => err.message.includes('MICRO_REGISTRY_TOKEN'),
+      err => err.message.includes('YAMF_REGISTRY_TOKEN'),
       err => err.message.toLowerCase().includes('stag')
     )
   })
@@ -113,7 +113,7 @@ export async function testValidateRegistryEnvironment_StagingWithoutToken() {
 export async function testValidateRegistryEnvironment_ProductionWithToken() {
   await withEnv({
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: 'secure-token-xyz'
+    YAMF_REGISTRY_TOKEN: 'secure-token-xyz'
   }, async () => {
     // Should not throw
     validateRegistryEnvironment()
@@ -124,7 +124,7 @@ export async function testValidateRegistryEnvironment_ProductionWithToken() {
 export async function testValidateRegistryEnvironment_StagingWithToken() {
   await withEnv({
     ENVIRONMENT: 'staging',
-    MICRO_REGISTRY_TOKEN: 'secure-token-xyz'
+    YAMF_REGISTRY_TOKEN: 'secure-token-xyz'
   }, async () => {
     // Should not throw
     validateRegistryEnvironment()
@@ -135,7 +135,7 @@ export async function testValidateRegistryEnvironment_StagingWithToken() {
 export async function testValidateRegistryEnvironment_DevWithoutToken() {
   await withEnv({
     ENVIRONMENT: 'development',
-    MICRO_REGISTRY_TOKEN: undefined
+    YAMF_REGISTRY_TOKEN: undefined
   }, async () => {
     // Should not throw
     validateRegistryEnvironment()
@@ -146,7 +146,7 @@ export async function testValidateRegistryEnvironment_DevWithoutToken() {
 export async function testValidateRegistryEnvironment_CaseInsensitive() {
   await withEnv({
     ENVIRONMENT: 'PRODUCTION',
-    MICRO_REGISTRY_TOKEN: undefined
+    YAMF_REGISTRY_TOKEN: undefined
   }, async () => {
     await assertErr(
       () => validateRegistryEnvironment(),
@@ -156,7 +156,7 @@ export async function testValidateRegistryEnvironment_CaseInsensitive() {
   
   await withEnv({
     ENVIRONMENT: 'Staging',
-    MICRO_REGISTRY_TOKEN: undefined
+    YAMF_REGISTRY_TOKEN: undefined
   }, async () => {
     await assertErr(
       () => validateRegistryEnvironment(),
@@ -169,7 +169,7 @@ export async function testValidateRegistryEnvironment_CaseInsensitive() {
 export async function testValidateRegistryEnvironment_PartialMatch() {
   await withEnv({
     ENVIRONMENT: 'pre-production',
-    MICRO_REGISTRY_TOKEN: undefined
+    YAMF_REGISTRY_TOKEN: undefined
   }, async () => {
     await assertErr(
       () => validateRegistryEnvironment(),
@@ -179,7 +179,7 @@ export async function testValidateRegistryEnvironment_PartialMatch() {
   
   await withEnv({
     ENVIRONMENT: 'staging-test',
-    MICRO_REGISTRY_TOKEN: undefined
+    YAMF_REGISTRY_TOKEN: undefined
   }, async () => {
     await assertErr(
       () => validateRegistryEnvironment(),
@@ -191,7 +191,7 @@ export async function testValidateRegistryEnvironment_PartialMatch() {
 // Test validateRegistryToken with request that has socket info
 export async function testValidateRegistryToken_WithSocketInfo() {
   await withEnv({
-    MICRO_REGISTRY_TOKEN: 'test-token'
+    YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     const mockRequest = {
       headers: {},

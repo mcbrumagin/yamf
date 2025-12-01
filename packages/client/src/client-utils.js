@@ -1,10 +1,10 @@
 
-// client-util.js TODO rename to globals? or scope to "micro.utils"
+// client-util.js TODO rename to globals? or scope to "yamf.utils"
 
 // import { htmlTags } from './index.js' // TODO
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-window.micro.library = async function waitForElement(tag, interval = 10) {
+window.yamf.library = async function waitForElement(tag, interval = 10) {
   let element
   do {
     element = document.querySelector(tag)
@@ -13,7 +13,7 @@ window.micro.library = async function waitForElement(tag, interval = 10) {
   return element
 }
 
-window.micro.library = function isMobileBrowser() {
+window.yamf.library = function isMobileBrowser() {
   // from http://detectmobilebrowsers.com/
   let agent = navigator.userAgent||navigator.vendor||window.opera
   if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino/i.test(agent)
@@ -22,9 +22,9 @@ window.micro.library = function isMobileBrowser() {
   } else return false
 }
 
-window.micro.library = async function loadResource(path) {
+window.yamf.library = async function loadResource(path) {
   return new Promise(async resolve => {
-    const { waitForElement, htmlTags: { link } } = micro
+    const { waitForElement, htmlTags: { link } } = yamf
     let type = path.includes('css') ? 'text/css' : 'js'  // TODO other stuff
     let rel = path.includes('css') ? 'stylesheet' : 'js' // TODO other stuff
     let newLink = link({ type, rel, href: path, onload: resolve })
@@ -35,7 +35,7 @@ window.micro.library = async function loadResource(path) {
 }
 
 // TODO make this work on server-side
-window.micro.library = function router(routeMap, options) {
+window.yamf.library = function router(routeMap, options) {
   if (typeof options !== 'object') {
     options = options
       ? { renderLocation: options }
@@ -91,7 +91,7 @@ window.micro.library = function router(routeMap, options) {
     }
 
     if (options.renderLocation != null) {
-      let target = await micro.waitForElement(options.renderLocation)
+      let target = await yamf.waitForElement(options.renderLocation)
       target.innerHTML = result + ''
     }
 
@@ -108,16 +108,16 @@ window.micro.library = function router(routeMap, options) {
 
   routeChangeHandler()
 
-  micro.routes = routeMap
+  yamf.routes = routeMap
 }
 
 // TODO seems a bit redundant? can we share code?
-window.micro.library = function hashRouter(routeMap, renderLocation = null) {
+window.yamf.library = function hashRouter(routeMap, renderLocation = null) {
   // without render location, simply run routeMap fns (client can scroll items into view, etc)
   // TODO validate routeMap
   // TODO run router once on startup
 
-  const { Element } = micro
+  const { Element } = yamf
 
   const getHash = url => url.split('#')[1]
 
@@ -148,7 +148,7 @@ window.micro.library = function hashRouter(routeMap, renderLocation = null) {
 
     if (renderLocation != null) {
       result = result.render()
-      let target = await micro.waitForElement(renderLocation)
+      let target = await yamf.waitForElement(renderLocation)
       target.innerHTML = result + ''
     }
   }

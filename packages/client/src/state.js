@@ -1,8 +1,8 @@
 /**
- * Reactive State Management Extension for micro-js-html
+ * Reactive State Management Extension for @yamf/client
  * 
  * Provides a simple reactive state system with automatic re-rendering
- * when state changes. Designed to work seamlessly with micro-js-html components.
+ * when state changes. Designed to work seamlessly with @yamf/client components.
  * Includes foundation for future server-to-client event integration (WS/SSE).
  * 
  * Usage:
@@ -184,7 +184,7 @@ export function createState(initialState = {}) {
  * Create a reactive component that auto-updates when state changes
  * 
  * @param {Object} state - State object from createState()
- * @param {Function} renderFn - Function that returns micro-js-html elements
+ * @param {Function} renderFn - Function that returns @yamf/client elements
  * @param {HTMLElement|string} container - DOM element or selector to render into
  * @returns {Object} Component controller with mount/unmount methods
  */
@@ -321,7 +321,7 @@ export function createFormState(initialValues = {}, validators = {}) {
 }
 
 /**
- * Advanced render helper that integrates state management with micro-js-html elements
+ * Advanced render helper that integrates state management with @yamf/client elements
  * Provides automatic re-rendering, state binding, and performance optimizations
  */
 export function createRenderHelper(container, options = {}) {

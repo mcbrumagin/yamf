@@ -1,4 +1,4 @@
-import { createService } from 'micro-js'
+import { createService } from '@yamf/core'
 
 console.log({env: process.env})
 

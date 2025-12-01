@@ -179,76 +179,6 @@ const writeForwardedHeaders = (request, headers) => {
   headers['Forwarded'] = forwarded
 }
 
-// const setProxyRequestOptions = (request, response) => {
-//   let options = null
-//   if (request) {
-//     options = {}
-//     options.method = 'POST'
-    
-//     // copy headers, filtering out headers that fetch() doesn't like
-//     const filteredHeaders = {}
-//     const skipHeaders = ['host', 'connection', 'content-length']
-    
-//     // logger.info('request header "forwarded":', request.headers['forwarded'])
-//     for (const [key, value] of Object.entries(request.headers || {})) {
-//       // logger.info('request header:', key, value)
-//       const keyLower = key.toLowerCase()
-      
-//       // Skip problematic headers
-//       if (skipHeaders.includes(keyLower)) continue
-      
-//       // NEW: Don't forward micro-command headers to services
-//       // Services don't need to know they were called via registry
-//       if (keyLower.startsWith('micro-command') || keyLower.startsWith('micro-service-')) continue
-      
-//       filteredHeaders[key] = value
-//     }
-    
-//     options.headers = filteredHeaders
-//     writeForwardedHeaders(request, options.headers)
-//     // options.headers['x-micro-override-method'] = request.method
-
-//     // enable streaming mode if we have a response object to pipe to
-//     options.stream = !!response
-//   }
-//   return options
-// }
-
-// const handleStreamingResponse = async (serviceResponse, response) => {
-//   const contentType = serviceResponse.headers.get('content-type')
-//   const contentLength = serviceResponse.headers.get('content-length')
-//   const lastModified = serviceResponse.headers.get('last-modified')
-//   logger.debug('handleStreamingResponse - bytes:', contentLength)
-  
-//   // copy response headers // TODO copy other headers?
-//   response.writeHead(serviceResponse.status, {
-//     'content-type': contentType,
-//     ...(contentLength && { 'content-length': contentLength }),
-//     ...(lastModified && { 'last-modified': lastModified })
-//   })
-  
-//   // stream the response body using Node.js streams
-//   // convert Web ReadableStream to Node stream and pipe
-//   const reader = serviceResponse.body.getReader()
-  
-//   try {
-//     while (true) {
-//       // TODO timeout and buffer size limit
-//       const { done, value } = await reader.read()
-//       if (done) break
-//       response.write(value)
-//     }
-//     response.end()
-//   } catch (err) {
-//     logger.debugErr('Streaming error:', err)
-//     if (!response.writableEnded) {
-//       response.end()
-//     }
-//   }
-  
-//   return false // signal that response was handled
-// }
-
 const headerWhitelist = [
   'accept',
   'accept-language',
@@ -272,10 +202,10 @@ const headerWhitelist = [
 
   // TODO verify relevant yamf-headers are forwarded
   'cookie', // TODO only for auth services
-  'micro-command',
-  'micro-service-name',
-  'micro-auth-token',
-  'micro-registry-token'
+  'yamf-command',
+  'yamf-service-name',
+  'yamf-auth-token',
+  'yamf-registry-token'
 ]
 
 const filterForUsefulHeaders = (headers) => {

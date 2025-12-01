@@ -7,7 +7,7 @@ import envConfig from '../shared/env-config.js'
 import { buildRouteRegisterHeaders, buildLookupHeaders } from '../shared/yamf-headers.js'
 import http from 'node:http'
 
-const logger = new Logger({ logGroup: 'micro-api' })
+const logger = new Logger({ logGroup: 'yamf-api' })
 
 const falseOnFailure = async fn => {
   try {
@@ -23,7 +23,7 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
   }
 
   // TODO use config helper
-  let registryHost = process.env.MICRO_REGISTRY_URL
+  let registryHost = process.env.YAMF_REGISTRY_URL
   let serviceName
   let server
 
@@ -52,7 +52,7 @@ export default async function createRoute (path, serviceNameOrFn, dataType) {
     serviceName = serviceNameOrFn
   }
 
-  const registryToken = envConfig.get('MICRO_REGISTRY_TOKEN')
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   
   await httpRequest(registryHost, {
     headers: buildRouteRegisterHeaders(serviceName, path, dataType, 'route', registryToken)

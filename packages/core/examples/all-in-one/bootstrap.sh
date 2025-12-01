@@ -1,5 +1,5 @@
-export MICRO_GATEWAY_URL=http://localhost:11000 # publicly accessible
-export MICRO_REGISTRY_URL=http://localhost:11001 # primary internal port
+export YAMF_GATEWAY_URL=http://localhost:11000 # publicly accessible
+export YAMF_REGISTRY_URL=http://localhost:11001 # primary internal port
 
 export ENVIRONMENT=dev
 export ADMIN_USER=admin
@@ -9,7 +9,7 @@ export LOG_LEVEL=info
 export LOG_INCLUDE_LINES=true
 export LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES=true
 
-echo "setting up registry server at ${MICRO_REGISTRY_URL}"
+echo "setting up registry server at ${YAMF_REGISTRY_URL}"
 
 if npm list -g --depth=0 "nodemon" > /dev/null 2>&1; then
   nodemon bootstrap.js

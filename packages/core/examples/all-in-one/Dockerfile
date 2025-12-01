@@ -13,7 +13,7 @@ COPY src/ ./src/
 COPY examples/all-in-one/ ./examples/all-in-one/
 
 # Set environment variables
-ENV MICRO_REGISTRY_URL=http://localhost:10000
+ENV YAMF_REGISTRY_URL=http://localhost:10000
 ENV ENVIRONMENT=production
 ENV LOG_LEVEL=info
 

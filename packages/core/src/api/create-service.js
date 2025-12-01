@@ -22,15 +22,15 @@ import {
 
 import crypto from 'crypto'
 
-const logger = new Logger({ logGroup: 'micro-api' })
+const logger = new Logger({ logGroup: 'yamf-api' })
 
 /**
  * Configuration for service setup
  */
 const DEFAULT_CONFIG = {
-  tryRegisterLimit: envConfig.get('MICRO_RETRY_LIMIT', 3),
-  retryInitialDelay: envConfig.get('MICRO_RETRY_DELAY', 20),
-  muteRetryWarnings: envConfig.get('MICRO_MUTE_RETRY_WARNINGS', false),
+  tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
+  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 20),
+  muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false),
   sharedCache: null, // Optional pre-created cache for batch operations
   streamPayload: false // If true, don't buffer request body - pass raw stream to handler
 }
@@ -183,8 +183,8 @@ export default async function createService(name, serviceFn, options = {}) {
 
     pubsubHandler = async function(payload, request, response) {
       if (isSubscriptionMessage(request)) {
-        logger.debug(`Handling subscription message for channel: ${request.headers['micro-pubsub-channel']}`)
-        return await pubSubManager.handleIncomingMessage(request.headers['micro-pubsub-channel'], payload)
+        logger.debug(`Handling subscription message for channel: ${request.headers['yamf-pubsub-channel']}`)
+        return await pubSubManager.handleIncomingMessage(request.headers['yamf-pubsub-channel'], payload)
       } else if (overrideHandler) {
         return await overrideHandler(payload, request, response)
       } else {

@@ -285,7 +285,7 @@ export async function testStaticFileResponseHeaders() {
         externalRootDir: true
       }),
       async () => {
-        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/index.html`, {
+        let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/index.html`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
             [HEADERS.SERVICE_NAME]: 'static-file-service'
@@ -348,7 +348,7 @@ export async function testStaticFileRangeHeaderAdvertisement() {
       }),
       async () => {
         // Test that Accept-Ranges header is present on initial request
-        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+        let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
             [HEADERS.SERVICE_NAME]: 'static-file-service'
@@ -388,7 +388,7 @@ export async function testStaticFileRangeRequest() {
       }),
       async () => {
         // Test partial content request (bytes 100-199)
-        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+        let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
             [HEADERS.SERVICE_NAME]: 'static-file-service',
@@ -437,7 +437,7 @@ export async function testStaticFileInvalidRangeRequest() {
       }),
       async () => {
         // Test invalid range (beyond file size)
-        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+        let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
             [HEADERS.SERVICE_NAME]: 'static-file-service',
@@ -476,7 +476,7 @@ export async function testStaticFileRangeWithIfRange() {
       }),
       async () => {
         // First, get the Last-Modified header
-        let initialResponse = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+        let initialResponse = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
             [HEADERS.SERVICE_NAME]: 'static-file-service'
@@ -487,7 +487,7 @@ export async function testStaticFileRangeWithIfRange() {
         await assert(lastModified, lm => !!lm)
         
         // Test If-Range with matching Last-Modified (should return partial content)
-        let rangeResponse = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+        let rangeResponse = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
             [HEADERS.SERVICE_NAME]: 'static-file-service',
@@ -502,7 +502,7 @@ export async function testStaticFileRangeWithIfRange() {
         )
         
         // Test If-Range with non-matching date (should return full file)
-        let fullResponse = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+        let fullResponse = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
             [HEADERS.SERVICE_NAME]: 'static-file-service',
@@ -541,7 +541,7 @@ export async function testStaticFileOpenEndedRangeRequest() {
       }),
       async () => {
         // Test open-ended range request (bytes 900- means from 900 to end)
-        let response = await fetch(`${process.env.MICRO_REGISTRY_URL}/audio.mp3`, {
+        let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
             [HEADERS.SERVICE_NAME]: 'static-file-service',

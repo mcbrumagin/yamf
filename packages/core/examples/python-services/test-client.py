@@ -7,13 +7,13 @@ Demonstrates calling services and publishing messages
 import os
 import sys
 
-# Add parent directory to path to import microjs
+# Add parent directory to path to import yamf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../languages/python'))
 
-from microjs import call_service_sync, publish_message_sync
+from yamf import call_service_sync, publish_message_sync
 
 # Set registry URL
-os.environ['MICRO_REGISTRY_URL'] = os.getenv('MICRO_REGISTRY_URL', 'http://localhost:3000')
+os.environ['YAMF_REGISTRY_URL'] = os.getenv('YAMF_REGISTRY_URL', 'http://localhost:3000')
 
 def test_simple_service():
     """Test calling the simple service"""
@@ -82,8 +82,8 @@ def test_pubsub_publisher():
         print(f"✗ Error: {e}")
 
 if __name__ == '__main__':
-    print("Micro-JS Python Test Client")
-    print(f"Registry URL: {os.environ['MICRO_REGISTRY_URL']}")
+    print("@yamf/core Python Test Client")
+    print(f"Registry URL: {os.environ['YAMF_REGISTRY_URL']}")
     
     # Run tests
     test_simple_service()

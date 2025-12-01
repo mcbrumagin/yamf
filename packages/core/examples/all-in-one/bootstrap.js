@@ -44,7 +44,7 @@ async function main() {
     uploadDir: path.join(process.cwd(), 'files'),
     fileFieldName: 'file',
     useAuthService: authService,
-    publishFileEvents: true,  // Publish micro:file-updated events
+    publishFileEvents: true,  // Publish yamf:file-updated events
     urlPathPrefix: '/'  // URL path prefix for uploaded files
   })
   
@@ -57,8 +57,8 @@ async function main() {
     fileMap: { '/': 'index.html', '/*': '' },
     autoRefresh: {
       mode: 'hybrid',  // Both pubsub and interval
-      updateChannel: 'micro:file-updated',
-      deletionChannel: 'micro:file-deleted',
+      updateChannel: 'yamf:file-updated',
+      deletionChannel: 'yamf:file-deleted',
       intervalMs: 30000,  // Check for external changes every 30s
       onFileAdded: (fileInfo) => {
         console.info(`📁 File added to index: ${fileInfo.urlPath}`)

@@ -28,12 +28,12 @@ const logger = new Logger()
 export async function testRegistryStartsWithoutTokenInDev() {
   await withEnv({ 
     ENVIRONMENT: 'dev',
-    MICRO_REGISTRY_TOKEN: undefined 
+    YAMF_REGISTRY_TOKEN: undefined 
   }, async () => {
     await terminateAfter(
       await registryServer(),
       async () => {
-        const result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+        const result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
         })
         
@@ -53,12 +53,12 @@ export async function testRegistryStartsWithoutTokenInDev() {
 export async function testRegistryWarnsInNonDevWithoutToken() {
   await withEnv({ 
     ENVIRONMENT: 'test',
-    MICRO_REGISTRY_TOKEN: undefined 
+    YAMF_REGISTRY_TOKEN: undefined 
   }, async () => {
     await terminateAfter(
       await registryServer(),
       async () => {
-        const result = await httpRequest(process.env.MICRO_REGISTRY_URL, {
+        const result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
         })
         
@@ -78,11 +78,11 @@ export async function testRegistryWarnsInNonDevWithoutToken() {
 export async function testRegistryFailsInProdWithoutToken() {
   await withEnv({ 
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: undefined,
-    MICRO_REGISTRY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: undefined,
+    YAMF_REGISTRY_URL: 'http://localhost:19000'
   }, () => assertErr(async () => registryServer(),
       err => err.message.includes('FATAL'),
-      err => err.message.includes('MICRO_REGISTRY_TOKEN'),
+      err => err.message.includes('YAMF_REGISTRY_TOKEN'),
       err => err.message.includes('PRODUCTION')
     )
   )
@@ -94,11 +94,11 @@ export async function testRegistryFailsInProdWithoutToken() {
 export async function testRegistryFailsInStagingWithoutToken() {
   await withEnv({
     ENVIRONMENT: 'staging',
-    MICRO_REGISTRY_TOKEN: undefined,
-    MICRO_REGISTRY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: undefined,
+    YAMF_REGISTRY_URL: 'http://localhost:19000'
   }, () => assertErr(async () => registryServer(),
       err => err.message.includes('FATAL'),
-      err => err.message.includes('MICRO_REGISTRY_TOKEN'),
+      err => err.message.includes('YAMF_REGISTRY_TOKEN'),
       err => err.message.toLowerCase().includes('stag')
     )
   )
@@ -111,9 +111,9 @@ export async function testRegistryStartsWithTokenInProduction() {
   const testToken = 'prod-test-token-xyz'
   await withEnv({
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: testToken,
-    MICRO_REGISTRY_URL: 'http://localhost:19001',
-    MICRO_GATEWAY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: testToken,
+    YAMF_REGISTRY_URL: 'http://localhost:19001',
+    YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
       await registryServer(),
@@ -145,9 +145,9 @@ export async function testProtectedCommandRequiresValidToken() {
   const testToken = 'protected-test-token-123'
   await withEnv({ 
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: testToken,
-    MICRO_REGISTRY_URL: 'http://localhost:19001',
-    MICRO_GATEWAY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: testToken,
+    YAMF_REGISTRY_URL: 'http://localhost:19001',
+    YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
       await registryServer(),
@@ -180,9 +180,9 @@ export async function testRequestWithWrongTokenFails() {
   const testToken = 'correct-token-456'
   await withEnv({ 
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: testToken,
-    MICRO_REGISTRY_URL: 'http://localhost:19001',
-    MICRO_GATEWAY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: testToken,
+    YAMF_REGISTRY_URL: 'http://localhost:19001',
+    YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
       await registryServer(),
@@ -210,9 +210,9 @@ export async function testRequestWithoutTokenFails() {
   const testToken = 'required-token-abc'
   await withEnv({ 
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: testToken,
-    MICRO_REGISTRY_URL: 'http://localhost:19001',
-    MICRO_GATEWAY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: testToken,
+    YAMF_REGISTRY_URL: 'http://localhost:19001',
+    YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
       await registryServer(),
@@ -240,9 +240,9 @@ export async function testPublicCommandsDoNotRequireToken() {
   const testToken = 'public-test-token-def'
   await withEnv({ 
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: testToken,
-    MICRO_REGISTRY_URL: 'http://localhost:19001',
-    MICRO_GATEWAY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: testToken,
+    YAMF_REGISTRY_URL: 'http://localhost:19001',
+    YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
       await registryServer(),
@@ -272,9 +272,9 @@ export async function testServiceCreationWithValidToken() {
   const testToken = 'service-creation-token-ghi'
   await withEnv({ 
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: testToken,
-    MICRO_REGISTRY_URL: 'http://localhost:19001',
-    MICRO_GATEWAY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: testToken,
+    YAMF_REGISTRY_URL: 'http://localhost:19001',
+    YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
       await registryServer(),
@@ -301,9 +301,9 @@ export async function testAllProtectedCommandsValidated() {
   const testToken = 'protected-commands-token-jkl'
   await withEnv({ 
     ENVIRONMENT: 'production',
-    MICRO_REGISTRY_TOKEN: testToken,
-    MICRO_REGISTRY_URL: 'http://localhost:19001',
-    MICRO_GATEWAY_URL: 'http://localhost:19000'
+    YAMF_REGISTRY_TOKEN: testToken,
+    YAMF_REGISTRY_URL: 'http://localhost:19001',
+    YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
       await registryServer(),

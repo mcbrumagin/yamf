@@ -83,10 +83,10 @@ async function handleRegister(state, payload, headers = {}) {
   // Header-based registration
   if (command === COMMANDS.SERVICE_REGISTER) {
     if (!serviceName) {
-      throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-name header')
+      throw new HttpError(400, 'SERVICE_REGISTER requires yamf-service-name header')
     }
     if (!serviceLocation) {
-      throw new HttpError(400, 'SERVICE_REGISTER requires micro-service-location header')
+      throw new HttpError(400, 'SERVICE_REGISTER requires yamf-service-location header')
     }
     return registerService(state, { 
       service: serviceName,
@@ -95,10 +95,10 @@ async function handleRegister(state, payload, headers = {}) {
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {
-      throw new HttpError(400, 'ROUTE_REGISTER requires micro-service-name header')
+      throw new HttpError(400, 'ROUTE_REGISTER requires yamf-service-name header')
     }
     if (!routePath) {
-      throw new HttpError(400, 'ROUTE_REGISTER requires micro-route-path header')
+      throw new HttpError(400, 'ROUTE_REGISTER requires yamf-route-path header')
     }
     registerRoute(state, { 
       service: serviceName, 
@@ -119,7 +119,7 @@ async function handleRegister(state, payload, headers = {}) {
 
 /**
  * Route incoming commands to their handlers
- * PRIORITY 1: Command headers (micro-command)
+ * PRIORITY 1: Command headers (yamf-command)
  * PRIORITY 2: HTTP routes (URL-based)
  */
 export async function routeCommand(state, payload, request, response, options = {}) {
@@ -169,10 +169,10 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.SERVICE_SETUP:
       if (!serviceName) {
-        throw new HttpError(400, 'SERVICE_SETUP requires micro-service-name header')
+        throw new HttpError(400, 'SERVICE_SETUP requires yamf-service-name header')
       }
       if (!serviceHome) {
-        throw new HttpError(400, 'SERVICE_SETUP requires micro-service-home header')
+        throw new HttpError(400, 'SERVICE_SETUP requires yamf-service-home header')
       }
       return allocateServicePort(state, { 
         service: serviceName, 
@@ -202,7 +202,7 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.PUBSUB_PUBLISH:
       if (!pubsubChannel) {
-        throw new HttpError(400, 'PUBSUB_PUBLISH requires micro-pubsub-channel header')
+        throw new HttpError(400, 'PUBSUB_PUBLISH requires yamf-pubsub-channel header')
       }
       return publish(state, { 
         type: pubsubChannel, 
@@ -211,10 +211,10 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.PUBSUB_SUBSCRIBE:
       if (!pubsubChannel) {
-        throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires micro-pubsub-channel header')
+        throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires yamf-pubsub-channel header')
       }
       if (!serviceLocation) {
-        throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires micro-service-location header')
+        throw new HttpError(400, 'PUBSUB_SUBSCRIBE requires yamf-service-location header')
       }
       return subscribe(state, { 
         type: pubsubChannel, 
@@ -224,10 +224,10 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.PUBSUB_UNSUBSCRIBE:
       if (!pubsubChannel) {
-        throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires micro-pubsub-channel header')
+        throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires yamf-pubsub-channel header')
       }
       if (!serviceLocation) {
-        throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires micro-service-location header')
+        throw new HttpError(400, 'PUBSUB_UNSUBSCRIBE requires yamf-service-location header')
       }
       return unsubscribe(state, { 
         type: pubsubChannel,

@@ -1,6 +1,6 @@
 /**
  * HTTP Primitives
- * Low-level HTTP utilities for micro-js
+ * Low-level HTTP utilities for @yamf/core
  */
 
 export { default as httpServer } from './http-server.js'

@@ -1,6 +1,6 @@
 /**
  * Shared Utilities
- * Common utilities used across micro-core
+ * Common utilities used across @yamf/core
  */
 
 export { default as envConfig } from './env-config.js'

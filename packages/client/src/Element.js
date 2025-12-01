@@ -31,12 +31,12 @@ export default class Element {
   }
 
   addEventListener(eventName, handler) {
-    // TODO if !micro, this is server side and needs to be rendered as an additional script
-    let lastHandlerName = Object.keys(micro.__listeners__).slice(-1)[0]
+    // TODO if !yamf, this is server side and needs to be rendered as an additional script
+    let lastHandlerName = Object.keys(yamf.__listeners__).slice(-1)[0]
     let handlerName = lastHandlerName ? Number(lastHandlerName.replace(/\_/ig,'')) : 0
     handlerName++
     this.__listeners__[handlerName] = eventName
-    micro.__listeners__[handlerName] = handler
+    yamf.__listeners__[handlerName] = handler
   }
 
   renderListeners() {
@@ -44,7 +44,7 @@ export default class Element {
 
     for (let handlerName in this.__listeners__) {
       let eventName = this.__listeners__[handlerName]
-      let domEventHandler = `micro.__listeners__[${handlerName}](event)`
+      let domEventHandler = `yamf.__listeners__[${handlerName}](event)`
       if (events[eventName]) events[eventName].push(domEventHandler)
       else events[eventName] = [domEventHandler]
     }

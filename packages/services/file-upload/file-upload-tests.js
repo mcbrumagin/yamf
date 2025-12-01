@@ -37,7 +37,7 @@ function cleanupTempFiles(tempDir) {
  */
 async function createMultipartRequest(formData, serviceName = 'file-upload-service') {
   return new Promise((resolve, reject) => {
-    const registryUrl = new URL(process.env.MICRO_REGISTRY_URL || 'http://localhost:10000')
+    const registryUrl = new URL(process.env.YAMF_REGISTRY_URL || 'http://localhost:10000')
     
     // Add service-call header to route through registry
     const headers = {

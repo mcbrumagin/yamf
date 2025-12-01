@@ -3,7 +3,7 @@ import HttpError from '../http-primitives/http-error.js'
 import envConfig from '../shared/env-config.js'
 import Logger from '../utils/logger.js'
 
-const logger = new Logger({ logGroup: 'micro-api' })
+const logger = new Logger({ logGroup: 'yamf-api' })
 
 /**
  * Validate and normalize a URL path
@@ -100,7 +100,7 @@ export default async function callRoute(path, {
   const pathWithParams = buildUrlWithParams(normalizedPath, params)
   
   // Get registry URL
-  const registryHost = envConfig.getRequired('MICRO_REGISTRY_URL')
+  const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
   const fullUrl = `${registryHost}${pathWithParams}`
   
   logger.debug(`callRoute - method: "${method}" at path: "${pathWithParams}"`)
@@ -113,7 +113,7 @@ export default async function callRoute(path, {
   
   // Add auth token if provided
   if (authToken) {
-    requestHeaders['micro-auth-token'] = authToken
+    requestHeaders['yamf-auth-token'] = authToken
   }
   
   // Make request

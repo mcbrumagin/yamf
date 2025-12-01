@@ -1,6 +1,6 @@
 /**
- * Micro-Core
- * Core infrastructure for micro-js services
+ * @yamf/core
+ * Main entrypoint to @yamf/core services
  */
 
 // Public API
