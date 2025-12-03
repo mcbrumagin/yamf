@@ -122,78 +122,19 @@ export default async function createService(name, serviceFn, options = {}) {
   let pubsubHandler = null
   let overrideHandler = null
 
+  // TODO: Remove this deprecated method and related code (pubSubManager, subscriptionIds, pubsubHandler variables above)
+  // Use createSubscriptionService instead for pub/sub functionality
   /**
-   * Add subscription channels to this service
-   * 
-   * This allows a regular RPC service to also handle event subscriptions.
-   * Useful for services that need to both respond to requests AND react to events.
-   * 
-   * @param {string|Object} channelOrMap - Channel name (string) or map of channel names to handlers (object)
-   * @param {Function} [handler] - Handler function (only used when channelOrMap is string)
-   * @returns {Promise<Object>} Map of channel names to subscription IDs
-   * 
-   * @example
-   * // Single channel
-   * const service = await createService('user-service', async function(payload) {
-   *   return await getUser(payload.userId)
-   * })
-   * 
-   * await service.createSubscription('user.updated', async (userData) => {
-   *   await invalidateCache(userData.userId)
-   * })
-   * 
-   * @example
-   * // Multiple channels
-   * await service.createSubscription({
-   *   'user.created': async (data) => await logEvent('create', data),
-   *   'user.updated': async (data) => await logEvent('update', data)
-   * })
+   * @deprecated Use createSubscriptionService instead.
+   * Dynamic subscriptions on regular services are being removed in favor of
+   * the cleaner separation: createService for RPC, createSubscriptionService for pub/sub.
    */
   server.createSubscription = async function createSubscriptionForService(channelOrMap, handler) {
-    let channelMap
-    
-    // Support both single channel/handler and channel map
-    if (typeof channelOrMap === 'string') {
-      // Single channel mode
-      if (typeof handler !== 'function') {
-        throw new Error('Handler must be a function')
-      }
-      channelMap = { [channelOrMap]: handler }
-    } else if (typeof channelOrMap === 'object') {
-      // Channel map mode
-      channelMap = channelOrMap
-      
-      // Validate all handlers are functions
-      for (const [channel, h] of Object.entries(channelMap)) {
-        if (typeof h !== 'function') {
-          throw new Error(`Handler for channel "${channel}" must be a function`)
-        }
-      }
-    } else {
-      throw new Error('First parameter must be a channel name (string) or channel map (object)')
-    }
-    
-    if (!pubSubManager) {
-      pubSubManager = createPubSubManager(name, location)
-    }
-
-    for (let [channel, h] of Object.entries(channelMap)) {
-      subscriptionIds[channel] = await pubSubManager.subscribe(channel, h)
-    }
-
-    pubsubHandler = async function(payload, request, response) {
-      if (isSubscriptionMessage(request)) {
-        logger.debug(`Handling subscription message for channel: ${request.headers['yamf-pubsub-channel']}`)
-        return await pubSubManager.handleIncomingMessage(request.headers['yamf-pubsub-channel'], payload)
-      } else if (overrideHandler) {
-        return await overrideHandler(payload, request, response)
-      } else {
-        return await originalHandler(payload, request, response)
-      }
-    }
-
-    server.handler = pubsubHandler
-    return subscriptionIds
+    throw new Error(
+      'DEPRECATED: server.createSubscription() is deprecated. ' +
+      'Use createSubscriptionService() instead for pub/sub functionality. ' +
+      'This method will be removed in a future version.'
+    )
   }
 
   /**

@@ -1,5 +1,14 @@
-yamf/
 *.egg-info
 build
+bin
+include
+lib
+lib64
 __pycache__/
 *.pyc
+.pytest_cache/
+.env
+.venv
+htmlcov/
+.coverage
+pyvenv.cfg

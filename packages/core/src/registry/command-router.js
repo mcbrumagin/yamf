@@ -127,6 +127,7 @@ export async function routeCommand(state, payload, request, response, options = 
   const headers = request.headers || {}
   
   // PRIORITY 1: Command-based routing (for service operations, pubsub, etc.)
+  console.warn('headers:', headers)
   const isHeaderCommand = isHeaderBasedCommand(headers)
   if (isHeaderCommand) {
     return routeCommandByHeaders(state, payload, request, response, options)

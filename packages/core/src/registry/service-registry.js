@@ -453,6 +453,7 @@ export async function streamProxyServiceCall(state, { name, request, response })
     proxyReq.on('error', (err) => {
       logger.debugErr('Proxy request error:', err)
       if (!response.headersSent) {
+        console.warn('502', request.url)
         response.writeHead(502)
         response.end('Bad Gateway')
         reject(err)
