@@ -1,6 +1,7 @@
 const envMap = {
   ENVIRONMENT: 'local',
   YAMF_REGISTRY_URL: 'http://localhost:10000',
+  YAMF_GATEWAY_URL: 'http://localhost:15000',
   YAMF_REGISTRY_TOKEN: 'dev-test-token-12345',
   ADMIN_USER: 'testadmin',
   ADMIN_SECRET: 'testsecret123',

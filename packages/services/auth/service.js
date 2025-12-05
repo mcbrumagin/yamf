@@ -181,8 +181,5 @@ export default async function createAuthService({
     else return getNewAccessToken(payload, request, response)
   })
 
-  // TODO helper fns
-  // server
-
   return server
 }

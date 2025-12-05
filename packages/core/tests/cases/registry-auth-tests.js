@@ -1,6 +1,7 @@
 import {
   assert,
   assertErr,
+  assertErrEach,
   withEnv
 } from '@yamf/test'
 
@@ -144,25 +145,16 @@ export async function testValidateRegistryEnvironment_DevWithoutToken() {
 
 // Test validateRegistryEnvironment with case variations
 export async function testValidateRegistryEnvironment_CaseInsensitive() {
-  await withEnv({
-    ENVIRONMENT: 'PRODUCTION',
-    YAMF_REGISTRY_TOKEN: undefined
-  }, async () => {
-    await assertErr(
-      () => validateRegistryEnvironment(),
-      err => err.message.includes('FATAL')
-    )
-  })
-  
-  await withEnv({
-    ENVIRONMENT: 'Staging',
-    YAMF_REGISTRY_TOKEN: undefined
-  }, async () => {
-    await assertErr(
-      () => validateRegistryEnvironment(),
-      err => err.message.includes('FATAL')
-    )
-  })
+  await assertErrEach([
+    async () => withEnv({
+      ENVIRONMENT: 'PRODUCTION',
+      YAMF_REGISTRY_TOKEN: undefined
+    }, async () => validateRegistryEnvironment()),
+    async () => withEnv({
+      ENVIRONMENT: 'PRODUCTION',
+      YAMF_REGISTRY_TOKEN: undefined
+    }, async () => validateRegistryEnvironment())
+  ], err => err.message.includes('FATAL'))
 }
 
 // Test with partial environment name matches

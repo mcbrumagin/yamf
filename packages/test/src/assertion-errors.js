@@ -13,7 +13,7 @@ const getTargetString = (val, pad) => {
   } else if (typeof val === 'object') {
     return JSON.stringify(val)
   } else {
-    return val.toString()
+    return val?.toString()
   }
 }
 

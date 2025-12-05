@@ -33,7 +33,7 @@
     "zero-dependency"
   ],
   "scripts": {
-    "test": "./tests/test.sh",
+    "test": "echo 'Tests are BROKEN from this directory atm...  😢  ...please run from root project dir' && exit 1",
     "test:search": "./tests/test-search.sh"
   },
   "files": [
@@ -49,7 +49,7 @@
     "url": "https://github.com/mcbrumagin/yamf"
   },
   "peerDependencies": {
-    "@yamf/client": "^0.1.0"
+    "@yamf/client": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@yamf/client": {
@@ -57,7 +57,7 @@
     }
   },
   "devDependencies": {
-    "@yamf/test": "^0.1.0",
+    "@yamf/test": "workspace:*",
     "form-data": "^4.0.4"
   }
 }

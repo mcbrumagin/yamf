@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# export YAMF_GATEWAY_URL=http://localhost:15000
+export YAMF_GATEWAY_URL=http://localhost:15000
 export YAMF_REGISTRY_URL=http://localhost:10000
 
 export ENVIRONMENT=local

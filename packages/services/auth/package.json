@@ -33,10 +33,10 @@
     "url": "https://github.com/mcbrumagin/yamf"
   },
   "peerDependencies": {
-    "@yamf/core": "^0.3.2",
-    "@yamf/services-cache": "^0.1.2"
+    "@yamf/core": "workspace:^",
+    "@yamf/services-cache": "workspace:^"
   },
   "devDependencies": {
-    "@yamf/test": "^0.1.2"
+    "@yamf/test": "workspace:*"
   }
 }

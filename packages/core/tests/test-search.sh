@@ -28,8 +28,8 @@ if [ -z "$1" ]; then
 fi
 
 if npm list -g --depth=0 "c8" > /dev/null 2>&1; then
-  c8 node test/test-search.js "$@"
+  c8 node tests/test-search.js "$@"
 else
-  node test/test-search.js "$@"
+  node tests/test-search.js "$@"
   echo "c8 is not installed globally"
 fi

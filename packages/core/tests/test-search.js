@@ -39,7 +39,7 @@ function findFilesRecursiveSync(dirPath, fileSearch, fileList = []) {
   return fileList
 }
 
-let targetFilePath = findFilesRecursiveSync(path.join(process.cwd(), 'test'), fileSearch)
+let targetFilePath = findFilesRecursiveSync(path.join(process.cwd(), 'tests'), fileSearch)
 if (targetFilePath.length === 0) {
   console.error('No files found matching the search criteria')
   process.exit(1)

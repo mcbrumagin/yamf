@@ -36,10 +36,10 @@
     "busboy": "^1.6.0"
   },
   "peerDependencies": {
-    "@yamf/core": "^0.3.2"
+    "@yamf/core": "workspace:^"
   },
   "devDependencies": {
-    "@yamf/test": "^0.1.2",
+    "@yamf/test": "workspace:*",
     "form-data": "^4.0.5"
   }
 }
