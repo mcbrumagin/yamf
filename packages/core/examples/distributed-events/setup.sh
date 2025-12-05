@@ -1,3 +1,4 @@
+#!/bin/bash
 # Build registry
 mkdir -p build/registry
 cp registry/index.js build/registry/

@@ -114,7 +114,7 @@ await publishMessage('orders', {
   price: '19.99'
 })
 
-const publishingService = await createService('publishingService' async (payload) => {
+const publishingService = await createService('publishingService', async (payload) => {
   // do some stuff
   // then publish from this service context (calls subscribers directly)
   await this.publish('orders', {
@@ -249,14 +249,14 @@ result = call_service_sync("other_service", {"data": "test"})
 - ✅ Pub/sub messaging
 - ✅ Async/sync APIs
 
-**Documentation:** See [languages/python/README.md](./languages/python/README.md)  
+**Documentation:** See [src/api/languages/python/README.md](./src/api/languages/python/README.md)  
 **Examples:** See [examples/python-services/](./examples/python-services/)
 
 ### Go Client (Coming Soon)
 
 Go client library is currently in development.
 
-**Documentation:** See [languages/go/README.md](./languages/go/README.md)
+**Documentation:** See [src/api/languages/go/README.md](./src/api/languages/go/README.md)
 
 ### Creating Services in Multiple Languages
 

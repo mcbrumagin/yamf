@@ -2,5 +2,5 @@ packages:
   - 'packages/core'
   - 'packages/test'
   - 'packages/client'
-  - 'packages/shared'
+  # - 'packages/shared' # TODO need validator, client and server shared code, etc
   - 'packages/services/*'

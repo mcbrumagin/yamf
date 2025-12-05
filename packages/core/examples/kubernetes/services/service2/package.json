@@ -1,6 +1,7 @@
 {
   "name": "example-service2",
+  "type": "module",
   "dependencies": {
-    "micro-js": "0.0.3"
+    "@yamf/core": "latest"
   }
 }

@@ -1,6 +1,7 @@
 {
   "name": "example-registry",
+  "type": "module",
   "dependencies": {
-    "micro-js": "file:./micro-js"
+    "@yamf/core": "file:./@yamf/core"
   }
 }

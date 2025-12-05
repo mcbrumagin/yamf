@@ -1,4 +1,4 @@
-const { createService } = require('@yamf/core')
+import { createService } from '@yamf/core'
 
 createService(async function service1(payload = {}) {
   payload.service1 = true
