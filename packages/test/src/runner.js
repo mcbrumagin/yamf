@@ -24,8 +24,7 @@
  */
 
 import crypto from 'crypto'
-// TODO @yamf/core
-import { Logger } from '../../core/src/index.js'
+import { Logger } from '@yamf/core'
 
 const logger = new Logger({ includeLogLineNumbers: false })
 

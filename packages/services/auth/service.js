@@ -1,11 +1,13 @@
-import createService from '../../core/src/api/create-service.js'
-import { createInMemoryCache } from '../cache/service.js'
-import { calculateSHA256Checksum, ed25519 } from '../../core/src/shared/crypto.js'
-import HttpError from '../../core/src/http-primitives/http-error.js'
-import envConfig from '../../core/src/shared/env-config.js'
+import {
+  createService,
+  Logger,
+  HttpError,
+  next,
+  envConfig
+} from '@yamf/core'
 
-import Logger from '../../core/src/utils/logger.js'
-import { next } from '../../core/src/http-primitives/next.js'
+import { createInMemoryCache } from '@yamf/services-cache'
+import { ed25519 } from '@yamf/core/crypto'
 
 const logger = new Logger({ logGroup: 'yamf-services' })
 

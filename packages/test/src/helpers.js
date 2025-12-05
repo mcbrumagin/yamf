@@ -1,5 +1,4 @@
-// TODO @yamf/core
-import { Logger, envConfig } from '../../core/src/index.js'
+import { Logger, envConfig } from '@yamf/core'
 
 const logger = new Logger()
 

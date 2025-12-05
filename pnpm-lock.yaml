@@ -11,13 +11,14 @@ importers:
   packages/client: {}
 
   packages/core:
-    devDependencies:
+    dependencies:
       '@yamf/client':
-        specifier: link:../client
-        version: link:../client
+        specifier: ^0.1.0
+        version: 0.1.0
+    devDependencies:
       '@yamf/test':
-        specifier: link:../test
-        version: link:../test
+        specifier: ^0.1.0
+        version: 0.1.1
       form-data:
         specifier: ^4.0.4
         version: 4.0.5
@@ -25,61 +26,70 @@ importers:
   packages/services/auth:
     devDependencies:
       '@yamf/core':
-        specifier: link:../../core
-        version: link:../../core
+        specifier: ^0.3.0
+        version: 0.3.1(@yamf/client@0.1.0)
       '@yamf/test':
-        specifier: link:../../test
-        version: link:../../test
+        specifier: ^0.1.0
+        version: 0.1.1
 
   packages/services/cache:
     devDependencies:
       '@yamf/core':
-        specifier: link:../../core
-        version: link:../../core
+        specifier: ^0.3.0
+        version: 0.3.1(@yamf/client@0.1.0)
       '@yamf/test':
-        specifier: link:../../test
-        version: link:../../test
+        specifier: ^0.1.0
+        version: 0.1.1
 
   packages/services/file-server:
     devDependencies:
       '@yamf/core':
-        specifier: link:../../core
-        version: link:../../core
+        specifier: ^0.3.0
+        version: 0.3.1(@yamf/client@0.1.0)
       '@yamf/test':
-        specifier: link:../../test
-        version: link:../../test
+        specifier: ^0.1.0
+        version: 0.1.1
 
   packages/services/file-upload:
     dependencies:
+      '@yamf/core':
+        specifier: ^0.3.0
+        version: 0.3.1(@yamf/client@0.1.0)
       busboy:
         specifier: ^1.6.0
         version: 1.6.0
     devDependencies:
-      '@yamf/core':
-        specifier: link:../../core
-        version: link:../../core
       '@yamf/test':
-        specifier: link:../../test
-        version: link:../../test
+        specifier: ^0.1.0
+        version: 0.1.1
       form-data:
         specifier: ^4.0.5
         version: 4.0.5
 
-  packages/services/file-write:
-    dependencies:
-      busboy:
-        specifier: ^1.6.0
-        version: 1.6.0
-
-  packages/shared: {}
-
   packages/test:
     devDependencies:
       '@yamf/core':
-        specifier: link:../core
-        version: link:../core
+        specifier: ^0.3.0
+        version: 0.3.1(@yamf/client@0.1.0)
 
 packages:
+
+  '@yamf/client@0.1.0':
+    resolution: {integrity: sha512-z4Ose/HOKGjIWiNp7gPY3nND1ml4TABS42Y780vPK51W2/pc97NLuftN/viopJdOr1uwJbQ9kehNvAYL0G8zGA==}
+    engines: {node: '>=20.0.0'}
+
+  '@yamf/core@0.3.1':
+    resolution: {integrity: sha512-cfH2i+5e7YoT57BAbtEr83JFQBTthEZhjyz2NjO67/2WACsv6ThskPAi2/7dkxspyAjCiaB/fdc0BB5gjTPu2w==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@yamf/client': ^0.1.0
+    peerDependenciesMeta:
+      '@yamf/client':
+        optional: true
+
+  '@yamf/test@0.1.1':
+    resolution: {integrity: sha512-b0SWY2dJ436Us2H2GnkCmzcfnqzrtZ744kLF97T9MV7jyVzhJdWn4U2/oFeYQsJsWjozD2PJiMefBq9hwRHjcw==}
+    engines: {node: '>=20.0.0'}
 
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
@@ -168,6 +178,14 @@ packages:
     engines: {node: '>=10.0.0'}
 
 snapshots:
+
+  '@yamf/client@0.1.0': {}
+
+  '@yamf/core@0.3.1(@yamf/client@0.1.0)':
+    optionalDependencies:
+      '@yamf/client': 0.1.0
+
+  '@yamf/test@0.1.1': {}
 
   asynckit@0.4.0: {}
 

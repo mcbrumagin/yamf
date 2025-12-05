@@ -4,11 +4,6 @@ import {
   MultiAssertionFailure,
 } from './assertion-errors.js'
 
-// TODO @yamf/core
-import { Logger } from '../../core/src/index.js'
-const logger = new Logger()
-
-
 function isAsyncOrPromise(arg) {
   return arg instanceof Promise || arg?.constructor?.name === 'AsyncFunction'
 }

@@ -1,6 +1,8 @@
-import createService from '../../core/src/api/create-service.js'
-import Logger from '../../core/src/utils/logger.js'
-import { HttpError } from '../../core/src/http-primitives/index.js'
+import {
+  createService,
+  Logger,
+  HttpError
+} from '@yamf/core'
 
 let logger = new Logger({ logGroup: 'yamf-services' })
 

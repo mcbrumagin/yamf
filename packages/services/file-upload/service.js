@@ -1,5 +1,8 @@
-import createService from '../../core/src/api/create-service.js'
-import Logger from '../../core/src/utils/logger.js'
+import {
+  createService,
+  Logger
+} from '@yamf/core'
+
 import busboy from 'busboy'
 import fs from 'fs'
 import { promises as fsPromises } from 'fs'

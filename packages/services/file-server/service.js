@@ -1,11 +1,15 @@
-import { createService, createSubscriptionService } from '../../core/src/api/index.js'
-import Logger from '../../core/src/utils/logger.js'
-import HttpError from '../../core/src/http-primitives/http-error.js'
-import path from 'path'
-import fs from 'fs'
-import fsAsync from 'fs/promises'
-import { next } from '../../core/src/http-primitives/next.js'
-import { detectContentType } from '../../core/src/http-primitives/content-type-detector.js'
+import {
+  createService,
+  createSubscriptionService,
+  Logger,
+  HttpError,
+  next,
+  detectContentType
+} from '@yamf/core'
+
+import path from 'node:path'
+import fs from 'node:fs'
+import fsAsync from 'node:fs/promises'
 
 let logger = new Logger({ logGroup: 'static-file-service' })
 
