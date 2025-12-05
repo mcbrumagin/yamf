@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-file-upload",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "File upload service for YAMF microservices with multipart/form-data support",
   "main": "service.js",
@@ -39,8 +39,7 @@
     "@yamf/core": "^0.3.0"
   },
   "devDependencies": {
-    "@yamf/core": "link:../../core",
-    "@yamf/test": "link:../../test",
+    "@yamf/test": "^0.1.0",
     "form-data": "^4.0.5"
   }
 }
