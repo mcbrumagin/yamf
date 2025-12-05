@@ -99,15 +99,6 @@ When adding new examples:
 4. Document required dependencies
 5. Add it to this README
 
-## Documentation
-
-For more information about specific features:
-
-- **Range Requests**: See `/RANGE_REQUEST_SUPPORT.md`
-- **Proxy Architecture**: See `/PROXY_ARCHITECTURE_CHANGES.md`
-- **Subscriptions**: See `/SUBSCRIPTION_GUIDE.md`
-- **Multi-language Support**: See `/MULTI_LANGUAGE_GUIDE.md`
-- **Python Implementation**: See `/PYTHON_IMPLEMENTATION_SUMMARY.md`
 
 ## Getting Help
 
