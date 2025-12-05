@@ -18,7 +18,7 @@ const logger = new Logger({ logGroup: 'yamf-registry' })
 export async function publish(state, { type, message }) {
   const results = []
   const errors = []
-  
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   const subscribers = state.subscriptions.get(type)
   if (!subscribers) {
     return { results, errors }
@@ -28,7 +28,7 @@ export async function publish(state, { type, message }) {
     try {
       const result = await httpRequest(location, {
         body: message,
-        headers: buildPublishHeaders(type)
+        headers: buildPublishHeaders(type, registryToken)
       })
       results.push(result)
     } catch (err) {
@@ -80,7 +80,7 @@ export async function notifyGatewayOfUpdate(state, { service, location }) {
 export async function publishCacheUpdate(state, { subscription, service, location }) {
   const results = []
   const errors = []
-  
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   // Notify gateway separately (pull model)
   const gatewayNotification = await notifyGatewayOfUpdate(state, { subscription, service, location })
   if (gatewayNotification.notified) {
@@ -97,7 +97,7 @@ export async function publishCacheUpdate(state, { subscription, service, locatio
     try {
       const result = await httpRequest(subscriberLocation, {
         body: null, // No body needed - all info is in headers
-        headers: buildCacheUpdateHeaders(subscription, service, location)
+        headers: buildCacheUpdateHeaders(subscription, service, location, registryToken)
       })
       results.push(result)
     } catch (err) {

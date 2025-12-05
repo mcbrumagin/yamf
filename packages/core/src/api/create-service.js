@@ -8,12 +8,10 @@ import Logger from '../utils/logger.js'
 import envConfig from '../shared/env-config.js'
 
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
-import { buildContext, buildEnhancedContext, bindServiceFunction } from '../service/service-context.js'
+import { buildEnhancedContext, bindServiceFunction } from '../service/service-context.js'
 import { createCacheAwareHandler } from '../service/cache-handler.js'
-import { validateServiceName, extractPort, validateServiceLocation } from '../service/service-validator.js'
+import { validateServiceName } from '../service/service-validator.js'
 import { createServiceBatch } from '../service/service-batch.js'
-import { createPubSubManager } from '../service/pubsub-manager.js'
-import { isSubscriptionMessage } from '../service/cache-handler.js'
 import { Next } from '../http-primitives/next.js'
 import {
   createAndRegisterService,

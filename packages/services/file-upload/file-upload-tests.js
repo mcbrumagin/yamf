@@ -548,7 +548,6 @@ export async function testLargeFileUpload() {
       }),
       async () => {
         const testFilePath = path.join(process.cwd(), 'tests/data/test-track.wav')
-        console.warn({testFilePath})
         const form = new FormData()
         form.append('file', fs.createReadStream(testFilePath), 'test-track.wav')
         const result = await createMultipartRequest(form)

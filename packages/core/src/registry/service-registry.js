@@ -7,7 +7,7 @@ import httpRequest from '../http-primitives/http-request.js'
 import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
 import { serializeServicesMap, setToArray } from './registry-state.js'
-import { publish, publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
+import { publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
 import { selectServiceLocation } from './load-balancer.js'
 import { HEADERS } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
@@ -453,7 +453,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
     proxyReq.on('error', (err) => {
       logger.debugErr('Proxy request error:', err)
       if (!response.headersSent) {
-        console.warn('502', request.url)
         response.writeHead(502)
         response.end('Bad Gateway')
         reject(err)

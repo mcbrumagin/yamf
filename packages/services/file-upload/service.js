@@ -477,7 +477,6 @@ export default async function createFileUploadService({
       const urlPath = path.join(urlPathPrefix, fileName).replace(/\\/g, '/')
       
       // TODO seems like the static-file-service does not realize this is a publish command
-      // console.warn({updateChannel})
       await server.context.publish(updateChannel, {
         urlPath,
         filePath,

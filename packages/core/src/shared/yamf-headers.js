@@ -173,12 +173,13 @@ export function buildUnsubscribeHeaders(channel, location, registryToken = null)
 /**
  * Build headers for cache update notifications
  */
-export function buildCacheUpdateHeaders(pubsubChannel, serviceName, location) {
+export function buildCacheUpdateHeaders(pubsubChannel, serviceName, location, registryToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.CACHE_UPDATE,
     [HEADERS.PUBSUB_CHANNEL]: pubsubChannel,
     [HEADERS.SERVICE_NAME]: serviceName,
-    [HEADERS.SERVICE_LOCATION]: location
+    [HEADERS.SERVICE_LOCATION]: location,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 

@@ -302,7 +302,6 @@ export async function testAuthLoginCommand() {
     async () => {
       const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
-      console.warn({TEST_ADMIN_SECRET})
       const loginResult = await httpRequest(registryHost, {
         body: {
           authenticate: {

@@ -20,7 +20,6 @@ const getTargetString = (val, pad) => {
 export class AssertionFailureDetail {
   constructor(distilledTargetValue, failingAssertionFns, childDetails) {
     this.target = distilledTargetValue
-    // console.warn("failingAssertionFns?.length > 1", failingAssertionFns?.length > 1)
     this.assertFns = (
       Array.isArray(failingAssertionFns)
       && failingAssertionFns.length > 1
@@ -33,13 +32,10 @@ export class AssertionFailureDetail {
     let pad = Array.from({ length: depth }, () => '  ').join('')
     let type = getType(this.target)
     let val = getTargetString(this.target, pad)
-    // console.warn('deetVal', val)
-    // console.warn(this.assertFns)
     let childMessages = this.children?.map(c => {
       `${pad}${c.toString(depth).split('\n').map(l => `${pad}${l}`).join('\n')}`
     })
     childMessages = childMessages || ''
-    // console.warn('childMess', childMessages)
     return `${pad}for target (${type}) value = ${val}`
     + this.assertFns.map(fn =>
       `\n${pad}failed -> ${fn?.name || fn.toString().replace(/^\s?.+\=\>\s?/, '')}`
@@ -65,16 +61,10 @@ export class AssertionFailure extends Error {
       Array.isArray(assertionFailureDetails)
       && assertionFailureDetails.length > 1
     ) ? assertionFailureDetails : [assertionFailureDetails]
-    // if (!this.assertionFailureDetails)
-      // this.assertionFailureDetails = []
   }
 
   toString(depth = 1) {
     let pad = Array.from({ length: depth }, () => '  ').join('')
-    // console.warn('assertDeets',this.assertionFailureDetails)
-    // console.warn('assertDeets',this.assertionFailureDetails.map(d =>
-    //   `${d.toString(2).split('\n').map(l => `${l}`).join('\n')}`
-    // ).join('\n'))
     return `${pad}AssertionFailure\n`
     + this.assertionFailureDetails?.map(d =>
       `${d.toString(depth+1).split('\n').map(l => `${l}`).join('\n')}`

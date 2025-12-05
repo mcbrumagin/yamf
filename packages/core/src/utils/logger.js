@@ -178,9 +178,6 @@ export default class Logger {
       return printWarningOnceAndReturnVanillaConsole()
     }
 
-    // console.warn("envConfig.get('LOG_INCLUDE_LINES')", envConfig.get('LOG_INCLUDE_LINES') === 'true')
-    // setTimeout(() => process.exit(0), 50)
-
     this.options = Object.assign({
       logGroup: '',
       useLogFile: false, // TODO

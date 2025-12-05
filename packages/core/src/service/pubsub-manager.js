@@ -120,36 +120,6 @@ export function createPubSubManager(serviceName, serviceLocation) {
   }
 
   /**
-   * Publish a message to a global event channel
-   * 
-   * Message is broadcast to ALL services subscribed to this channel
-   * across the entire cluster via the registry.
-   * 
-   * @param {string} channel - Channel name
-   * @param {any} message - Message payload (will be JSON serialized)
-   * @returns {Promise<{results: Array, errors: Array}>} Results from all subscribers
-   * 
-   * @example
-   * await publish('user-created', { userId: 123, email: 'user@example.com' })
-   * 
-   * TODO: Add scope parameter and routing logic
-   * TODO: publish(channel, message, { scope: 'global' | 'instance' | 'location', target: '...' })
-   */
-  async function publish(channel, message) {
-    throw new Error('DEPRECATED PUBLISH PATTERN')
-    logger.debug(`publish [${serviceName}] - channel: ${channel}`)
-    
-    // TODO: Add scope-based routing here when implementing scopes
-    // For now, all publishes go through registry (global scope)
-    const result = await httpRequest(registryHost, {
-      body: message,
-      headers: buildPublishHeaders(channel, registryToken)
-    })
-    
-    return result
-  }
-
-  /**
    * Handle incoming message from registry
    * 
    * Called by cache-handler.js when a PUBSUB_PUBLISH command is detected.
@@ -239,7 +209,6 @@ export function createPubSubManager(serviceName, serviceLocation) {
   return {
     subscribe,
     unsubscribe,
-    publish,
     handleIncomingMessage,
     listSubscriptions,
     cleanup

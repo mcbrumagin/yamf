@@ -1,4 +1,4 @@
-import createService from '../../core/src/api/create-service.js'
+import { createService, createSubscriptionService } from '../../core/src/api/index.js'
 import Logger from '../../core/src/utils/logger.js'
 import HttpError from '../../core/src/http-primitives/http-error.js'
 import path from 'path'
@@ -617,7 +617,7 @@ export default async function createStaticFileService({
     // PubSub mode - subscribe to file upload/deletion events
     if (mode === 'pubsub' || mode === 'hybrid') {
       try {
-        await server.createSubscription({
+        await createSubscriptionService(`${serviceName}-autorefresh`, {
           [updateChannel]: handleFileUploadEvent,
           [deletionChannel]: handleFileDeletionEvent
         })

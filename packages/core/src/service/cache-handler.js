@@ -6,7 +6,8 @@
 import { updateCacheEntry } from './service-state.js'
 import { updateContext } from './service-context.js'
 import { Next } from '../http-primitives/next.js'
-import { COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
+import { HEADERS, COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
+import envConfig from '../shared/env-config.js'
 import Logger from '../utils/logger.js'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
@@ -43,6 +44,19 @@ export function isSubscriptionMessage(request) {
   return command === COMMANDS.PUBSUB_PUBLISH
 }
 
+function validateRegistryToken(request) {
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
+  if (!registryToken) {
+    // if no token is configured, skip validation
+    return true
+  }
+  
+  const authHeader = request?.headers?.[HEADERS.REGISTRY_TOKEN]
+  if (authHeader !== registryToken) {
+    throw new Error('Unauthorized cache update attempt')
+  }
+}
+
 /**
  * Create a handler function that intercepts cache updates
  * Returns a new handler that:
@@ -62,6 +76,7 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
   return async function cacheAwareHandler(payload, request, response) {
     // Check if this is a cache update from registry using yamf headers
     if (isCacheUpdateRequest(request)) {
+      validateRegistryToken(request)
       const { pubsubChannel, serviceName, serviceLocation } = parseCommandHeaders(request.headers)
       
       logger.debug('cacheAwareHandler - cache update request', { pubsubChannel, serviceName, serviceLocation })
@@ -87,6 +102,7 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
     
     // Check if this is a subscription message from registry
     if (isSubscriptionMessage(request)) {
+      validateRegistryToken(request)
       const { pubsubChannel } = parseCommandHeaders(request.headers)
       
       if (context._pubSubManager) {
@@ -116,47 +132,3 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
     return result
   }
 }
-
-/**
- * Create handler with authentication token validation
- * For future use when HTTPS and tokens are implemented
- * 
- * @param {Function} serviceFn - The actual service handler
- * @param {Object} cache - Service cache
- * @param {Object} context - Service context
- * @param {string} registryToken - Token from registry for validation
- * @returns {Function} Wrapped handler with auth
- */
-export function createSecureCacheAwareHandler(serviceFn, cache, context, registryToken) {
-  return async function secureCacheAwareHandler(payload, request, response) {
-    // Check if this is a cache update from registry using yamf headers
-    if (isCacheUpdateRequest(request)) {
-      // TODO!!! Validate request headers contain matching token
-      // const authHeader = request?.headers?.['x-registry-token']
-      // if (registryToken && authHeader !== registryToken) {
-      //   throw new Error('Unauthorized cache update attempt')
-      // }
-      
-      const { serviceName, serviceLocation } = parseCommandHeaders(request.headers)
-      updateCacheEntry(cache, { service: serviceName, location: serviceLocation })
-      updateContext(context, cache)
-      
-      return {
-        status: 'cache_updated',
-        service: serviceName,
-        location: serviceLocation
-      }
-    }
-    
-    // Forward request and response to service function
-    const result = await serviceFn(payload, request, response)
-    
-    // Convert Next instance to false for http-server
-    if (result instanceof Next) {
-      return false
-    }
-    
-    return result
-  }
-}
-

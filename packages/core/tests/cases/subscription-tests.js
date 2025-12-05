@@ -286,7 +286,6 @@ export async function testSubscriptionPublishResults() {
       // Publish returns results from all handlers
       const result = await publishMessage('rpc-channel', { test: 'data' })
       
-      console.log(JSON.stringify(result, null, 2))
       assert(result,
         r => r.results.length === 1,
         r => r.results[0].results[0].echo.test === 'data',
@@ -358,119 +357,6 @@ export async function testSubscriptionStartsClean() {
       )
       
       await subscription.terminate()
-    }
-  )
-}
-
-/**
- * Test subscription creation on regular service
- */
-export async function testSubscriptionCreationOnRegularService() {
-  const messages = []
-  await terminateAfter(
-    registryServer(),
-    createService('regular-service', async () => {
-      return { totalMessages: messages.length }
-    }),
-    async (registry, service) => {
-
-      await service.createSubscription({
-        'middleware-channel': async (message) => {
-          messages.push(message)
-        }
-      })
-
-      await publishMessage('middleware-channel', { data: 'test message' })
-      let result = await callService('regular-service')
-
-      assert([messages, result],
-        ([m, r]) => m.length === 1,
-        ([m, r]) => m[0].data === 'test message',
-        ([m, r]) => r.totalMessages === 1
-      )
-    }
-  )
-}
-
-/**
- * Test subscription creation on regular service with middleware
- */
-export async function testSubscriptionCreationOnMiddlewareService() {
-  const messages = []
-  await terminateAfter(
-    registryServer(),
-    createService('middleware-service', async (payload) => {
-      return { totalMessages: messages.length, ...payload }
-    }),
-    async (registry, service) => {
-
-      service.before(async (payload, request, response) => {
-        payload.before = true
-        return payload
-      })
-
-      await service.createSubscription({
-        'middleware-channel': async (message) => {
-          messages.push(message)
-        }
-      })
-
-      await publishMessage('middleware-channel', { data: 'test message' })
-      let result = await callService('middleware-service', { call: 'test' })
-
-      assert([messages, result],
-        ([m, r]) => m.length === 1,
-        ([m, r]) => m[0].data === 'test message',
-        ([m, r]) => r.totalMessages === 1,
-        ([m, r]) => r.call === 'test',
-        ([m, r]) => r.before === true
-      )
-    }
-  )
-}
-
-
-/**
- * Test subscription creation on regular service with middleware
- */
-export async function testSubscriptionCreationBeforeMiddlewareOverride() {
-  const messages = []
-  await terminateAfter(
-    registryServer(),
-    createService('middleware-service', async (payload) => {
-      return { totalMessages: messages.length, ...payload }
-    }),
-    async (registry, service) => {
-
-      await service.createSubscription({
-        'middleware-channel': async (message) => {
-          messages.push(message)
-        }
-      })
-
-      await publishMessage('middleware-channel', { data: 'test message 1' })
-      let beforeOverrideResult = await callService('middleware-service', { call: 'test1' })
-
-      service.before(async (payload, request, response) => {
-        payload.before = true
-        return payload
-      })
-
-
-      await publishMessage('middleware-channel', { data: 'test message 2' })
-      let afterOverrideResult = await callService('middleware-service', { call: 'test2' })
-
-      assert([messages, beforeOverrideResult, afterOverrideResult],
-        ([m,   ,   ]) => m.length === 2,
-        ([m,   ,   ]) => m[0].data === 'test message 1',
-        ([m,   ,   ]) => m[1].data === 'test message 2',
-        ([ , r1,   ]) => r1.totalMessages === 1,
-        ([ , r1,   ]) => r1.call === 'test1',
-        ([ , r1,   ]) => r1.before === undefined,
-        ([ ,   , r2]) => r2.totalMessages === 2,
-        ([ ,   , r2]) => r2.call === 'test2',
-        ([ ,   , r2]) => r2.before === true
-      )
     }
   )
 }
