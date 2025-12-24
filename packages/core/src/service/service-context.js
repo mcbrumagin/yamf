@@ -35,12 +35,12 @@ export function buildContext(cache, serviceName = 'anonymous') {
  * Build enhanced context with service method stubs
  * Creates named functions for each known service for better IDE autocomplete
  * 
- * @param {Object} cache - Service cache with services map
+ * @param {Object} cache - Service cache with services Map
  * @param {string} serviceName - Name of the service
  * @returns {Object} Context with call(), publish(), and individual service stubs
  * 
  * @example
- * // With cache.services = { userService: [...], authService: [...] }
+ * // With cache.services containing userService, authService
  * // Returns context with:
  * // - call(serviceName, payload)
  * // - publish(channel, message)
@@ -50,18 +50,23 @@ export function buildContext(cache, serviceName = 'anonymous') {
 export function buildEnhancedContext(cache, serviceName = 'anonymous') {
   const context = buildContext(cache, serviceName) // include call, publish
   
-  // add service-specific stubs for better autocomplete
+  // Add service-specific stubs for better autocomplete
+  // Support both Map and plain object for backwards compatibility
   if (cache.services) {
-    for (const serviceName of Object.keys(cache.services)) {
-      // create a stub function for this service
-      // allows: context.userService(payload) instead of context.call('userService', payload)
-      context[serviceName] = function serviceStub(payload) {
-        return callServiceWithCache(cache, serviceName, payload)
+    const serviceNames = cache.services instanceof Map 
+      ? Array.from(cache.services.keys())
+      : Object.keys(cache.services)
+    
+    for (const svcName of serviceNames) {
+      // Create a stub function for this service
+      // Allows: context.userService(payload) instead of context.call('userService', payload)
+      context[svcName] = function serviceStub(payload) {
+        return callServiceWithCache(cache, svcName, payload)
       }
       
-      // override function name
-      Object.defineProperty(context[serviceName], 'name', {
-        value: serviceName,
+      // Override function name
+      Object.defineProperty(context[svcName], 'name', {
+        value: svcName,
         writable: false
       })
     }
@@ -86,27 +91,29 @@ export function updateContext(context, cache) {
   // TODO this.name, this.log
   const protectedKeys = new Set(['call', 'publish'])
   
+  // Get current service names (support both Map and plain object)
+  const currentServices = cache.services instanceof Map
+    ? new Set(cache.services.keys())
+    : new Set(Object.keys(cache.services || {}))
+  
   // Remove old service stubs that no longer exist
   logger.debug('updateContext:', context)
-  const currentServices = new Set(Object.keys(cache.services || {}))
   for (const key of Object.keys(context)) {
     if (!protectedKeys.has(key) && !currentServices.has(key)) {
       delete context[key]
     }
   }
   
-  // add/update service stubs
-  if (cache.services) {
-    for (const serviceName of Object.keys(cache.services)) {
-      context[serviceName] = function serviceStub(payload) {
-        return callServiceWithCache(cache, serviceName, payload)
-      }
-      
-      Object.defineProperty(context[serviceName], 'name', {
-        value: serviceName,
-        writable: false
-      })
+  // Add/update service stubs
+  for (const serviceName of currentServices) {
+    context[serviceName] = function serviceStub(payload) {
+      return callServiceWithCache(cache, serviceName, payload)
     }
+    
+    Object.defineProperty(context[serviceName], 'name', {
+      value: serviceName,
+      writable: false
+    })
   }
 }
 

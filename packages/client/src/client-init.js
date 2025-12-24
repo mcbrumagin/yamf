@@ -1,22 +1,31 @@
-window.yamf = {
-  __listeners__: {},
+var context
+if (typeof window !== "undefined") {
+  context = window
+} else context = {}
 
-  routes: {},
+/**
+ * Initialize the YAMF client global object
+ * Provides a namespace for client-side utilities and components
+ */
+export function initializeYamf() {
+  if (context.yamf) return context.yamf
 
-  // helper for internal library functions
-  set library(fn) {
-    if (!fn.name) throw new Error('Library must be a named function')
-    this[fn.name] = fn
-  },
-
-  // convenience location for clients to avoid global namespace for elements/components
-  modules: {},
-
-  // convenience helper for module-like export syntax
-  set exports(fn) {
-    if (!fn.name) throw new Error('Exports must be a named function')
-    this.modules[fn.name] = fn
+  context.yamf = {
+    __listeners__: {},
+    routes: {},
+    modules: {}
   }
+
+  return context.yamf
 }
 
-// NOTE the setter helpers here are largely irrelevant and unreadable "magic" with the move to ESM from CJS
+/**
+ * Get the YAMF client global object
+ * Initializes if not already present
+ */
+export function getYamf() {
+  if (!context.yamf) {
+    initializeYamf()
+  }
+  return context.yamf
+}

@@ -17,6 +17,7 @@ export const HEADERS = {
   SERVICE_LOCATION: 'yamf-service-location',
   USE_AUTH_SERVICE: 'yamf-use-auth-service',
   SERVICE_HOME: 'yamf-service-home',
+  ACCESS_CONTROL: 'yamf-access-control',     // 'public', 'custom', or 'private'
   
   // Authentication // TODO Authorization: Bearer <token>
   AUTH_TOKEN: 'yamf-auth-token',           // User auth token for service calls
@@ -58,6 +59,7 @@ export const COMMANDS = {
   // Authentication
   AUTH_LOGIN: 'auth-login',
   AUTH_REFRESH: 'auth-refresh',
+  AUTH_LOGOUT: 'auth-logout',
 
   // Service
   CACHE_UPDATE: 'cache-update'
@@ -77,13 +79,24 @@ export function buildSetupHeaders(serviceName, serviceHome, registryToken = null
 
 /**
  * Build headers for service registration
+ * 
+ * Access Control Levels:
+ * - 'pure': No HTTP server, direct function call only (same node process)
+ * - 'local': HTTP server but accessible only from same node
+ * - 'private': HTTP server, accessible from any service (default)
+ * - 'public': HTTP server, accessible via gateway (external clients)
  */
-export function buildRegisterHeaders(serviceName, location, useAuthService, registryToken = null) {
+export function buildRegisterHeaders(serviceName, location, {
+  useAuthService,
+  accessControl = 'private', // 'pure', 'local', 'private', 'public'
+  registryToken = null
+}) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location,
     ...(useAuthService && { [HEADERS.USE_AUTH_SERVICE]: useAuthService }),
+    ...(accessControl && { [HEADERS.ACCESS_CONTROL]: accessControl }),
     ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
@@ -232,6 +245,15 @@ export function buildAuthRefreshHeaders() {
 }
 
 /**
+ * Build headers for auth logout
+ */
+export function buildAuthLogoutHeaders() {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.AUTH_LOGOUT
+  }
+}
+
+/**
  * Parse command headers from request
  * Returns an object with parsed header values
  */
@@ -241,6 +263,7 @@ export function parseCommandHeaders(headers) {
     serviceName: headers[HEADERS.SERVICE_NAME],
     serviceLocation: headers[HEADERS.SERVICE_LOCATION],
     useAuthService: headers[HEADERS.USE_AUTH_SERVICE],
+    accessControl: headers[HEADERS.ACCESS_CONTROL],
     serviceHome: headers[HEADERS.SERVICE_HOME],
     routePath: headers[HEADERS.ROUTE_PATH],
     routeDataType: headers[HEADERS.ROUTE_DATATYPE],

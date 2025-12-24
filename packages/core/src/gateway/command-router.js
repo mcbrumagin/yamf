@@ -18,6 +18,10 @@ import httpRequest from '../http-primitives/http-request.js'
 import envConfig from '../shared/env-config.js'
 
 import Logger from '../utils/logger.js'
+import { env } from 'node:process'
+
+import { localState } from '../shared/local-state.js'
+import readStream from '../http-primitives/read-stream.js'
 
 const logger = new Logger({ logGroup: 'yamf-gateway' })
 
@@ -132,6 +136,12 @@ export function updateGatewayStateFromRegistry(state, registryState) {
   for (const [service, authService] of Object.entries(registryState.serviceAuth || {})) {
     state.serviceAuth.set(service, authService)
   }
+
+  // Update service accessControl mappings
+  state.serviceAccess.clear()
+  for (const [service, accessControl] of Object.entries(registryState.serviceAccess || {})) {
+    state.serviceAccess.set(service, accessControl)
+  }
   
   logger.debug('Gateway state synchronized with registry')
 }
@@ -166,17 +176,47 @@ export async function routeCommand(state, payload, request, response, options = 
 }
 
 /**
+ * Validate service access for gateway calls (external clients)
+ * Gateway allows: public only
+ * Gateway blocks: pure, local, private
+ */
+function validateServiceAccessFromGateway(state, serviceName) {
+  const permission = state.serviceAccess.get(serviceName)
+  
+  // Default to 'private' if no access control is set (backwards compatibility)
+  const effectivePermission = permission || 'private'
+  
+  if (effectivePermission !== 'public') {
+    const env = envConfig.get('ENVIRONMENT', 'dev')
+    if (env.includes('prod')) {
+      // Don't reveal service name in production
+      throw new HttpError(404, `Not found`)
+    } else {
+      const hint = effectivePermission === 'private' 
+        ? `Change the service to use 'public' access control to allow gateway access.`
+        : `Service has "${effectivePermission}" access control.`
+      throw new HttpError(403, 
+        `Service "${serviceName}" access forbidden from gateway. ${hint}`
+      )
+    }
+  }
+}
+
+/**
  * Header-based command routing
  */
 async function routeCommandByHeaders(state, payload, request, response) {
   const headers = request.headers || {}
-  const { command } = parseCommandHeaders(headers)
+  const { command, serviceName } = parseCommandHeaders(headers)
   
   logger.debug('command:', command)
 
   if (PROTECTED_COMMANDS.has(command)) {
     validateRegistryToken(request)
   }
+
+
+  
   
   switch (command) {
     case COMMANDS.HEALTH:
@@ -195,8 +235,10 @@ async function routeCommandByHeaders(state, payload, request, response) {
     
     case COMMANDS.AUTH_LOGIN:
     case COMMANDS.AUTH_REFRESH:
+    case COMMANDS.AUTH_LOGOUT:
       // Default to 'auth-service' if no specific auth service is configured
-      const authServiceName = 'auth-service'
+      // TODO should make certain the serviceName is an auth service
+      const authServiceName = 'auth-service' // uncomment when we validate serviceName is auth || serviceName
       if (!state.services.has(authServiceName)) {
         throw new HttpError(503, `Auth service "${authServiceName}" not found`)
       }
@@ -206,6 +248,20 @@ async function routeCommandByHeaders(state, payload, request, response) {
         name: authServiceName, 
         request, 
         response 
+      })
+
+    // for gateway service calls, we need to check that a service is published for public access
+    // TODO provide config in createService to publish to gateways
+    // publish should warn to use auth service for secure access
+    // TODO test with/without auth service and with/without proper auth token
+    case COMMANDS.SERVICE_CALL:
+      logger.debug('service call:', serviceName)
+      validateServiceAccessFromGateway(state, serviceName)
+      
+      return streamProxyServiceCall(state, {
+        name: serviceName,
+        request,
+        response
       })
     
     default:

@@ -11,6 +11,14 @@ export function createRegistryState() {
     // Service name -> auth service name (for auth-protected services)
     serviceAuth: new Map(),
     
+    // Service name -> access type
+    // Access Control Levels:
+    // - 'pure': No HTTP server, direct function call only (same node process)
+    // - 'local': HTTP server but accessible only from same node
+    // - 'private': HTTP server, accessible from any service (default)
+    // - 'public': HTTP server, accessible via gateway (external clients)
+    serviceAccess: new Map(),
+    
     // Service name -> metadata object (for special services like gateway)
     serviceMetadata: new Map(),
     

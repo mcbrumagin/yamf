@@ -3,16 +3,9 @@ import HttpError from '../http-primitives/http-error.js'
 import envConfig from '../shared/env-config.js'
 import { buildCallHeaders } from '../shared/yamf-headers.js'
 import Logger from '../utils/logger.js'
+import { getLocalService, hasLocalService } from '../shared/local-state.js'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
-
-// TODO implement for returned errors? do we need this?
-// function throwErrorFromResult(result) {
-//   if (result.status >= 400 && result.status < 600) {
-//     throw new HttpError(result.status, result.message || result.name || 'Unknown error')
-//   }
-//   throw result
-// }
 
 export default async function callService (name, payload, {
   contentType = 'application/json',
@@ -44,16 +37,47 @@ export default async function callService (name, payload, {
 export async function callServiceWithCache (cache, name, payload) {
   // name could be the function if called "locally", or a noop of the same name for code-completion
   name = name.name || name
-  let registryHost = process.env.YAMF_REGISTRY_URL
 
-  if (!cache.services[name]) throw new HttpError(404, `No service by name "${name}" in cache`)
-  let addresses = cache.services[name].map(s => s)
-  let len = addresses.length
+  // Check if service exists in cache
+  if (!cache.services.has(name)) {
+    throw new HttpError(404, `No service by name "${name}" in cache`)
+  }
+  
+  let result
+  
+  // Short-circuit for local (same node thread) call
+  const localService = getLocalService(name)
+  if (localService) {
+    logger.debug(`short-circuiting network call - service is in same node thread: ${name}`)
+    result = await localService(payload)
+  } else {
+    // Check if this is a pure/local service on another node (marked as 'external')
+    const accessControl = cache.serviceAccess.get(name)
+    if (accessControl === 'external') {
+      throw new HttpError(403,
+        `Service "${name}" is a pure/local service on another node and cannot be called from here. ` +
+        `If cross-node calls are needed, change the service to use 'private' access control.`
+      )
+    }
 
-  // TODO implement strategies (random, round-robin, etc.)
-  // initialize service round-robin start index based on own location port number
-  let ind = Math.floor(Math.random() * len)
-  let location = addresses[ind]
-  let result = await httpRequest(location, { body: payload })
+    // Get service locations from cache
+    const locations = cache.services.get(name)
+    if (!locations || locations.size === 0) {
+      throw new HttpError(404, `No locations for service "${name}"`)
+    }
+    
+    const addresses = Array.from(locations)
+    const len = addresses.length
+
+    // TODO implement strategies (random, round-robin, etc.)
+    // For now: random selection
+    const ind = Math.floor(Math.random() * len)
+    const location = addresses[ind]
+
+    logger.debug(`making network call - service is not local: ${name}`)
+    
+    result = await httpRequest(location, { body: payload })
+  }
+
   return result
 }

@@ -510,8 +510,8 @@ export async function testServiceRegistrationCacheUpdate() {
         await sleep(100)
         
         // Check that both services now have the new service in their cache
-        const updatedCache1 = Object.keys(service1.cache.services || {})
-        const updatedCache2 = Object.keys(service2.cache.services || {})
+        const updatedCache1 = Object.keys(Object.fromEntries(service1.cache.services || {}))
+        const updatedCache2 = Object.keys(Object.fromEntries(service2.cache.services || {}))
         
         logger.info(`Updated cache service1: ${JSON.stringify(updatedCache1)}`)
         logger.info(`Updated cache service2: ${JSON.stringify(updatedCache2)}`)

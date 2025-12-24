@@ -610,6 +610,7 @@ export default async function createStaticFileService({
   server.resumeAutoRefresh = resumeAutoRefresh
   
   // --- Setup auto-refresh based on mode -------------------------------------
+  let subscriptionService = null
   if (autoRefresh && autoRefresh.mode) {
     const mode = autoRefresh.mode
     const updateChannel = autoRefresh.updateChannel || 'yamf:file-updated'
@@ -621,7 +622,7 @@ export default async function createStaticFileService({
     // PubSub mode - subscribe to file upload/deletion events
     if (mode === 'pubsub' || mode === 'hybrid') {
       try {
-        await createSubscriptionService(`${serviceName}-autorefresh`, {
+        subscriptionService = await createSubscriptionService(`${serviceName}-autorefresh`, {
           [updateChannel]: handleFileUploadEvent,
           [deletionChannel]: handleFileDeletionEvent
         })
@@ -657,6 +658,10 @@ export default async function createStaticFileService({
     if (refreshInterval) {
       clearInterval(refreshInterval)
       refreshInterval = null
+    }
+    
+    if (subscriptionService) {
+      await subscriptionService.terminate()
     }
     
     await originalTerminate()

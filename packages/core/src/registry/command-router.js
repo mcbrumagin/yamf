@@ -19,6 +19,9 @@ import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/y
 import HttpError from '../http-primitives/http-error.js'
 import { validateRegistryToken } from './registry-auth.js'
 
+import { localState } from '../shared/local-state.js'
+import readStream from '../http-primitives/read-stream.js'
+
 import Logger from '../utils/logger.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
@@ -61,6 +64,7 @@ function handleRegistryPull(state) {
     routes: Object.fromEntries(state.routes),
     controllerRoutes: Object.fromEntries(state.controllerRoutes),
     serviceAuth: Object.fromEntries(state.serviceAuth),
+    serviceAccess: Object.fromEntries(state.serviceAccess),
     serviceMetadata: Object.fromEntries(state.serviceMetadata),
     timestamp: Date.now()
   }
@@ -78,7 +82,11 @@ function handleSetup(state, payload, defaultStartPort) {
  * Supports both header-based and legacy payload-based
  */
 async function handleRegister(state, payload, headers = {}) {
-  const { command, serviceName, serviceLocation, useAuthService, routePath, routeDataType, routeType } = parseCommandHeaders(headers)
+  const {
+    command, serviceName, serviceLocation,
+    useAuthService, accessControl,
+    routePath, routeDataType, routeType
+  } = parseCommandHeaders(headers)
   
   // Header-based registration
   if (command === COMMANDS.SERVICE_REGISTER) {
@@ -91,7 +99,8 @@ async function handleRegister(state, payload, headers = {}) {
     return registerService(state, { 
       service: serviceName,
       location: serviceLocation,
-      useAuthService: useAuthService
+      useAuthService: useAuthService,
+      accessControl
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {
@@ -147,6 +156,33 @@ export async function routeCommand(state, payload, request, response, options = 
 }
 
 /**
+ * Validate service access for registry-proxied calls
+ * Registry allows: public, private (default)
+ * Registry blocks: pure, local (these are node-local only)
+ */
+function validateServiceAccessFromRegistry(state, serviceName) {
+  const permission = state.serviceAccess.get(serviceName)
+  
+  // Default to 'private' if no access control is set (backwards compatibility)
+  const effectivePermission = permission || 'private'
+  
+  if (effectivePermission === 'pure' || effectivePermission === 'local') {
+    const env = envConfig.get('ENVIRONMENT', 'dev')
+    if (env.includes('prod')) {
+      // Don't reveal service name in production
+      throw new HttpError(404, `Not found`)
+    } else {
+      throw new HttpError(403, 
+        `Service "${serviceName}" has "${effectivePermission}" access control and cannot be called through the registry. ` +
+        `Pure/local services can only be called from the same node process.`
+      )
+    }
+  }
+  
+  // public and private are allowed through registry
+}
+
+/**
  * Header-based command routing
  */
 async function routeCommandByHeaders(state, payload, request, response, options) {
@@ -194,6 +230,9 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.SERVICE_CALL:
       logger.debug('service call:', serviceName)
+
+      validateServiceAccessFromRegistry(state, serviceName)
+      
       return streamProxyServiceCall(state, { 
         name: serviceName, 
         request, 
@@ -237,8 +276,10 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.AUTH_LOGIN:
     case COMMANDS.AUTH_REFRESH:
+    case COMMANDS.AUTH_LOGOUT:
       // Default to 'auth-service' if no specific auth service is configured
-      const authServiceName = 'auth-service'
+      // TODO should make certain the serviceName is an auth service
+      const authServiceName = 'auth-service' || serviceName
       if (!state.services.has(authServiceName)) {
         throw new HttpError(503, `Auth service "${authServiceName}" not found`)
       }

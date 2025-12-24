@@ -8,7 +8,11 @@ importers:
 
   .: {}
 
-  packages/client: {}
+  packages/client:
+    devDependencies:
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../test
 
   packages/core:
     dependencies:

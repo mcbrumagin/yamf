@@ -7,7 +7,17 @@ import {
   createFormState, 
   createRenderHelper 
 } from './state.js'
-// import loadClient from './loadClient.js'
+import {
+  initializeYamf,
+  getYamf
+} from './client-init.js'
+import {
+  waitForElement,
+  isMobileBrowser,
+  loadResource,
+  router,
+  hashRouter
+} from './client-utils.js'
 
 // Named exports
 export {
@@ -18,7 +28,13 @@ export {
   createReactiveComponent,
   createFormState,
   createRenderHelper,
-  // loadClient
+  initializeYamf,
+  getYamf,
+  waitForElement,
+  isMobileBrowser,
+  loadResource,
+  router,
+  hashRouter
 }
 
 // Default export for backward compatibility
@@ -30,5 +46,11 @@ export default {
   createReactiveComponent,
   createFormState,
   createRenderHelper,
-  // loadClient
+  initializeYamf,
+  getYamf,
+  waitForElement,
+  isMobileBrowser,
+  loadResource,
+  router,
+  hashRouter
 }

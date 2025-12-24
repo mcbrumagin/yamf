@@ -75,7 +75,7 @@ import * as streamingTests from './cases/streaming-tests.js'
 import * as headerCommandTests from './cases/header-command-tests.js'
 import * as errorHandlingTests from './cases/error-handling-tests.js'
 import * as edgeCaseTests from './cases/edge-case-tests.js'
-import * as loadBalancerTests from './cases/load-balancer-tests.js'
+// import * as loadBalancerTests from './integration/load-balancer-tests.js'
 import * as subscriptionTests from './cases/subscription-tests.js'
 import * as registryTokenTests from './cases/registry-token-tests.js'
 import * as cryptoTests from './cases/crypto-tests.js'
@@ -83,6 +83,7 @@ import * as contentTypeDetectorTests from './cases/content-type-detector-tests.j
 import * as routeRegistryTests from './cases/route-registry-tests.js'
 import * as registryAuthTests from './cases/registry-auth-tests.js'
 import * as serviceValidatorTests from './cases/service-validator-tests.js'
+import * as accessControlTests from './cases/access-control-tests.js'
 
 
 // --- External Module Tests --- //
@@ -122,7 +123,6 @@ runner.addSuites({
   headerCommandTests,
   errorHandlingTests,
   edgeCaseTests,
-  loadBalancerTests,
   cacheServiceTests,
   subscriptionTests,
   cryptoTests,
@@ -130,6 +130,7 @@ runner.addSuites({
   routeRegistryTests,
   registryAuthTests,
   serviceValidatorTests,
+  accessControlTests,
 
   testTests,
   exampleBasicTests,
