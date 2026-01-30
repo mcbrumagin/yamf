@@ -23,3 +23,6 @@ export * from './shared/yamf-headers.js'
 export { envConfig } from './shared/index.js'
 
 export * from './shared/crypto.js'
+
+// Rate Limiter
+export * from './rate-limiter/index.js'

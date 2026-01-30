@@ -84,7 +84,8 @@ import * as routeRegistryTests from './cases/route-registry-tests.js'
 import * as registryAuthTests from './cases/registry-auth-tests.js'
 import * as serviceValidatorTests from './cases/service-validator-tests.js'
 import * as accessControlTests from './cases/access-control-tests.js'
-
+import * as rateLimiterTests from './cases/rate-limiter-tests.js'
+import * as rateLimiterIntegrationTests from './integration/rate-limiter-integration-tests.js'
 
 // --- External Module Tests --- //
 
@@ -131,7 +132,9 @@ runner.addSuites({
   registryAuthTests,
   serviceValidatorTests,
   accessControlTests,
-
+  rateLimiterTests,
+  rateLimiterIntegrationTests,
+  
   testTests,
   exampleBasicTests,
   exampleServiceTests,

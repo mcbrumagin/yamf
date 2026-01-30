@@ -15,14 +15,22 @@ import {
 } from './service-registry.js'
 import { registerRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
-import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/yamf-headers.js'
+import { HEADERS,COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/yamf-headers.js'
 import HttpError from '../http-primitives/http-error.js'
 import { validateRegistryToken } from './registry-auth.js'
+import envConfig from '../shared/env-config.js'
 
 import { localState } from '../shared/local-state.js'
 import readStream from '../http-primitives/read-stream.js'
 
 import Logger from '../utils/logger.js'
+
+// Rate limiter imports
+import { 
+  checkRateLimit, 
+  setServiceRateLimit 
+} from '../rate-limiter/rate-limiter.js'
+import { serializeConfig } from '../rate-limiter/rate-limiter-config.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
 
@@ -54,6 +62,18 @@ function handleHealthCheck() {
 function handleRegistryPull(state) {
   logger.debug('handleRegistryPull - gateway requesting full registry state')
   
+  // Serialize rate limit configs for transmission (from pre-bound configs)
+  // Note: customKeyFn cannot be serialized - gateway must define its own if needed
+  const serializedRateLimits = {}
+  for (const [service, config] of state.rateLimitConfig.services.entries()) {
+    serializedRateLimits[service] = serializeConfig(config)
+  }
+  
+  // Also include default config if set
+  const defaultRateLimit = state.rateLimitConfig.default 
+    ? serializeConfig(state.rateLimitConfig.default)
+    : null
+  
   return {
     services: Object.fromEntries(
       Array.from(state.services.entries()).map(([name, locations]) => [
@@ -66,6 +86,10 @@ function handleRegistryPull(state) {
     serviceAuth: Object.fromEntries(state.serviceAuth),
     serviceAccess: Object.fromEntries(state.serviceAccess),
     serviceMetadata: Object.fromEntries(state.serviceMetadata),
+    rateLimitConfig: {
+      default: defaultRateLimit,
+      services: serializedRateLimits
+    },
     timestamp: Date.now()
   }
 }
@@ -85,7 +109,8 @@ async function handleRegister(state, payload, headers = {}) {
   const {
     command, serviceName, serviceLocation,
     useAuthService, accessControl,
-    routePath, routeDataType, routeType
+    routePath, routeDataType, routeType,
+    rateLimitRequired
   } = parseCommandHeaders(headers)
   
   // Header-based registration
@@ -96,6 +121,25 @@ async function handleRegister(state, payload, headers = {}) {
     if (!serviceLocation) {
       throw new HttpError(400, 'SERVICE_REGISTER requires yamf-service-location header')
     }
+    
+    // Safety check: if service requires rate limit, verify config exists
+    if (rateLimitRequired === true) {
+      const hasServiceConfig = state.rateLimitConfig.services.has(serviceName)
+      const hasDefaultConfig = state.rateLimitConfig.default !== null
+      
+      if (!hasServiceConfig && !hasDefaultConfig) {
+        throw new HttpError(400, 
+          `Service "${serviceName}" requires rate limiting (rateLimit: true) but no rate limit is configured. ` +
+          `Either configure a service-specific rate limit or a default rate limit on the registry.`
+        )
+      }
+      
+      logger.info(`Service "${serviceName}" rate limit requirement satisfied: ${hasServiceConfig ? 'service-specific' : 'default'}`)
+    }
+    
+    // TODO: Hybrid rate limiting - if service provides rateLimit config object
+    // and registry has no pre-bind, store service's config as the service-specific limit
+    
     return registerService(state, { 
       service: serviceName,
       location: serviceLocation,
@@ -127,13 +171,75 @@ async function handleRegister(state, payload, headers = {}) {
 }
 
 /**
+ * Determine which service a request is targeting
+ * Used for service-specific rate limiting
+ */
+function findTargetService(state, headers, url) {
+  // Check for service name in headers (service call)
+  const { serviceName } = parseCommandHeaders(headers)
+  if (serviceName) return serviceName
+  
+  // Check if URL matches a route
+  const routeMatch = state.routes.get(url)
+  if (routeMatch?.service) return routeMatch.service
+  
+  // Check controller routes
+  const controllerMatch = findControllerRoute(state, url)
+  if (controllerMatch?.service) return controllerMatch.service
+  
+  return null
+}
+
+/**
+ * Apply rate limit headers to response
+ */
+function applyRateLimitHeaders(response, headers) {
+  for (const [header, value] of Object.entries(headers)) {
+    response.setHeader(header, value)
+  }
+}
+
+/**
+ * Check headers to determine if a rate limit should be applied
+ */
+function shouldApplyRateLimit(headers) {
+  let command = headers[HEADERS.COMMAND]
+  if (command === COMMANDS.SERVICE_CALL
+  || command === COMMANDS.PUBSUB_PUBLISH
+  || command === COMMANDS.HEALTH
+  || command === COMMANDS.REGISTRY_PULL) return true
+  else return false
+}
+
+/**
  * Route incoming commands to their handlers
+ * PRIORITY 0: Rate limit check (if enabled)
  * PRIORITY 1: Command headers (yamf-command)
  * PRIORITY 2: HTTP routes (URL-based)
  */
 export async function routeCommand(state, payload, request, response, options = {}) {
   const { defaultStartPort = 10000, handlerFn } = options
   const headers = request.headers || {}
+  
+  // PRIORITY 0: Rate limit check for service calls (before any processing)
+  // Only apply if rate limiting is configured (default or service-specific)
+  const hasRateLimitConfig = state.rateLimitConfig.default !== null || state.rateLimitConfig.services.size > 0
+  if (state.rateLimiter && hasRateLimitConfig && shouldApplyRateLimit(headers)) {
+    // Determine target service for service-specific rate limiting
+    const targetService = findTargetService(state, headers, request.url)
+    
+    const rateLimitResult = checkRateLimit(state.rateLimiter, request, {
+      serviceName: targetService,
+      payload
+    })
+    
+    // Always add rate limit headers to response
+    applyRateLimitHeaders(response, rateLimitResult.headers)
+    
+    if (!rateLimitResult.allowed) {
+      throw rateLimitResult.error // HttpError 429
+    }
+  }
   
   // PRIORITY 1: Command-based routing (for service operations, pubsub, etc.)
   const isHeaderCommand = isHeaderBasedCommand(headers)

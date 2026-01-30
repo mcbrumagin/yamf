@@ -1,7 +1,9 @@
 /**
- * Registry State Management
- * Manages all registry state including services, routes, and subscriptions
+ * Gateway State Management
+ * Manages all gateway state including services, routes, and subscriptions
  */
+
+import { createRateLimiterState, resetRateLimiterState } from '../rate-limiter/rate-limiter-state.js'
 
 export function createGatewayState() {
   return {
@@ -29,7 +31,24 @@ export function createGatewayState() {
     controllerRoutes: new Map(),
     
     // Subscription type -> Set<location>
-    subscriptions: new Map()
+    subscriptions: new Map(),
+    
+    // Pre-bound rate limit configuration (set at server startup)
+    // Structure: { default: RateLimitConfig | null, services: Map<serviceName, RateLimitConfig> }
+    rateLimitConfig: {
+      default: null,
+      services: new Map()
+    },
+    
+    // Flag indicating gateway has its own rate limit config (don't override with registry default)
+    gatewayOwnConfig: false,
+    
+    // Service rate limits synced from registry (merged with gateway's own)
+    // This is populated during registry pull
+    registryRateLimitServices: new Map(),
+    
+    // Rate limiter runtime state (gateway-local, not synced)
+    rateLimiter: createRateLimiterState()
   }
 }
 
@@ -43,6 +62,13 @@ export function resetState(state) {
   state.routes.clear()
   state.controllerRoutes.clear()
   state.subscriptions.clear()
+  state.registryRateLimitServices.clear()
+  
+  // Note: rateLimitConfig and gatewayOwnConfig are NOT reset - they're configuration set at startup
+  // Only reset the runtime rate limiter state
+  if (state.rateLimiter) {
+    resetRateLimiterState(state.rateLimiter)
+  }
 }
 
 /**

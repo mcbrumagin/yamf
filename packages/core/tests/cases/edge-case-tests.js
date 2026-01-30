@@ -282,13 +282,14 @@ export async function testRapidSequentialCalls() {
     })()),
     async () => {
       const results = []
-      for (let i = 0; i < 100; i++) {
+      // use 50 to avoid default rate limiting
+      for (let i = 0; i < 50; i++) {
         results.push(await callService('counterService', {}))
       }
       
       await assert(results,
-        r => r.length === 100,
-        r => r[99].count === 100 // Last call should be count 100
+        r => r.length === 50,
+        r => r[49].count === 50 // Last call should be count 100
       )
     }
   )

@@ -3,6 +3,8 @@
  * Manages all registry state including services, routes, and subscriptions
  */
 
+import { createRateLimiterState, resetRateLimiterState } from '../rate-limiter/rate-limiter-state.js'
+
 export function createRegistryState() {
   return {
     // Service name -> Set<location>
@@ -35,7 +37,17 @@ export function createRegistryState() {
     domainPorts: new Map(),
     
     // Subscription type -> Set<location>
-    subscriptions: new Map()
+    subscriptions: new Map(),
+    
+    // Pre-bound rate limit configuration (set at server startup)
+    // Structure: { default: RateLimitConfig | null, services: Map<serviceName, RateLimitConfig> }
+    rateLimitConfig: {
+      default: null,
+      services: new Map()
+    },
+    
+    // Rate limiter runtime state (registry-local, not synced)
+    rateLimiter: createRateLimiterState()
   }
 }
 
@@ -51,6 +63,12 @@ export function resetState(state) {
   state.controllerRoutes.clear()
   state.domainPorts.clear()
   state.subscriptions.clear()
+  
+  // Note: rateLimitConfig is NOT reset - it's configuration set at startup
+  // Only reset the runtime rate limiter state
+  if (state.rateLimiter) {
+    resetRateLimiterState(state.rateLimiter)
+  }
 }
 
 /**

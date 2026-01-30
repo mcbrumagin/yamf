@@ -115,11 +115,12 @@ export async function setupServiceWithRegistry(serviceName, serviceHome, options
  * @param {string} serviceName - Name of the service
  * @param {string} location - Service location (e.g. 'http://localhost:3001')
  * @param {Object} options - Registration options
+ * @param {boolean} [options.rateLimit] - If true, require rate limit config exists on registry
  * @returns {Promise<Object>} Registry data (services, addresses)
  */
 export async function registerServiceWithRegistry(serviceName, location, options = {}) {
   const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService, accessControl /* TODO?, pubsubChannels */ } = options
+  const { useAuthService, accessControl, rateLimit /* TODO?, pubsubChannels */ } = options
   
   logger.debug(`registerServiceWithRegistry - ${serviceName} at ${location}`)
   
@@ -128,7 +129,8 @@ export async function registerServiceWithRegistry(serviceName, location, options
     headers: buildRegisterHeaders(serviceName, location, {
       useAuthService,
       accessControl, // allows us to make services accessible through gateways
-      registryToken
+      registryToken,
+      rateLimit // rate limit configuration
     })
   })
 }

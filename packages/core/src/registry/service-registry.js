@@ -187,8 +187,9 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * @param {string} [options.useAuthService] - Auth service name for protected services
  * @param {string} [options.accessControl] - Access control level ('pure', 'local', 'private', 'public')
  * @param {Object} [options.metadata] - Service metadata (for special services like gateway)
+ * @param {Object} [options.rateLimit] - Rate limit configuration for this service
  */
-export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {} }) {
+export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit }) {
   logger.debug(`registerService - service "${service}" registering for ${location} (accessControl: ${accessControl})`)
   
   // Check for pure service load-balancing attempt
@@ -241,6 +242,12 @@ export async function registerService(state, { service, location, useAuthService
   if (accessControl) {
     state.serviceAccess.set(service, accessControl)
     logger.info(`Stored access control for "${service}":`, accessControl)
+  }
+  
+  // Store rate limit configuration if provided
+  if (rateLimit && typeof rateLimit === 'object') {
+    state.serviceRateLimit.set(service, rateLimit)
+    logger.info(`Stored rate limit config for "${service}":`, rateLimit)
   }
   
   // Store metadata if provided (for special services like gateway)
@@ -530,9 +537,21 @@ export async function streamProxyServiceCall(state, { name, request, response })
       logger.debug('streamProxyServiceCall - request stream ended')
     })
 
-    // Pipe request body directly to service (no buffering)
-    // Make sure to properly end the proxy request when input ends
-    request.pipe(proxyReq, { end: true })
+    // If body was already parsed (e.g., for custom key rate limiting), send the parsed body
+    // Otherwise, pipe the request stream directly to service (no buffering)
+    // TODO remove this once we have a new built-in service to offload customKeyFn processing for rate limits
+    if (request._parsedBody !== undefined) {
+      const bodyData = typeof request._parsedBody === 'string' 
+        ? request._parsedBody 
+        : JSON.stringify(request._parsedBody)
+      proxyReq.write(bodyData)
+      proxyReq.end()
+      logger.debug('streamProxyServiceCall - sent parsed body')
+    } else {
+      // Pipe request body directly to service (no buffering)
+      // Make sure to properly end the proxy request when input ends
+      request.pipe(proxyReq, { end: true })
+    }
   }).catch(err => {
     // Additional safety: catch any unhandled rejections in the promise chain
     logger.debugErr('Caught unhandled error in streamProxyServiceCall:', err)

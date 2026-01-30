@@ -59,6 +59,7 @@ const DEFAULT_CONFIG = {
  *   - 'local': HTTP server, accessible only from same node
  *   - 'private': HTTP server, accessible from any service (default)
  *   - 'public': HTTP server, accessible via gateway (external clients)
+ * @param {boolean} [options.rateLimit] - If true, require rate limit config exists on registry/gateway
  * @returns {Promise<Object>} HTTP server instance with service metadata (or minimal object for 'pure')
  * 
  * @example
@@ -78,6 +79,12 @@ const DEFAULT_CONFIG = {
  * const service = await createService('helperService', async function(payload) {
  *   return { computed: payload.x * 2 }
  * }, { accessControl: 'pure' })
+ * 
+ * @example
+ * // Service requiring rate limit (safety check)
+ * const service = await createService('auth-service', async function(payload) {
+ *   return { authenticated: true }
+ * }, { accessControl: 'public', rateLimit: true })
  */
 export default async function createService(name, serviceFn, options = {}) {
   if (
