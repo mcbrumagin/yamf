@@ -76,6 +76,12 @@ importers:
         specifier: ^4.0.5
         version: 4.0.5
 
+  packages/shared:
+    devDependencies:
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../test
+
   packages/test:
     dependencies:
       '@yamf/core':

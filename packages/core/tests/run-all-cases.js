@@ -89,6 +89,8 @@ import * as rateLimiterIntegrationTests from './integration/rate-limiter-integra
 
 // --- External Module Tests --- //
 
+import * as validatorTests from '../../shared/tests/validator-tests.js'
+
 import * as testTests from '../../test/tests/tests.js'
 import * as exampleBasicTests from '../../test/examples/example-basic-tests.js'
 import * as exampleServiceTests from '../../test/examples/example-service-tests.js'
@@ -135,6 +137,7 @@ runner.addSuites({
   rateLimiterTests,
   rateLimiterIntegrationTests,
   
+  validatorTests,
   testTests,
   exampleBasicTests,
   exampleServiceTests,

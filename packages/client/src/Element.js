@@ -9,6 +9,10 @@ const booleanAttributes = new Set([
 
 export default class Element {
 
+  encodeContext(context) { // \xHH format encoding?
+    // TODO
+  }
+
   bindEventAttributes() {
     for (let attr in this.attributes) {
       if (/^on/i.test(attr) && typeof this.attributes[attr] === 'function') {
@@ -45,14 +49,14 @@ export default class Element {
     for (let handlerName in this.__listeners__) {
       let eventName = this.__listeners__[handlerName]
       let domEventHandler = `yamf.__listeners__[${handlerName}](event)`
-      if (events[eventName]) events[eventName].push(domEventHandler)
+      if (events[eventName]) events[eventName].push(domEventHandler) // TODO XSS CHECK?
       else events[eventName] = [domEventHandler]
     }
 
     let domEventHandlerText = ''
     for (let event in events) {
       let domEventHandlers = events[event]
-      domEventHandlerText += ` ${event}="${domEventHandlers.join(';')}"`
+      domEventHandlerText += ` ${event}="${domEventHandlers.join(';')}"` // TODO XSS CHECK?
     }
     return domEventHandlerText
   }
@@ -71,11 +75,11 @@ export default class Element {
       if (booleanAttributes.has(attrName.toLowerCase())) {
         // Only render if truthy
         if (attrVal) {
-          attributes += ` ${attrName}`
+          attributes += ` ${attrName}` // TODO XSS CHECK?
         }
       } else {
         // For non-boolean attributes, render with value
-        attributes += ` ${attrName}="${attrVal}"`
+        attributes += ` ${attrName}="${attrVal}"` // TODO XSS CHECK?
       }
     }
     return attributes
@@ -83,7 +87,7 @@ export default class Element {
 
   render() {
     let result = `<${this.tag}${this.renderAttributes()}${this.renderListeners()}>${
-      this.children.map(elem => elem && elem.toString() || '').join('')
+      this.children.map(elem => elem && elem.toString() || '').join('') // TODO XSS CHECK
     }${this.isVoid ? '' : `</${this.tag}>`}`
 
     // TODO this is a bad hack... need actual dom change event listener to call this
@@ -144,7 +148,7 @@ export default class Element {
         if (typeof document !== 'undefined') {
           const domElement = this.toDomNode()
           if (domElement) {
-            domElement[targetProp] = value
+            domElement[targetProp] = value // TODO XSS CHECK?
           }
         }
         // For server-side rendering, we'll update children
@@ -154,7 +158,7 @@ export default class Element {
       } else {
         // Update attribute
         if (!this.attributes) this.attributes = {}
-        this.attributes[targetProp] = value
+        this.attributes[targetProp] = value // TODO XSS CHECK?
       }
     })
 
@@ -237,8 +241,8 @@ export default class Element {
     }
 
     let result = `<${this.tag}${this.renderAttributes()}${this.renderListeners()}>${
-      this.children.map(elem => elem && elem.toString() || '').join('')
-    }${this.isVoid ? '' : `</${this.tag}>`}`
+      this.children.map(elem => elem && elem.toString() || '').join('') // TODO XSS CHECK
+    }${this.isVoid ? '' : `</${this.tag}>`}` // TODO XSS CHECK
 
     // TODO this is a bad hack... need actual dom change event listener to call this
     if (this.ready) setTimeout(this.ready, 20)
