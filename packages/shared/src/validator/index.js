@@ -28,6 +28,16 @@ import { is, isSchema, SCHEMA_SYMBOL } from './is.js'
 import { validate } from './validate.js'
 import { validateSchema } from './schema-validation.js'
 import { ValidationError, ValidationFailure, SchemaError } from './errors.js'
+import xss, { 
+  trusted, 
+  isTrusted, 
+  encode, 
+  sanitize, 
+  detect,
+  validAttributes,
+  isValidAttributeName,
+  isEventAttribute 
+} from '../security/xss.js'
 
 /**
  * Create a reusable validator function from a schema
@@ -109,6 +119,21 @@ export { ValidationError, ValidationFailure, SchemaError }
  * Schema symbol for identification
  */
 export { SCHEMA_SYMBOL }
+
+/**
+ * XSS utilities
+ */
+export { 
+  xss,
+  trusted, 
+  isTrusted, 
+  encode, 
+  sanitize, 
+  detect,
+  validAttributes,
+  isValidAttributeName,
+  isEventAttribute 
+}
 
 // Default export is `is` for convenient usage
 export default is

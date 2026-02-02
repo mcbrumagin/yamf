@@ -6,13 +6,15 @@
   "main": "src/index.js",
   "homepage": "https://github.com/mcbrumagin/yamf",
   "scripts": {
-    "test": "node tests/validator-tests.js"
+    "test": "node tests/run-tests.js"
   },
   "exports": {
     ".": "./src/index.js",
     "./validator": "./src/validator/index.js",
     "./validators": "./src/validators.js",
-    "./utils": "./src/utils.js"
+    "./utils": "./src/utils.js",
+    "./security": "./src/security/xss.js",
+    "./security/xss": "./src/security/xss.js"
   },
   "engines": {
     "node": ">=20.0.0"

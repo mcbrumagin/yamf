@@ -11,7 +11,11 @@ import {
   validate, 
   isSchema,
   ValidationError, 
-  SchemaError 
+  SchemaError,
+  trusted,
+  isTrusted,
+  encode,
+  detect
 } from '../src/validator/index.js'
 
 // =============================================================================
@@ -732,5 +736,210 @@ export async function testFailsAnyOfNoMatch() {
   assert(result,
     r => r.valid === false,
     r => r.failures[0].constraint === 'anyOf'
+  )
+}
+
+// =============================================================================
+// XSS Prevention Tests
+// =============================================================================
+
+export async function testStringDefaultHasXssCheck() {
+  // Default string schema should have xss: 'check'
+  const schema = is.string()
+  assert(schema,
+    s => s.xss === 'check'
+  )
+}
+
+export async function testXssCheckFailsOnScriptTag() {
+  const result = validate('<script>alert("xss")</script>', is.string())
+  assert(result,
+    r => r.valid === false,
+    r => r.failures[0].constraint === 'xss',
+    r => r.failures[0].message.includes('script tag')
+  )
+}
+
+export async function testXssCheckFailsOnJavascriptUrl() {
+  const result = validate('javascript:alert(1)', is.string())
+  assert(result,
+    r => r.valid === false,
+    r => r.failures[0].constraint === 'xss',
+    r => r.failures[0].message.includes('javascript: URL')
+  )
+}
+
+export async function testXssCheckFailsOnEventHandler() {
+  const result = validate('<img onerror="alert(1)">', is.string())
+  assert(result,
+    r => r.valid === false,
+    r => r.failures[0].constraint === 'xss'
+  )
+}
+
+export async function testXssCheckFailsOnIframe() {
+  const result = validate('<iframe src="evil.com"></iframe>', is.string())
+  assert(result,
+    r => r.valid === false,
+    r => r.failures[0].constraint === 'xss'
+  )
+}
+
+export async function testXssCheckPassesSafeString() {
+  const result = validate('Hello, World!', is.string())
+  assert(result,
+    r => r.valid === true,
+    r => r.failures.length === 0
+  )
+}
+
+export async function testXssCheckPassesHtmlEntities() {
+  // Already encoded HTML should pass
+  const result = validate('&lt;script&gt;', is.string())
+  assert(result,
+    r => r.valid === true
+  )
+}
+
+export async function testXssSanitizeModeEncodesContent() {
+  const schema = is.string({ xss: 'sanitize' })
+  const result = validate('<script>alert(1)</script>', schema)
+  assert(result,
+    r => r.valid === true,
+    r => r.data === '&lt;script&gt;alert(1)&lt;/script&gt;'
+  )
+}
+
+export async function testUnsafeStringDisablesXssCheck() {
+  const result = validate('<script>alert(1)</script>', is.unsafeString())
+  assert(result,
+    r => r.valid === true,
+    r => r.data === '<script>alert(1)</script>'
+  )
+}
+
+export async function testTrustedModifierDisablesXssCheck() {
+  const schema = is(is.trusted, is.string())
+  const result = validate('<script>alert(1)</script>', schema)
+  assert(result,
+    r => r.valid === true
+  )
+}
+
+export async function testEmailValidationIncludesXssCheck() {
+  // Email with script injection should fail
+  const result = validate('<script>@example.com', is.email)
+  assert(result,
+    r => r.valid === false,
+    r => r.failures.some(f => f.constraint === 'xss')
+  )
+}
+
+export async function testUrlValidationIncludesXssCheck() {
+  // URL with javascript: should fail
+  const result = validate('javascript:alert(1)', is.url)
+  assert(result,
+    r => r.valid === false,
+    r => r.failures.some(f => f.constraint === 'xss')
+  )
+}
+
+export async function testPasswordValidationIncludesXssCheck() {
+  // Password with script should fail
+  const result = validate('<script>SecurePass1', is.password())
+  assert(result,
+    r => r.valid === false,
+    r => r.failures.some(f => f.constraint === 'xss')
+  )
+}
+
+// =============================================================================
+// XSS Utility Function Tests
+// =============================================================================
+
+export async function testEncodeHtmlEncodesSpecialChars() {
+  const encoded = encode.html('<script>alert("xss")</script>')
+  assert(encoded,
+    e => e === '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
+  )
+}
+
+export async function testEncodeHtmlEncodesAmpersand() {
+  const encoded = encode.html('Tom & Jerry')
+  assert(encoded, e => e === 'Tom &amp; Jerry')
+}
+
+export async function testEncodeHtmlEncodesSingleQuotes() {
+  const encoded = encode.html("it's")
+  assert(encoded, e => e === 'it&#x27;s')
+}
+
+export async function testDetectContainsXssFindsScriptTags() {
+  assert(detect.containsXss('<script>'), r => r === true)
+  assert(detect.containsXss('hello'), r => r === false)
+}
+
+export async function testDetectGetXssPatternsReturnsDescriptions() {
+  const patterns = detect.getXssPatterns('<script>alert(1)</script>')
+  assert(patterns,
+    p => Array.isArray(p),
+    p => p.includes('script tag'),
+    p => p.includes('script close tag')
+  )
+}
+
+export async function testTrustedWrapperWorks() {
+  const wrapped = trusted('<b>bold</b>')
+  assert(wrapped,
+    w => isTrusted(w) === true,
+    w => w.value === '<b>bold</b>',
+    w => w.toString() === '<b>bold</b>'
+  )
+}
+
+export async function testIsTrustedReturnsFalseForNonTrusted() {
+  assert(isTrusted('hello'), r => r === false)
+  assert(isTrusted(null), r => r === false)
+  assert(isTrusted(undefined), r => r === false)
+  assert(isTrusted({}), r => r === false)
+}
+
+// =============================================================================
+// XSS with Other Constraints
+// =============================================================================
+
+export async function testXssCheckWithMinLength() {
+  // XSS check should happen before minLength
+  const schema = is.string({ minLength: 100 })
+  const result = validate('<script>', schema)
+  assert(result,
+    r => r.valid === false,
+    r => r.failures.some(f => f.constraint === 'xss')
+  )
+}
+
+export async function testXssSanitizePreservesLengthConstraints() {
+  // After sanitization, the string should still be validated for length
+  const schema = is.string({ xss: 'sanitize', maxLength: 10 })
+  const result = validate('<b>hello</b>', schema)
+  assert(result,
+    r => r.valid === false,
+    r => r.failures[0].constraint === 'maxLength'
+  )
+}
+
+export async function testXssCheckWithPattern() {
+  // Safe string that matches alphanumeric should pass
+  const result = validate('hello123', is.alphanumeric())
+  assert(result, r => r.valid === true)
+}
+
+export async function testXssCheckFailsBeforePattern() {
+  // XSS should be checked even with pattern constraint
+  const schema = is.string({ pattern: 'alphanumeric' })
+  const result = validate('<script>alert(1)</script>', schema)
+  assert(result,
+    r => r.valid === false,
+    r => r.failures.some(f => f.constraint === 'xss')
   )
 }

@@ -19,6 +19,16 @@ import {
   hashRouter
 } from './client-utils.js'
 
+// Import and re-export XSS utilities from shared for client convenience
+import { 
+  trusted, 
+  isTrusted,
+  encode,
+  sanitize 
+} from '@yamf/shared'
+
+export { trusted, isTrusted, encode, sanitize }
+
 // Named exports
 export {
   Element,
@@ -52,5 +62,10 @@ export default {
   isMobileBrowser,
   loadResource,
   router,
-  hashRouter
+  hashRouter,
+  // XSS utilities
+  trusted,
+  isTrusted,
+  encode,
+  sanitize
 }

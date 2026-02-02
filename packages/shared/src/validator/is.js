@@ -6,6 +6,14 @@
  * 2. As a composer function: is(is.optional, is.string({ maxLength: 50 }))
  * 
  * All type builders return plain schema objects (declarative, serializable).
+ * 
+ * XSS Protection:
+ * By default, all string types use xss: 'check' which fails validation if
+ * XSS patterns are detected. This teaches developers about security issues
+ * and forces explicit decisions:
+ * - xss: 'check' (default) - Fail if XSS detected
+ * - xss: 'sanitize' - Encode dangerous characters
+ * - xss: false - Disable XSS checks (use is.unsafeString)
  */
 
 // Schema type symbols for identification
@@ -67,9 +75,29 @@ function is(...schemas) {
 /**
  * String type
  * Constraints: minLength, maxLength, pattern, trim, lowercase, uppercase
+ * 
+ * XSS Protection (default: 'check'):
+ * - xss: 'check' - Fail validation if XSS patterns detected (default)
+ * - xss: 'sanitize' - Encode dangerous characters in output
+ * - xss: false - Disable XSS checks (use is.unsafeString instead)
  */
 is.string = function string(opts = {}) {
-  return schema('string', opts)
+  // Default to XSS check mode for security
+  return schema('string', { xss: 'check', ...opts })
+}
+
+/**
+ * Unsafe string type - explicitly disables XSS protection
+ * Use when you need raw string input without XSS checks.
+ * 
+ * WARNING: Only use when you trust the input source or will sanitize manually.
+ * A warning is logged in non-production environments.
+ */
+is.unsafeString = function unsafeString(opts = {}) {
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+    // Warning is logged at validation time, not schema creation time
+  }
+  return schema('string', { ...opts, xss: false, __unsafe__: true })
 }
 
 /**
@@ -95,13 +123,15 @@ is.bool = schema('bool')
 
 /**
  * Email type (string with email pattern)
+ * XSS protection enabled by default
  */
-is.email = schema('email')
+is.email = schema('email', { xss: 'check' })
 
 /**
  * URL type (string with URL pattern)
+ * XSS protection enabled by default
  */
-is.url = schema('url')
+is.url = schema('url', { xss: 'check' })
 
 /**
  * Date type (ISO date string: YYYY-MM-DD)
@@ -196,6 +226,18 @@ is.nullable = schema('modifier', { nullable: true })
  */
 is.nilable = schema('modifier', { nullable: true, optional: true })
 
+/**
+ * Trusted modifier - marks content as trusted (disables XSS checks)
+ * Use when content comes from a trusted source (e.g., CMS, admin input)
+ * 
+ * WARNING: This disables XSS protection. Only use for genuinely trusted content.
+ * A warning is logged in non-production environments.
+ * 
+ * @example
+ * is(is.trusted, is.string()) // XSS checks disabled for this field
+ */
+is.trusted = schema('modifier', { xss: false, __trusted__: true })
+
 // =============================================================================
 // Custom Validation
 // =============================================================================
@@ -247,21 +289,24 @@ is.patterns = {
 
 /**
  * String with alphanumeric pattern
+ * XSS protection enabled by default
  */
 is.alphanumeric = function alphanumeric(opts = {}) {
-  return schema('string', { pattern: 'alphanumeric', ...opts })
+  return schema('string', { xss: 'check', pattern: 'alphanumeric', ...opts })
 }
 
 /**
  * UUID string
+ * XSS protection enabled by default
  */
-is.uuid = schema('string', { pattern: 'uuid' })
+is.uuid = schema('string', { xss: 'check', pattern: 'uuid' })
 
 /**
  * Slug string (lowercase, hyphens)
+ * XSS protection enabled by default
  */
 is.slug = function slug(opts = {}) {
-  return schema('string', { pattern: 'slug', ...opts })
+  return schema('string', { xss: 'check', pattern: 'slug', ...opts })
 }
 
 // =============================================================================
@@ -270,10 +315,12 @@ is.slug = function slug(opts = {}) {
 
 /**
  * Password type with configurable strength requirements
+ * XSS protection enabled by default (passwords can contain special chars)
  * @param {Object} opts - minLength, requireUppercase, requireLowercase, requireNumber, requireSpecial
  */
 is.password = function password(opts = {}) {
   return schema('password', {
+    xss: 'check',
     minLength: 8,
     requireUppercase: true,
     requireLowercase: true,

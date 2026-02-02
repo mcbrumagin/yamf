@@ -7,6 +7,7 @@
 
 import { ValidationFailure, ValidationError } from './errors.js'
 import { SCHEMA_SYMBOL, isSchema, is } from './is.js'
+import { containsXss, getXssPatterns, encodeHtml } from '../security/xss.js'
 
 /**
  * Validate data against a schema
@@ -60,7 +61,7 @@ export function validate(data, schema, options = {}) {
   
   switch (type) {
     case 'string':
-      validateString(data, schema, path, failures)
+      data = validateString(data, schema, path, failures)
       break
     case 'int':
       validateInt(data, schema, path, failures)
@@ -72,10 +73,10 @@ export function validate(data, schema, options = {}) {
       validateBool(data, schema, path, failures)
       break
     case 'email':
-      validateEmail(data, schema, path, failures)
+      data = validateEmail(data, schema, path, failures)
       break
     case 'url':
-      validateUrl(data, schema, path, failures)
+      data = validateUrl(data, schema, path, failures)
       break
     case 'date':
       validateDate(data, schema, path, failures)
@@ -104,7 +105,7 @@ export function validate(data, schema, options = {}) {
       validateAllOf(data, schema, path, failures)
       break
     case 'password':
-      validatePassword(data, schema, path, failures)
+      data = validatePassword(data, schema, path, failures)
       break
     case 'custom':
       validateCustom(data, schema, path, failures)
@@ -142,10 +143,32 @@ export function validate(data, schema, options = {}) {
 function validateString(data, schema, path, failures) {
   if (typeof data !== 'string') {
     failures.push(new ValidationFailure(path, data, 'type', 'Expected a string'))
-    return
+    return data
   }
   
-  const { minLength, maxLength, pattern } = schema
+  const { minLength, maxLength, pattern, xss, __unsafe__, __trusted__ } = schema
+  
+  // XSS validation (default is 'check')
+  if (xss !== false && !__trusted__) {
+    if (xss === 'check' || xss === undefined) {
+      // Check mode: fail if XSS detected
+      if (containsXss(data)) {
+        const patterns = getXssPatterns(data)
+        failures.push(new ValidationFailure(path, '[XSS content hidden]', 'xss', 
+          `Potential XSS detected: ${patterns.join(', ')}. ` +
+          `Use is.unsafeString() if this content is trusted, or xss: 'sanitize' to encode it.`))
+      }
+    } else if (xss === 'sanitize') {
+      // Sanitize mode: encode dangerous characters
+      data = encodeHtml(data)
+    }
+  } else if (__unsafe__ && typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+    // Log warning for unsafe string usage in non-production
+    console.warn(
+      `[YAMF Security] is.unsafeString used at path "${path || 'root'}". ` +
+      `XSS protection is disabled. Ensure input is from a trusted source.`
+    )
+  }
   
   if (minLength !== undefined && data.length < minLength) {
     failures.push(new ValidationFailure(path, data, 'minLength', 
@@ -168,6 +191,8 @@ function validateString(data, schema, path, failures) {
         `String does not match ${patternName}`))
     }
   }
+  
+  return data
 }
 
 function validateInt(data, schema, path, failures) {
@@ -221,7 +246,17 @@ function validateBool(data, schema, path, failures) {
 function validateEmail(data, schema, path, failures) {
   if (typeof data !== 'string') {
     failures.push(new ValidationFailure(path, data, 'type', 'Expected a string'))
-    return
+    return data
+  }
+  
+  // XSS check (emails shouldn't contain XSS vectors)
+  const { xss } = schema
+  if (xss !== false) {
+    if (containsXss(data)) {
+      const patterns = getXssPatterns(data)
+      failures.push(new ValidationFailure(path, '[XSS content hidden]', 'xss', 
+        `Potential XSS detected in email: ${patterns.join(', ')}`))
+    }
   }
   
   // Basic email validation
@@ -229,12 +264,25 @@ function validateEmail(data, schema, path, failures) {
   if (!emailRegex.test(data)) {
     failures.push(new ValidationFailure(path, data, 'email', 'Invalid email address'))
   }
+  
+  return data
 }
 
 function validateUrl(data, schema, path, failures) {
   if (typeof data !== 'string') {
     failures.push(new ValidationFailure(path, data, 'type', 'Expected a string'))
-    return
+    return data
+  }
+  
+  // XSS check (reject javascript: URLs, etc.)
+  const { xss } = schema
+  if (xss !== false) {
+    if (containsXss(data)) {
+      const patterns = getXssPatterns(data)
+      failures.push(new ValidationFailure(path, '[XSS content hidden]', 'xss', 
+        `Potential XSS detected in URL: ${patterns.join(', ')}`))
+      return data
+    }
   }
   
   try {
@@ -242,6 +290,8 @@ function validateUrl(data, schema, path, failures) {
   } catch {
     failures.push(new ValidationFailure(path, data, 'url', 'Invalid URL'))
   }
+  
+  return data
 }
 
 function validateDate(data, schema, path, failures) {
@@ -427,7 +477,7 @@ function validateAllOf(data, schema, path, failures) {
 function validatePassword(data, schema, path, failures) {
   if (typeof data !== 'string') {
     failures.push(new ValidationFailure(path, data, 'type', 'Expected a string'))
-    return
+    return data
   }
   
   const { 
@@ -435,11 +485,21 @@ function validatePassword(data, schema, path, failures) {
     requireUppercase, 
     requireLowercase, 
     requireNumber, 
-    requireSpecial 
+    requireSpecial,
+    xss
   } = schema
   
+  // XSS check for passwords (unlikely but possible vector)
+  if (xss !== false) {
+    if (containsXss(data)) {
+      const patterns = getXssPatterns(data)
+      failures.push(new ValidationFailure(path, '[hidden]', 'xss', 
+        `Potential XSS detected in password: ${patterns.join(', ')}`))
+    }
+  }
+  
   if (data.length < minLength) {
-    failures.push(new ValidationFailure(path, data, 'minLength', 
+    failures.push(new ValidationFailure(path, '[hidden]', 'minLength', 
       `Password must be at least ${minLength} characters`))
   }
   
@@ -462,6 +522,8 @@ function validatePassword(data, schema, path, failures) {
     failures.push(new ValidationFailure(path, '[hidden]', 'special', 
       'Password must contain at least one special character'))
   }
+  
+  return data
 }
 
 function validateCustom(data, schema, path, failures) {

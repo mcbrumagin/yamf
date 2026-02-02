@@ -9,6 +9,10 @@ importers:
   .: {}
 
   packages/client:
+    dependencies:
+      '@yamf/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@yamf/test':
         specifier: workspace:*

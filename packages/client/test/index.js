@@ -16,7 +16,10 @@ import {
   waitForElement,
   isMobileBrowser,
   initializeYamf,
-  getYamf
+  getYamf,
+  trusted,
+  isTrusted,
+  encode
 } from '../src/index.js'
 
 import {
@@ -633,6 +636,167 @@ export function testNestedListStructure() {
 }
 
 // ============================================================================
+// XSS Prevention Tests
+// ============================================================================
+
+export function testXssEncodesStringChildren() {
+  const malicious = '<script>alert("xss")</script>'
+  const Element = div(p(malicious))
+  const result = Element.render()
+  
+  // Script tags should be encoded
+  assert(result,
+    r => r.includes('&lt;script&gt;'),
+    r => !r.includes('<script>')
+  )
+}
+
+export function testXssEncodesAttributeValues() {
+  const malicious = '"><script>alert(1)</script>'
+  const Element = input({ type: 'text', value: malicious })
+  const result = Element.render()
+  
+  // Quotes and tags should be encoded in attribute values
+  assert(result,
+    r => r.includes('&quot;'),
+    r => !r.includes('"><script>')
+  )
+}
+
+export function testXssTrustedContentNotEncoded() {
+  const safeHtml = trusted('<b>Bold text</b>')
+  const Element = div(safeHtml)
+  const result = Element.render()
+  
+  // Trusted content should NOT be encoded
+  assert(result,
+    r => r.includes('<b>Bold text</b>'),
+    r => !r.includes('&lt;b&gt;')
+  )
+}
+
+export function testXssTrustedAttributeNotEncoded() {
+  const safeValue = trusted('value with "quotes"')
+  const Element = div({ 'data-test': safeValue })
+  const result = Element.render()
+  
+  // Trusted attribute should NOT be encoded
+  assert(result,
+    r => r.includes('data-test="value with "quotes""')
+  )
+}
+
+export function testXssInvalidAttributeNameIgnored() {
+  // Invalid attribute names should be ignored
+  const Element = div({ 'onclick=alert(1) data-x': 'value', class: 'valid' })
+  const result = Element.render()
+  
+  // Valid class should be present, invalid attr should be ignored
+  assert(result,
+    r => r.includes('class="valid"'),
+    r => !r.includes('onclick=alert')
+  )
+}
+
+export function testXssValidDataAttributes() {
+  // Valid data-* attributes should work
+  const Element = div({ 'data-user-id': '123', 'data-role': 'admin' })
+  const result = Element.render()
+  
+  assert(result,
+    r => r.includes('data-user-id="123"'),
+    r => r.includes('data-role="admin"')
+  )
+}
+
+export function testXssValidAriaAttributes() {
+  // Valid aria-* attributes should work
+  const Element = button({ 'aria-label': 'Close', 'aria-expanded': 'false' })
+  const result = Element.render()
+  
+  assert(result,
+    r => r.includes('aria-label="Close"'),
+    r => r.includes('aria-expanded="false"')
+  )
+}
+
+export function testXssEncodesNestedStrings() {
+  const malicious = '<img src=x onerror=alert(1)>'
+  const Element = div(
+    p('Safe text'),
+    span(malicious),
+    p('More safe text')
+  )
+  const result = Element.render()
+  
+  // Malicious content should be encoded (angle brackets become entities)
+  // The full encoded string should be present, not the raw HTML tag
+  assert(result,
+    r => r.includes('&lt;img'),
+    r => r.includes('&gt;'),
+    r => !r.includes('<img')  // Raw tag should NOT be present
+  )
+}
+
+export function testXssMixedTrustedAndUntrusted() {
+  const safe = trusted('<em>emphasized</em>')
+  const unsafe = '<strong>not really</strong>'
+  
+  const Element = div(safe, ' and ', unsafe)
+  const result = Element.render()
+  
+  // Trusted should be raw, untrusted should be encoded
+  assert(result,
+    r => r.includes('<em>emphasized</em>'),
+    r => r.includes('&lt;strong&gt;')
+  )
+}
+
+export function testEncodeHtmlExported() {
+  // Verify encode function is available from client
+  const encoded = encode.html('<script>alert(1)</script>')
+  assert(encoded,
+    e => e === '&lt;script&gt;alert(1)&lt;/script&gt;'
+  )
+}
+
+export function testIsTrustedExported() {
+  // Verify isTrusted function is available from client
+  const wrapped = trusted('safe')
+  assert(wrapped,
+    w => isTrusted(w) === true
+  )
+  assert('unsafe', s => isTrusted(s) === false)
+}
+
+export function testXssEncodesAmpersands() {
+  const content = 'Tom & Jerry < Looney & Tunes'
+  const Element = p(content)
+  const result = Element.render()
+  
+  assert(result,
+    r => r.includes('Tom &amp; Jerry'),
+    r => r.includes('&lt; Looney')
+  )
+}
+
+export function testXssPreservesElementChildren() {
+  // Element children should render normally (they encode their own content)
+  const Element = div(
+    p('First'),
+    span(strong('Bold')),
+    p('Last')
+  )
+  const result = Element.render()
+  
+  assert(result,
+    r => r.includes('<p>First</p>'),
+    r => r.includes('<strong>Bold</strong>'),
+    r => r.includes('<p>Last</p>')
+  )
+}
+
+// ============================================================================
 // Run Tests
 // ============================================================================
 
@@ -669,7 +833,22 @@ runTests({
   testReactiveComponentBasic,
   testElementWithAttributes,
   testAttributeHandling,
-  testNestedListStructure
+  testNestedListStructure,
+
+  // XSS Prevention Tests
+  testXssEncodesStringChildren,
+  testXssEncodesAttributeValues,
+  testXssTrustedContentNotEncoded,
+  testXssTrustedAttributeNotEncoded,
+  testXssInvalidAttributeNameIgnored,
+  testXssValidDataAttributes,
+  testXssValidAriaAttributes,
+  testXssEncodesNestedStrings,
+  testXssMixedTrustedAndUntrusted,
+  testEncodeHtmlExported,
+  testIsTrustedExported,
+  testXssEncodesAmpersands,
+  testXssPreservesElementChildren
 }).catch(err => {
   console.error('Test suite failed:', err)
   process.exit(1)
