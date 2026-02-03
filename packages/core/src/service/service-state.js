@@ -5,38 +5,86 @@ const logger = new Logger({ logGroup: 'yamf-service' })
 /**
  * Service State Management
  * Manages local service cache of registry state
+ * 
+ * Uses Map/Set for consistency with registry/gateway state
  */
+
 
 /**
  * Create a new service cache state
- * Similar to registry state but for service-side caching
+ * Mirrors registry state structure for consistency
  */
 export function createServiceState() {
   return {
-    // service name -> [locations]
-    services: {},
+    // service name -> Set<location>
+    services: new Map(),
+
+    // service name -> access type ('pure', 'local', 'private', 'public', 'external')
+    serviceAccess: new Map(),
     
     // location -> service name (reverse lookup)
-    addresses: {},
+    addresses: new Map(),
 
-    // type -> Set<handler function> // use fn.name or a short hash of `fn.toString()` as key?
-    subscriptions: {}
+    // subscription type -> Set<location>
+    subscriptions: new Map()
   }
 }
 
 /**
+ * Convert Set to Array for serialization
+ */
+export function setToArray(set, mapFn = item => item) {
+  return Array.from(set, mapFn)
+}
+
+/**
+ * Serialize services Map to plain object for API responses
+ */
+export function serializeServicesMap(servicesMap) {
+  const result = {}
+  for (const [serviceName, locations] of servicesMap) {
+    result[serviceName] = setToArray(locations)
+  }
+  return result
+}
+
+/**
+ * Serialize Map to plain object
+ */
+export function serializeMap(map) {
+  return Object.fromEntries(map)
+}
+
+/**
  * Update cache with data from registry
+ * Converts plain objects back to Maps/Sets
  */
 export function updateCache(cache, registryData) {
-  // logger.debug(`updateCache: ${JSON.stringify({registryData})}`)
   if (registryData.addresses) {
-    cache.addresses = registryData.addresses
+    cache.addresses.clear()
+    for (const [loc, name] of Object.entries(registryData.addresses)) {
+      cache.addresses.set(loc, name)
+    }
   }
+  
   if (registryData.services) {
-    cache.services = registryData.services
+    cache.services.clear()
+    for (const [name, locations] of Object.entries(registryData.services)) {
+      cache.services.set(name, new Set(Array.isArray(locations) ? locations : [locations]))
+    }
   }
+  
+  if (registryData.serviceAccess) {
+    for (const [name, access] of Object.entries(registryData.serviceAccess)) {
+      cache.serviceAccess.set(name, access)
+    }
+  }
+  
   if (registryData.subscriptions) {
-    cache.subscriptions = registryData.subscriptions
+    cache.subscriptions.clear()
+    for (const [type, locations] of Object.entries(registryData.subscriptions)) {
+      cache.subscriptions.set(type, new Set(Array.isArray(locations) ? locations : [locations]))
+    }
   }
 }
 
@@ -44,37 +92,37 @@ export function updateCache(cache, registryData) {
  * Update cache with a single service/location pair
  * Used when registry broadcasts service additions
  */
-export function updateCacheEntry(cache, { subscription, service, location }) {
-  // logger.debug(`updateCacheEntry: ${JSON.stringify({service, location})}`)
-  if (!cache.addresses) cache.addresses = {}
-  if (!cache.services) cache.services = {}
-  if (!cache.subscriptions) cache.subscriptions = {}
+export function updateCacheEntry(cache, { subscription, service, accessControl, location }) {
+  logger.debug('updateCacheEntry', { subscription, service, accessControl, location })
   
-  // TODO implement subscription cache update
-
-  logger.debug('updateCacheEntry', { subscription, service, location })
+  // Handle service registration updates
   if (subscription === 'undefined' && service && service !== 'undefined') {
-    cache.addresses[location] = service
+    cache.addresses.set(location, service)
     
-    if (!cache.services[service]) {
-      cache.services[service] = []
+    if (!cache.services.has(service)) {
+      cache.services.set(service, new Set())
     }
     
-    // Only add if not already present
-    if (!cache.services[service].includes(location)) {
-      cache.services[service].push(location)
-    }
-  } else if (subscription && subscription !== 'undefined') {
-    // cache.addresses[location] = subscription
+    // Add location to service set
+    cache.services.get(service).add(location)
     
-    if (!cache.subscriptions[subscription]) {
-      cache.subscriptions[subscription] = []
+    // Handle access control for external pure/local services
+    // If a pure/local service exists on another node, mark it as 'external' here
+    if ((accessControl === 'pure' || accessControl === 'local') && !cache.serviceAccess.has(service)) {
+      cache.serviceAccess.set(service, 'external')
+      logger.debug(`Marked service "${service}" as external (${accessControl} on another node)`)
+    } else if (accessControl && accessControl !== 'pure' && accessControl !== 'local') {
+      // For private/public services, store the actual access control
+      cache.serviceAccess.set(service, accessControl)
+    }
+  } 
+  // Handle subscription updates
+  else if (subscription && subscription !== 'undefined') {
+    if (!cache.subscriptions.has(subscription)) {
+      cache.subscriptions.set(subscription, new Set())
     }
     
-    // Only add if not already present
-    if (!cache.subscriptions[subscription].includes(location)) {
-      cache.subscriptions[subscription].push(location)
-    }
+    cache.subscriptions.get(subscription).add(location)
   }
 }
 
@@ -82,17 +130,18 @@ export function updateCacheEntry(cache, { subscription, service, location }) {
  * Remove service from cache
  */
 export function removeFromCache(cache, { service, location }) {
-  // logger.debug(`removeFromCache: ${JSON.stringify({service, location})}`)
-  if (cache.addresses) {
-    delete cache.addresses[location]
-  }
+  // Remove from addresses
+  cache.addresses.delete(location)
   
-  if (cache.services && cache.services[service]) {
-    cache.services[service] = cache.services[service].filter(loc => loc !== location)
+  // Remove from services
+  const serviceLocations = cache.services.get(service)
+  if (serviceLocations) {
+    serviceLocations.delete(location)
     
     // Remove service entry if no locations remain
-    if (cache.services[service].length === 0) {
-      delete cache.services[service]
+    if (serviceLocations.size === 0) {
+      cache.services.delete(service)
+      cache.serviceAccess.delete(service)
     }
   }
 }
@@ -101,8 +150,30 @@ export function removeFromCache(cache, { service, location }) {
  * Clear all cache data
  */
 export function clearCache(cache) {
-  // logger.debug(`clearCache`)
-  cache.services = {}
-  cache.addresses = {}
+  cache.services.clear()
+  cache.serviceAccess.clear()
+  cache.addresses.clear()
+  cache.subscriptions.clear()
 }
 
+/**
+ * Check if a service exists in cache
+ */
+export function hasService(cache, serviceName) {
+  return cache.services.has(serviceName)
+}
+
+/**
+ * Get service locations from cache
+ */
+export function getServiceLocations(cache, serviceName) {
+  const locations = cache.services.get(serviceName)
+  return locations ? setToArray(locations) : []
+}
+
+/**
+ * Get service access control level
+ */
+export function getServiceAccess(cache, serviceName) {
+  return cache.serviceAccess.get(serviceName)
+}

@@ -31,7 +31,7 @@ const logger = new Logger({ logGroup: 'yamf-services' })
 // eventually will be backed by a database
 export default async function createAuthService({
   serviceName = 'auth-service',
-  useSessions = false
+  useSessions = 'refresh-only'
 } = {}) {
   if (useSessions && useSessions !== true && useSessions !== 'refresh-only') {
     throw new Error('useSessions must be true or "refresh-only"')
@@ -98,11 +98,22 @@ export default async function createAuthService({
     return next()
   }
 
+  const logout = async (payload, request, response) => {
+    // if we have an accessToken, verify it
+    // if we have a sessionToken verify it
+    // if neither exist, 403
+    // if one or both exist and are valid, remove them from sessions (if enabled)
+    // return set-cookie null (or equivalent to unset session cookie)
+    // access token revocation will rely on ephemeral client code (if no sessions)
+    // ???
+  }
+
   const getNewAccessToken = async (payload, request) => {
     logger.info(`checking cookie for refresh token ${request.headers.cookie}`)
 
     // TODO error if payload is not null? we are using the refresh token header
     if (!request.headers.cookie) {
+      console.warn("headers", request.headers)
       throw new HttpError(400, 'Invalid auth request')
     }
 
@@ -177,6 +188,7 @@ export default async function createAuthService({
   const server = await createService(serviceName, async function authService(payload, request, response) {
     // TODO bearer token?
     if (payload.authenticate) return authenticate(payload.authenticate, request, response)
+    else if (payload.logout) return logout(payload.logout, request, response)
     else if (payload.verifyAccess) return verifyAccessToken(payload.verifyAccess, request, response)
     else return getNewAccessToken(payload, request, response)
   })

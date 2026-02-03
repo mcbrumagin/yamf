@@ -10,6 +10,7 @@ import envConfig from '../shared/env-config.js'
 import retry from '../shared/retry-helper.js'
 import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../shared/yamf-headers.js'
 import Logger from '../utils/logger.js'
+import { hasLocalService, getLocalServiceAccess } from '../shared/local-state.js'
 
 const logger = new Logger({ logGroup: 'yamf-service-helpers' })
 
@@ -114,18 +115,54 @@ export async function setupServiceWithRegistry(serviceName, serviceHome, options
  * @param {string} serviceName - Name of the service
  * @param {string} location - Service location (e.g. 'http://localhost:3001')
  * @param {Object} options - Registration options
+ * @param {boolean} [options.rateLimit] - If true, require rate limit config exists on registry
  * @returns {Promise<Object>} Registry data (services, addresses)
  */
 export async function registerServiceWithRegistry(serviceName, location, options = {}) {
   const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService /* TODO?, pubsubChannels */ } = options
+  const { useAuthService, accessControl, rateLimit /* TODO?, pubsubChannels */ } = options
   
   logger.debug(`registerServiceWithRegistry - ${serviceName} at ${location}`)
   
   // TODO build pubsubChannels header for createSubscriptionService?
   return await httpRequest(registryHost, {
-    headers: buildRegisterHeaders(serviceName, location, useAuthService, registryToken)
+    headers: buildRegisterHeaders(serviceName, location, {
+      useAuthService,
+      accessControl, // allows us to make services accessible through gateways
+      registryToken,
+      rateLimit // rate limit configuration
+    })
   })
+}
+
+/**
+ * Notify registry of a pure service (for observability only)
+ * Pure services don't have HTTP servers, but we notify the registry so:
+ * 1. Other nodes know the name is taken
+ * 2. Observability tools can track all services
+ * 
+ * @param {string} serviceName - Name of the service
+ * @param {Object} options - Service options
+ * @returns {Promise<Object|null>} Registry data or null if notification fails
+ */
+export async function notifyRegistryOfPureService(serviceName, options = {}) {
+  const { registryHost, registryToken } = getRegistryConfig()
+  const { useAuthService } = options
+  
+  logger.debug(`notifyRegistryOfPureService - ${serviceName}`)
+  
+  try {
+    return await httpRequest(registryHost, {
+      headers: buildRegisterHeaders(serviceName, 'pure://local', {
+        useAuthService,
+        accessControl: 'pure',
+        registryToken
+      })
+    })
+  } catch (err) {
+    logger.warn(`Failed to notify registry of pure service "${serviceName}":`, err.message)
+    return null
+  }
 }
 
 /**
@@ -169,6 +206,24 @@ const serviceRegistrationRetryLimit = envConfig.get('YAMF_REGISTRATION_RETRY_LIM
 export async function createAndRegisterService(serviceName, handler, options = {}, retryInfo) {
   validateServiceName(serviceName)
   
+  // Check for local service name collision before proceeding
+  // This prevents issues if accessControl is changed later
+  if (hasLocalService(serviceName) && !retryInfo) {
+    const existingAccess = getLocalServiceAccess(serviceName)
+    // Only error if the existing service is pure (no HTTP server)
+    // If it has an HTTP server, it's the same service being registered (recursive retry)
+    if (existingAccess === 'pure') {
+      throw new Error(
+        `Cannot create service "${serviceName}" with HTTP server. ` +
+        `A pure service with this name already exists on this node.\n` +
+        `Options:\n` +
+        `  - Rename one of the services\n` +
+        `  - Change the pure service to use 'private' or 'local' access control\n` +
+        `  - Use a plain function instead of a pure service`
+      )
+    }
+  }
+
   /**
    * TODO need bug analysis and fix for dynamic ports
    * when running multiple services at localhost:4000-4018

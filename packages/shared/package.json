@@ -5,10 +5,16 @@
   "description": "Shared utilities for YAMF - truly isomorphic code that works in both browser and Node.js",
   "main": "src/index.js",
   "homepage": "https://github.com/mcbrumagin/yamf",
+  "scripts": {
+    "test": "node tests/run-tests.js"
+  },
   "exports": {
     ".": "./src/index.js",
+    "./validator": "./src/validator/index.js",
     "./validators": "./src/validators.js",
-    "./utils": "./src/utils.js"
+    "./utils": "./src/utils.js",
+    "./security": "./src/security/xss.js",
+    "./security/xss": "./src/security/xss.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -24,6 +30,9 @@
     "README.md",
     "LICENSE"
   ],
+  "devDependencies": {
+    "@yamf/test": "workspace:*"
+  },
   "license": "MIT",
   "author": "Matthew C Brumagin",
   "repository": {

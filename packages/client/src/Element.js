@@ -1,3 +1,11 @@
+import { 
+  encodeHtml, 
+  encodeAttr, 
+  isTrusted, 
+  unwrapTrusted,
+  isValidAttributeName,
+  isEventAttribute 
+} from '@yamf/shared'
 
 // List of boolean HTML attributes that should be rendered without values
 const booleanAttributes = new Set([
@@ -9,6 +17,18 @@ const booleanAttributes = new Set([
 
 export default class Element {
 
+  /**
+   * Encode a child element or string for safe HTML rendering
+   * @param {*} child - Child element or string to encode
+   * @returns {string} Safe HTML string
+   */
+  encodeChild(child) {
+    if (child == null) return ''
+    if (child instanceof Element) return child.render() // Already safe
+    if (isTrusted(child)) return unwrapTrusted(child)   // Explicitly trusted
+    return encodeHtml(String(child))                     // Encode raw strings
+  }
+
   bindEventAttributes() {
     for (let attr in this.attributes) {
       if (/^on/i.test(attr) && typeof this.attributes[attr] === 'function') {
@@ -19,7 +39,12 @@ export default class Element {
   }
 
   constructor(...args) {
-    if (typeof args[0] === 'object' && !(args[0] instanceof Element)) {
+    // First arg is attributes if it's a plain object (not Element, not trusted wrapper, not array)
+    if (typeof args[0] === 'object' && 
+        args[0] !== null &&
+        !(args[0] instanceof Element) && 
+        !isTrusted(args[0]) &&
+        !Array.isArray(args[0])) {
       this.attributes = args[0]
       this.__listeners__ = {} // TODO set-map?
       this.bindEventAttributes()
@@ -44,6 +69,16 @@ export default class Element {
 
     for (let handlerName in this.__listeners__) {
       let eventName = this.__listeners__[handlerName]
+      // Handler names are internally generated integers - safe by design
+      // The handler reference is just `yamf.__listeners__[N](event)`
+      // where N is a numeric index we control
+      if (!/^\d+$/.test(String(handlerName))) {
+        // Extra safety: skip non-numeric handler names (shouldn't happen)
+        if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+          console.warn(`[YAMF Security] Invalid handler name "${handlerName}" ignored`)
+        }
+        continue
+      }
       let domEventHandler = `yamf.__listeners__[${handlerName}](event)`
       if (events[eventName]) events[eventName].push(domEventHandler)
       else events[eventName] = [domEventHandler]
@@ -51,6 +86,14 @@ export default class Element {
 
     let domEventHandlerText = ''
     for (let event in events) {
+      // Event names are from our internal mapping (onclick, etc.)
+      // Validate they are valid event attribute names
+      if (!/^on[a-z]+$/i.test(event)) {
+        if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+          console.warn(`[YAMF Security] Invalid event name "${event}" ignored`)
+        }
+        continue
+      }
       let domEventHandlers = events[event]
       domEventHandlerText += ` ${event}="${domEventHandlers.join(';')}"`
     }
@@ -60,6 +103,24 @@ export default class Element {
   renderAttributes() {
     let attributes = ''
     for (let attrName in this.attributes) {
+      // Skip function event handlers (handled by renderListeners)
+      if (isEventAttribute(attrName) && typeof this.attributes[attrName] === 'function') {
+        continue
+      }
+      
+      // Allow event handlers when value is a string (inline handlers like onclick="fn()")
+      // Also validate standard attribute names
+      const isValidName = isValidAttributeName(attrName) || 
+        (isEventAttribute(attrName) && typeof this.attributes[attrName] === 'string')
+      
+      if (!isValidName) {
+        if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+          console.warn(`[YAMF Security] Invalid attribute name "${attrName}" ignored. ` +
+            `Use standard HTML attributes, data-*, or aria-* attributes.`)
+        }
+        continue
+      }
+      
       let attrVal = this.attributes[attrName]
       
       // Skip rendering if value is explicitly false, null, or undefined
@@ -74,8 +135,11 @@ export default class Element {
           attributes += ` ${attrName}`
         }
       } else {
-        // For non-boolean attributes, render with value
-        attributes += ` ${attrName}="${attrVal}"`
+        // Encode attribute value (unless trusted)
+        const safeVal = isTrusted(attrVal) 
+          ? unwrapTrusted(attrVal) 
+          : encodeAttr(String(attrVal))
+        attributes += ` ${attrName}="${safeVal}"`
       }
     }
     return attributes
@@ -83,7 +147,7 @@ export default class Element {
 
   render() {
     let result = `<${this.tag}${this.renderAttributes()}${this.renderListeners()}>${
-      this.children.map(elem => elem && elem.toString() || '').join('')
+      this.children.map(child => this.encodeChild(child)).join('')
     }${this.isVoid ? '' : `</${this.tag}>`}`
 
     // TODO this is a bad hack... need actual dom change event listener to call this
@@ -144,7 +208,15 @@ export default class Element {
         if (typeof document !== 'undefined') {
           const domElement = this.toDomNode()
           if (domElement) {
-            domElement[targetProp] = value
+            if (targetProp === 'textContent') {
+              // textContent is inherently safe (text, not HTML)
+              domElement.textContent = value
+            } else {
+              // innerHTML requires encoding unless trusted
+              domElement.innerHTML = isTrusted(value) 
+                ? unwrapTrusted(value) 
+                : encodeHtml(String(value ?? ''))
+            }
           }
         }
         // For server-side rendering, we'll update children
@@ -152,7 +224,7 @@ export default class Element {
           this.children = [String(value)]
         }
       } else {
-        // Update attribute
+        // Update attribute (will be encoded in renderAttributes)
         if (!this.attributes) this.attributes = {}
         this.attributes[targetProp] = value
       }
@@ -237,7 +309,7 @@ export default class Element {
     }
 
     let result = `<${this.tag}${this.renderAttributes()}${this.renderListeners()}>${
-      this.children.map(elem => elem && elem.toString() || '').join('')
+      this.children.map(child => this.encodeChild(child)).join('')
     }${this.isVoid ? '' : `</${this.tag}>`}`
 
     // TODO this is a bad hack... need actual dom change event listener to call this

@@ -17,6 +17,9 @@ const logger = new Logger()
 // ============================================================================
 // Round-Robin Load Balancing Tests
 // ============================================================================
+// TODO same node load balancing tests no longer supported
+// need to migrate to integration tests with separate node processes
+
 
 /**
  * Test basic round-robin load balancing with 2 instances

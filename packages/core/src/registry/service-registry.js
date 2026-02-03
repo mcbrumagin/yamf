@@ -12,6 +12,8 @@ import { selectServiceLocation } from './load-balancer.js'
 import { HEADERS } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import net from 'node:net'
+import { localState } from '../shared/local-state.js'
+import readStream from '../http-primitives/read-stream.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
 
@@ -183,10 +185,43 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * @param {string} options.service - Service name
  * @param {string} options.location - Service location URL
  * @param {string} [options.useAuthService] - Auth service name for protected services
+ * @param {string} [options.accessControl] - Access control level ('pure', 'local', 'private', 'public')
  * @param {Object} [options.metadata] - Service metadata (for special services like gateway)
+ * @param {Object} [options.rateLimit] - Rate limit configuration for this service
  */
-export async function registerService(state, { service, location, useAuthService, metadata = {} }) {
-  logger.debug(`registerService - service "${service}" registering for ${location}`)
+export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit }) {
+  logger.debug(`registerService - service "${service}" registering for ${location} (accessControl: ${accessControl})`)
+  
+  // Check for pure service load-balancing attempt
+  if (accessControl === 'pure') {
+    if (state.services.has(service)) {
+      const existingAccess = state.serviceAccess.get(service)
+      if (existingAccess === 'pure') {
+        throw new HttpError(409,
+          `Pure service "${service}" already exists. ` +
+          `Pure services cannot be load-balanced across multiple instances. ` +
+          `If load-balancing is needed, use 'private' or 'local' access control instead.`
+        )
+      } else {
+        throw new HttpError(409,
+          `Service "${service}" already exists with access control "${existingAccess}". ` +
+          `Cannot register a pure service with the same name as an existing non-pure service.`
+        )
+      }
+    }
+  }
+  
+  // Check if registering a non-pure service when a pure service already exists
+  if (accessControl !== 'pure' && state.services.has(service)) {
+    const existingAccess = state.serviceAccess.get(service)
+    if (existingAccess === 'pure') {
+      throw new HttpError(409,
+        `Cannot register service "${service}" with access control "${accessControl}". ` +
+        `A pure service with this name already exists. ` +
+        `Either rename the service or change the existing pure service to a different access level.`
+      )
+    }
+  }
   
   // Add to services map
   if (!state.services.has(service)) {
@@ -201,6 +236,18 @@ export async function registerService(state, { service, location, useAuthService
   if (useAuthService) {
     state.serviceAuth.set(service, useAuthService)
     logger.info(`Configured "${service}" to use auth: "${useAuthService}"`)
+  }
+
+  // Store access control rules if provided
+  if (accessControl) {
+    state.serviceAccess.set(service, accessControl)
+    logger.info(`Stored access control for "${service}":`, accessControl)
+  }
+  
+  // Store rate limit configuration if provided
+  if (rateLimit && typeof rateLimit === 'object') {
+    state.serviceRateLimit.set(service, rateLimit)
+    logger.info(`Stored rate limit config for "${service}":`, rateLimit)
   }
   
   // Store metadata if provided (for special services like gateway)
@@ -410,6 +457,14 @@ export async function streamProxyServiceCall(state, { name, request, response })
 
   const headers = filterForUsefulHeaders(request.headers)
   writeForwardedHeaders(request, headers) // TODO functional approach?
+
+  // const localService = localState.services[name]
+  // if (localService) {
+  //   let payload = readStream(request)
+  //   try { payload = JSON.parse(payload) } catch (err) { /* don't care */ }
+  //   return await localService(payload, request, response)
+  // }
+
   return new Promise((resolve, reject) => {
     const options = {
       hostname: url.hostname,
@@ -482,9 +537,21 @@ export async function streamProxyServiceCall(state, { name, request, response })
       logger.debug('streamProxyServiceCall - request stream ended')
     })
 
-    // Pipe request body directly to service (no buffering)
-    // Make sure to properly end the proxy request when input ends
-    request.pipe(proxyReq, { end: true })
+    // If body was already parsed (e.g., for custom key rate limiting), send the parsed body
+    // Otherwise, pipe the request stream directly to service (no buffering)
+    // TODO remove this once we have a new built-in service to offload customKeyFn processing for rate limits
+    if (request._parsedBody !== undefined) {
+      const bodyData = typeof request._parsedBody === 'string' 
+        ? request._parsedBody 
+        : JSON.stringify(request._parsedBody)
+      proxyReq.write(bodyData)
+      proxyReq.end()
+      logger.debug('streamProxyServiceCall - sent parsed body')
+    } else {
+      // Pipe request body directly to service (no buffering)
+      // Make sure to properly end the proxy request when input ends
+      request.pipe(proxyReq, { end: true })
+    }
   }).catch(err => {
     // Additional safety: catch any unhandled rejections in the promise chain
     logger.debugErr('Caught unhandled error in streamProxyServiceCall:', err)

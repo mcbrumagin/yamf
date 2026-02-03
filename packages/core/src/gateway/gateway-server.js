@@ -10,15 +10,74 @@ import Logger from '../utils/logger.js'
 import envConfig from '../shared/env-config.js'
 import { createGatewayState, resetState } from './gateway-state.js'
 import { routeCommand } from './command-router.js'
+import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
+import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
 
 const logger = new Logger({ logGroup: 'yamf-gateway' })
 
 /**
  * Create and start the gateway server
+ * 
+ * @param {number} [port] - Port to listen on (defaults to YAMF_GATEWAY_URL port)
+ * @param {Object} [options] - Server options
+ * @param {Object} [options.rateLimit] - Rate limit configuration
+ * @param {Object} [options.rateLimit.default] - Default rate limit for all requests
+ * @param {Object} [options.rateLimit.services] - Pre-bound service-specific rate limits
+ * 
+ * @example
+ * await gatewayServer(8080, {
+ *   rateLimit: {
+ *     default: { windowMs: 60000, maxRequestsPerIp: 50, maxTotalRequests: 5000 },
+ *     services: {
+ *       'auth-service': { 
+ *         windowMs: 60000, 
+ *         maxRequestsPerIp: 5,  // Stricter at public gateway
+ *         customKeyFn: (payload) => payload?.username 
+ *       }
+ *     }
+ *   }
+ * })
  */
-export default async function createGatewayServer(port) {
+export default async function createGatewayServer(port, options = {}) {
   // TODO validate auth token exists for prod gateway (otherwise it will fail to update itself)
   const state = createGatewayState()
+  
+  // Initialize rate limit configuration from options
+  if (options.rateLimit) {
+    state.gatewayOwnConfig = true  // Flag that gateway has its own config
+    const { default: defaultConfig, services: serviceConfigs } = options.rateLimit
+    
+    // Validate and store default config
+    if (defaultConfig) {
+      const validated = validateConfig(defaultConfig)
+      state.rateLimitConfig.default = validated
+      setDefaultRateLimit(state.rateLimiter, validated)
+      logger.info('Gateway rate limit default configured:', {
+        windowMs: validated.windowMs,
+        maxRequestsPerIp: validated.maxRequestsPerIp,
+        maxTotalRequests: validated.maxTotalRequests
+      })
+    }
+    
+    // Validate and store service-specific configs
+    if (serviceConfigs && typeof serviceConfigs === 'object') {
+      for (const [serviceName, config] of Object.entries(serviceConfigs)) {
+        const validated = validateConfig(config)
+        // Preserve customKeyFn (not validated, but kept)
+        if (config.customKeyFn) {
+          validated.customKeyFn = config.customKeyFn
+        }
+        state.rateLimitConfig.services.set(serviceName, validated)
+        setServiceRateLimit(state.rateLimiter, serviceName, validated)
+        logger.info(`Gateway rate limit for "${serviceName}" configured:`, {
+          windowMs: validated.windowMs,
+          maxRequestsPerIp: validated.maxRequestsPerIp,
+          maxTotalRequests: validated.maxTotalRequests,
+          hasCustomKeyFn: !!validated.customKeyFn
+        })
+      }
+    }
+  }
   
   // Add global unhandled rejection handler to prevent gateway crashes
   // This is a safety net - errors should be caught at their source
@@ -126,6 +185,10 @@ export default async function createGatewayServer(port) {
   }
   
   server.isGateway = true
+  
+  // Expose state for testing
+  // Note: In production, access to state should be restricted
+  server._state = state
   
   // Do initial pull from registry if available
   const registryUrl = envConfig.get('YAMF_REGISTRY_URL')

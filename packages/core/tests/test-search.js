@@ -8,6 +8,7 @@ overrideConsoleGlobally({
   includeLogLineNumbers: true
 })
 
+console.warn(process.argv[2], process.argv[3])
 let fileSearch = process.argv[2]
 if (!fileSearch) {
   console.error('Usage: node run-file.js <file-name>')

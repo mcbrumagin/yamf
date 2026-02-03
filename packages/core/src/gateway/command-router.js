@@ -11,13 +11,25 @@ import {
 } from './service-registry.js'
 import { findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
-import { COMMANDS, parseCommandHeaders, isHeaderBasedCommand, buildRegistryPullHeaders } from '../shared/yamf-headers.js'
+import { HEADERS, COMMANDS, parseCommandHeaders, isHeaderBasedCommand, buildRegistryPullHeaders } from '../shared/yamf-headers.js'
 import HttpError from '../http-primitives/http-error.js'
 import { validateRegistryToken } from '../registry/registry-auth.js'
 import httpRequest from '../http-primitives/http-request.js'
 import envConfig from '../shared/env-config.js'
 
 import Logger from '../utils/logger.js'
+import { env } from 'node:process'
+
+import { localState } from '../shared/local-state.js'
+import readStream from '../http-primitives/read-stream.js'
+
+// Rate limiter imports
+import { 
+  checkRateLimit, 
+  setServiceRateLimit,
+  setDefaultRateLimit
+} from '../rate-limiter/rate-limiter.js'
+import { deserializeConfig } from '../rate-limiter/rate-limiter-config.js'
 
 const logger = new Logger({ logGroup: 'yamf-gateway' })
 
@@ -107,6 +119,12 @@ async function handleRegistryUpdated(state, payload, headers) {
 /**
  * Update gateway state from registry pull
  * Converts plain objects back to Maps and Sets
+ * 
+ * Rate limit precedence:
+ * 1. Gateway service-specific config (highest priority)
+ * 2. Registry service-specific config
+ * 3. Gateway default config
+ * 4. Registry default config (lowest priority)
  */
 export function updateGatewayStateFromRegistry(state, registryState) {
   // Update services map (convert arrays back to Sets)
@@ -132,18 +150,129 @@ export function updateGatewayStateFromRegistry(state, registryState) {
   for (const [service, authService] of Object.entries(registryState.serviceAuth || {})) {
     state.serviceAuth.set(service, authService)
   }
+
+  // Update service accessControl mappings
+  state.serviceAccess.clear()
+  for (const [service, accessControl] of Object.entries(registryState.serviceAccess || {})) {
+    state.serviceAccess.set(service, accessControl)
+  }
+  
+  // Merge rate limit configurations from registry with gateway's own configs
+  // Precedence: gateway service > registry service > gateway default > registry default
+  const registryRateLimitConfig = registryState.rateLimitConfig || {}
+  
+  // Store registry service configs (for services gateway doesn't have its own config for)
+  state.registryRateLimitServices.clear()
+  for (const [service, serializedConfig] of Object.entries(registryRateLimitConfig.services || {})) {
+    const config = deserializeConfig(serializedConfig)
+    if (config) {
+      state.registryRateLimitServices.set(service, config)
+      
+      // Only apply to rate limiter if gateway doesn't have its own config for this service
+      if (state.rateLimiter && !state.rateLimitConfig.services.has(service)) {
+        setServiceRateLimit(state.rateLimiter, service, config)
+        logger.debug(`Applied registry rate limit for "${service}" to gateway`)
+      }
+    }
+  }
+  
+  // Apply registry default only if gateway doesn't have its own config
+  if (!state.gatewayOwnConfig && registryRateLimitConfig.default) {
+    const defaultConfig = deserializeConfig(registryRateLimitConfig.default)
+    if (defaultConfig && state.rateLimiter) {
+      setDefaultRateLimit(state.rateLimiter, defaultConfig)
+      logger.debug('Applied registry default rate limit to gateway')
+    }
+  }
   
   logger.debug('Gateway state synchronized with registry')
 }
 
 /**
+ * Determine which service a request is targeting
+ * Used for service-specific rate limiting
+ */
+function findTargetService(state, headers, url) {
+  // Check for service name in headers (service call)
+  const { serviceName } = parseCommandHeaders(headers)
+  if (serviceName) return serviceName
+  
+  // Check if URL matches a route
+  const routeMatch = state.routes.get(url)
+  if (routeMatch?.service) return routeMatch.service
+  
+  // Check controller routes
+  const controllerMatch = findControllerRoute(state, url)
+  if (controllerMatch?.service) return controllerMatch.service
+  
+  return null
+}
+
+/**
+ * Apply rate limit headers to response
+ */
+function applyRateLimitHeaders(response, headers) {
+  for (const [header, value] of Object.entries(headers)) {
+    response.setHeader(header, value)
+  }
+}
+
+/**
+ * Check if rate limiting should be applied to this command
+ * Excludes internal infrastructure commands
+ */
+function shouldApplyRateLimit(headers) {
+  const command = headers[HEADERS.COMMAND]
+  
+  // Don't rate limit internal infrastructure commands
+  if (command === COMMANDS.REGISTRY_UPDATED) return false
+  if (command === COMMANDS.GATEWAY_PULL) return false
+  
+  // Rate limit public-facing commands
+  if (command === COMMANDS.SERVICE_CALL) return true
+  if (command === COMMANDS.HEALTH) return true
+  if (command === COMMANDS.AUTH_LOGIN) return true
+  if (command === COMMANDS.AUTH_REFRESH) return true
+  if (command === COMMANDS.AUTH_LOGOUT) return true
+  
+  // Rate limit URL-based routes (no command header)
+  if (!command) return true
+  
+  return false
+}
+
+/**
  * Route incoming commands to their handlers
+ * PRIORITY 0: Rate limit check (if enabled)
  * PRIORITY 1: Command headers (yamf-command)
  * PRIORITY 2: HTTP routes (URL-based)
  */
 export async function routeCommand(state, payload, request, response, options = {}) {
   const { defaultStartPort = 10000, handlerFn } = options
   const headers = request.headers || {}
+  
+  // PRIORITY 0: Rate limit check (before any processing)
+  // Only apply if rate limiting is configured and command should be rate limited
+  const hasRateLimitConfig = state.gatewayOwnConfig || 
+    state.rateLimitConfig.services.size > 0 || 
+    state.registryRateLimitServices.size > 0
+  
+  if (state.rateLimiter && hasRateLimitConfig && shouldApplyRateLimit(headers)) {
+    // Determine target service for service-specific rate limiting
+    const targetService = findTargetService(state, headers, request.url)
+    
+    const rateLimitResult = checkRateLimit(state.rateLimiter, request, {
+      serviceName: targetService,
+      payload
+    })
+    
+    // Always add rate limit headers to response
+    applyRateLimitHeaders(response, rateLimitResult.headers)
+    
+    if (!rateLimitResult.allowed) {
+      throw rateLimitResult.error // HttpError 429
+    }
+  }
   
   // PRIORITY 1: Command-based routing (for service operations, pubsub, etc.)
   const isHeaderCommand = isHeaderBasedCommand(headers)
@@ -166,17 +295,47 @@ export async function routeCommand(state, payload, request, response, options = 
 }
 
 /**
+ * Validate service access for gateway calls (external clients)
+ * Gateway allows: public only
+ * Gateway blocks: pure, local, private
+ */
+function validateServiceAccessFromGateway(state, serviceName) {
+  const permission = state.serviceAccess.get(serviceName)
+  
+  // Default to 'private' if no access control is set (backwards compatibility)
+  const effectivePermission = permission || 'private'
+  
+  if (effectivePermission !== 'public') {
+    const env = envConfig.get('ENVIRONMENT', 'dev')
+    if (env.includes('prod')) {
+      // Don't reveal service name in production
+      throw new HttpError(404, `Not found`)
+    } else {
+      const hint = effectivePermission === 'private' 
+        ? `Change the service to use 'public' access control to allow gateway access.`
+        : `Service has "${effectivePermission}" access control.`
+      throw new HttpError(403, 
+        `Service "${serviceName}" access forbidden from gateway. ${hint}`
+      )
+    }
+  }
+}
+
+/**
  * Header-based command routing
  */
 async function routeCommandByHeaders(state, payload, request, response) {
   const headers = request.headers || {}
-  const { command } = parseCommandHeaders(headers)
+  const { command, serviceName } = parseCommandHeaders(headers)
   
   logger.debug('command:', command)
 
   if (PROTECTED_COMMANDS.has(command)) {
     validateRegistryToken(request)
   }
+
+
+  
   
   switch (command) {
     case COMMANDS.HEALTH:
@@ -195,8 +354,10 @@ async function routeCommandByHeaders(state, payload, request, response) {
     
     case COMMANDS.AUTH_LOGIN:
     case COMMANDS.AUTH_REFRESH:
+    case COMMANDS.AUTH_LOGOUT:
       // Default to 'auth-service' if no specific auth service is configured
-      const authServiceName = 'auth-service'
+      // TODO should make certain the serviceName is an auth service
+      const authServiceName = 'auth-service' // uncomment when we validate serviceName is auth || serviceName
       if (!state.services.has(authServiceName)) {
         throw new HttpError(503, `Auth service "${authServiceName}" not found`)
       }
@@ -206,6 +367,20 @@ async function routeCommandByHeaders(state, payload, request, response) {
         name: authServiceName, 
         request, 
         response 
+      })
+
+    // for gateway service calls, we need to check that a service is published for public access
+    // TODO provide config in createService to publish to gateways
+    // publish should warn to use auth service for secure access
+    // TODO test with/without auth service and with/without proper auth token
+    case COMMANDS.SERVICE_CALL:
+      logger.debug('service call:', serviceName)
+      validateServiceAccessFromGateway(state, serviceName)
+      
+      return streamProxyServiceCall(state, {
+        name: serviceName,
+        request,
+        response
       })
     
     default:

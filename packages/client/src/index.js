@@ -7,7 +7,27 @@ import {
   createFormState, 
   createRenderHelper 
 } from './state.js'
-// import loadClient from './loadClient.js'
+import {
+  initializeYamf,
+  getYamf
+} from './client-init.js'
+import {
+  waitForElement,
+  isMobileBrowser,
+  loadResource,
+  router,
+  hashRouter
+} from './client-utils.js'
+
+// Import and re-export XSS utilities from shared for client convenience
+import { 
+  trusted, 
+  isTrusted,
+  encode,
+  sanitize 
+} from '@yamf/shared'
+
+export { trusted, isTrusted, encode, sanitize }
 
 // Named exports
 export {
@@ -18,7 +38,13 @@ export {
   createReactiveComponent,
   createFormState,
   createRenderHelper,
-  // loadClient
+  initializeYamf,
+  getYamf,
+  waitForElement,
+  isMobileBrowser,
+  loadResource,
+  router,
+  hashRouter
 }
 
 // Default export for backward compatibility
@@ -30,5 +56,16 @@ export default {
   createReactiveComponent,
   createFormState,
   createRenderHelper,
-  // loadClient
+  initializeYamf,
+  getYamf,
+  waitForElement,
+  isMobileBrowser,
+  loadResource,
+  router,
+  hashRouter,
+  // XSS utilities
+  trusted,
+  isTrusted,
+  encode,
+  sanitize
 }

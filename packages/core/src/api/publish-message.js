@@ -3,6 +3,7 @@ import { buildPublishHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
+import { getLocalSubscriptionHandlers } from '../shared/local-state.js'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
@@ -27,38 +28,59 @@ export default async function publishMessage(channel, message) {
   return result
 }
 
-export async function publishMessageWithCache(cache, channel, message) { // TODO consistent naming
-  // name could be the function if called "locally", or a noop of the same name for code-completion
-  // channel = name.name || name
-  let registryHost = process.env.YAMF_REGISTRY_URL
-
+export async function publishMessageWithCache(cache, channel, message) {
   const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
+  const results = []
+  const errors = []
 
-  logger.debug('cache.subscriptions', cache.subscriptions)
+  logger.debug('publishMessageWithCache - channel:', channel)
 
-  if (!cache.subscriptions[channel]) throw new HttpError(404, `No subscription by name "${channel}" in cache`)
-  let locations = cache.subscriptions[channel].map(s => s)
-
-  let results = []
-  for (let location of locations) {
-    // TODO currently the subscription cache is locations, not services
-    // need to consider cleaning up createSubscriptionService to result in a singular cache update
-    // including the subscription channel, subscribing service name, and its location
-
-    // let addresses = cache.services[service].map(s => s)
-    // let len = addresses.length
-
-    // TODO implement strategies (random, round-robin, etc.)
-    // initialize service round-robin start index based on own location port number
-
-    // let ind = Math.floor(Math.random() * len)
-    // let location = addresses[ind]
-
-    results.push(await httpRequest(location, {
-      body: message,
-      headers: buildPublishHeaders(channel, registryToken)
-    }))
+  // First, deliver to any local (pure) subscriptions
+  const localHandlers = getLocalSubscriptionHandlers(channel)
+  if (localHandlers.size > 0) {
+    logger.debug(`Delivering to ${localHandlers.size} local handler(s)`)
+    for (const handler of localHandlers) {
+      try {
+        const result = await handler(message)
+        results.push({ type: 'local', result })
+      } catch (err) {
+        errors.push({ type: 'local', error: err.message })
+      }
+    }
   }
-  
-  return results
+
+  // Then, deliver to network subscriptions via cache
+  // Support both Map and plain object for backwards compatibility
+  const subscriptions = cache.subscriptions instanceof Map
+    ? cache.subscriptions.get(channel)
+    : cache.subscriptions?.[channel]
+
+  if (subscriptions) {
+    const locations = subscriptions instanceof Set
+      ? Array.from(subscriptions)
+      : (Array.isArray(subscriptions) ? subscriptions : [subscriptions])
+
+    logger.debug(`Delivering to ${locations.length} network location(s)`)
+
+    for (const location of locations) {
+      try {
+        const result = await httpRequest(location, {
+          body: message,
+          headers: buildPublishHeaders(channel, registryToken)
+        })
+        results.push({ type: 'network', location, result })
+      } catch (err) {
+        errors.push({ type: 'network', location, error: err.message })
+      }
+    }
+  }
+
+  // If no handlers found anywhere
+  if (localHandlers.size === 0 && (!subscriptions || 
+      (subscriptions instanceof Set ? subscriptions.size === 0 : 
+       (Array.isArray(subscriptions) ? subscriptions.length === 0 : false)))) {
+    logger.warn(`No subscribers found for channel "${channel}"`)
+  }
+
+  return { results, errors }
 }

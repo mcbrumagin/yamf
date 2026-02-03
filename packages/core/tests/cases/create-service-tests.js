@@ -333,7 +333,7 @@ export async function testDependentServiceThrowsError() {
   await terminateAfter(
     await registryServer(),
     await createService(async function test() {
-      return await this.call('test2')
+      return await callService('test2')
     }),
     await createService(async function test2() {
       throw new Error('Test error from inside test2 service')
@@ -344,6 +344,32 @@ export async function testDependentServiceThrowsError() {
         err => err.message.includes('Test error from inside test2 service'),
         err => err.stack.includes('in service "test"'),
         err => err.stack.includes('test2'),
+        err => err.status === 500,
+        err => err.isServerError,
+        err => err.name.includes('HttpServerError')
+      )
+    }
+  )
+}
+
+export async function testShortcircuitServiceCallThrowsError() {
+  await terminateAfter(
+    await registryServer(),
+    await createService(async function test() {
+      return await this.call('test2')
+    }),
+    await createService(async function test2() {
+      return await this.call('test3')
+    }),
+    await createService(async function test3() {
+      throw new Error('Test error from inside test3 service')
+    }),
+    async () => {
+      await assertErr(
+        async () => callService('test'),
+        err => err.message.includes('Test error from inside test3 service'),
+        err => err.stack.includes('Object.test3'),
+        err => err.stack.includes('Object.test2'),
         err => err.status === 500,
         err => err.isServerError,
         err => err.name.includes('HttpServerError')
@@ -421,9 +447,10 @@ export async function testLoadBalancing() {
   await terminateAfter(
     await registryServer(),
     await createService('loadTest', function loadTestService1() { return 'instance1' }),
-    await createService('loadTest', function loadTestService2() { return 'instance2' }),
-    await createService('loadTest', function loadTestService3() { return 'instance3' }),
+    // await createService('loadTest', function loadTestService2() { return 'instance2' }),
+    // await createService('loadTest', function loadTestService3() { return 'instance3' }),
     async () => {
+      throw new Error('TODO: same-node load balancing no longer supported')
       let start = Date.now()
       let results = new Set()
       

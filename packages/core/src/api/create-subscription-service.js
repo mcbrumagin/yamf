@@ -5,6 +5,12 @@
  * 
  * This is the recommended way to handle event subscriptions - subscription services
  * are clearly long-running and have explicit lifecycle management.
+ * 
+ * Access Control Levels:
+ * - 'pure': No HTTP server, direct local subscriptions only (same node process)
+ * - 'local': HTTP server but only receives messages from same node
+ * - 'private': HTTP server, receives messages from any service (default)
+ * - 'public': HTTP server, can receive messages via gateway
  */
 
 import Logger from '../utils/logger.js'
@@ -12,8 +18,17 @@ import { COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
 import { createPubSubManager } from '../service/pubsub-manager.js'
 import {
   createAndRegisterService,
-  unregisterServiceFromRegistry
+  unregisterServiceFromRegistry,
+  notifyRegistryOfPureService
 } from './service-helpers.js'
+import {
+  registerLocalService,
+  unregisterLocalService,
+  hasLocalService,
+  getLocalServiceAccess,
+  registerLocalSubscription,
+  unregisterLocalSubscription
+} from '../shared/local-state.js'
 
 const logger = new Logger({ logGroup: 'yamf-subscription-service' })
 
@@ -28,6 +43,7 @@ const logger = new Logger({ logGroup: 'yamf-subscription-service' })
  * @param {string|Object} channelOrMap - Channel name (string) or map of channel names to handlers (object)
  * @param {Function|Object} handlerOrOptions - Handler function (if channelOrMap is string) or options (if channelOrMap is object)
  * @param {Object} [options] - Configuration options (only used when channelOrMap is string)
+ * @param {string} [options.accessControl='private'] - Access control level
  * @returns {Promise<Object>} Service instance with terminate() method
  * 
  * @example
@@ -50,6 +66,12 @@ const logger = new Logger({ logGroup: 'yamf-subscription-service' })
  *     await cleanupUserData(userData.id)
  *   }
  * })
+ * 
+ * @example
+ * // Pure local subscription (no HTTP server, same node only)
+ * const service = await createSubscriptionService('local-logger', {
+ *   'app.event': async (data) => console.log('Event:', data)
+ * }, { accessControl: 'pure' })
  * 
  * @example
  * // Multi-domain event aggregator
@@ -105,8 +127,23 @@ export default async function createSubscriptionService(serviceName, channelOrMa
   
   options = options || {}
   const channels = Object.keys(channelMap)
+  const accessControl = options.accessControl || 'private'
   
-  logger.debug(`createSubscriptionService - ${serviceName} with ${channels.length} channels`)
+  logger.debug(`createSubscriptionService - ${serviceName} with ${channels.length} channels (accessControl: ${accessControl})`)
+  
+  // Handle pure subscription services (no HTTP server)
+  if (accessControl === 'pure') {
+    return createPureSubscriptionService(serviceName, channelMap, channels, options)
+  }
+  
+  // Check for local service name collision
+  if (hasLocalService(serviceName)) {
+    const existingAccess = getLocalServiceAccess(serviceName)
+    throw new Error(
+      `Cannot create subscription service "${serviceName}" with accessControl="${accessControl}". ` +
+      `A ${existingAccess} service with this name already exists on this node.`
+    )
+  }
   
   // We need to declare pubSubManager in outer scope so it's accessible in handler
   let pubSubManager = null
@@ -132,11 +169,19 @@ export default async function createSubscriptionService(serviceName, channelOrMa
         type: 'subscription-service',
         channels: Object.keys(channelMap),
         subscriptionCount: channels.length,
-        // TODO REMOVE // location
+        accessControl
       }
     },
     options
   )
+  
+  // Register in local state for direct calls
+  registerLocalService(serviceName, async (message, channel) => {
+    if (pubSubManager) {
+      return await pubSubManager.handleIncomingMessage(channel, message)
+    }
+    return { error: 'PubSub manager not ready' }
+  }, accessControl)
   
   // Create pubsub manager for routing messages to handlers
   pubSubManager = createPubSubManager(serviceName, location)
@@ -158,11 +203,15 @@ export default async function createSubscriptionService(serviceName, channelOrMa
   server.type = 'subscription-service'
   server.channels = channels
   server.subscriptionIds = subscriptionIds
+  server.accessControl = accessControl
   
   // Override terminate to handle cleanup
   const httpServerTerminate = server.terminate.bind(server)
   server.terminate = async () => {
     logger.debug(`Terminating subscription service: ${serviceName}`)
+    
+    // Cleanup local registration
+    unregisterLocalService(serviceName)
     
     // Cleanup subscriptions first (unsubscribes from all channels)
     await pubSubManager.cleanup()
@@ -177,5 +226,82 @@ export default async function createSubscriptionService(serviceName, channelOrMa
   }
   
   return server
+}
+
+/**
+ * Create a pure subscription service (no HTTP server)
+ * Pure subscription services only receive messages from within the same node process
+ * 
+ * @param {string} serviceName - Service name
+ * @param {Object} channelMap - Map of channels to handlers
+ * @param {Array} channels - List of channel names
+ * @param {Object} options - Configuration options
+ * @returns {Promise<Object>} Minimal service object
+ */
+async function createPureSubscriptionService(serviceName, channelMap, channels, options) {
+  // Check for existing local service
+  if (hasLocalService(serviceName)) {
+    const existingAccess = getLocalServiceAccess(serviceName)
+    throw new Error(
+      `Cannot create pure subscription service "${serviceName}". ` +
+      `A ${existingAccess} service with this name already exists on this node.`
+    )
+  }
+  
+  // Create handler function that routes to appropriate channel handler
+  const handler = async (message, channel) => {
+    const channelHandler = channelMap[channel]
+    if (!channelHandler) {
+      logger.warn(`No handler for channel "${channel}" in pure subscription service "${serviceName}"`)
+      return { error: `No handler for channel "${channel}"` }
+    }
+    return await channelHandler(message)
+  }
+  
+  // Register in local state
+  registerLocalService(serviceName, handler, 'pure')
+  
+  // Register local subscriptions for each channel
+  for (const [channel, channelHandler] of Object.entries(channelMap)) {
+    registerLocalSubscription(channel, channelHandler)
+    logger.debug(`Pure subscription registered for channel: ${channel}`)
+  }
+  
+  // Notify registry for observability
+  try {
+    await notifyRegistryOfPureService(serviceName, options)
+  } catch (err) {
+    logger.warn(`Failed to notify registry of pure subscription service "${serviceName}":`, err.message)
+  }
+  
+  logger.info(`Pure subscription service "${serviceName}" registered (no HTTP server)`)
+  logger.info(`Subscribed to ${channels.length} channels: ${channels.join(', ')}`)
+  
+  // Return minimal service object
+  const pureService = {
+    name: serviceName,
+    service: serviceName,
+    type: 'subscription-service',
+    location: null,
+    channels,
+    accessControl: 'pure',
+    
+    /**
+     * Terminate the pure subscription service
+     */
+    terminate: async () => {
+      // Unregister local subscriptions
+      for (const [channel, channelHandler] of Object.entries(channelMap)) {
+        unregisterLocalSubscription(channel, channelHandler)
+      }
+      
+      // Unregister local service
+      unregisterLocalService(serviceName)
+      
+      logger.info(`Pure subscription service "${serviceName}" terminated`)
+    }
+  }
+  
+  return pureService
 }
 

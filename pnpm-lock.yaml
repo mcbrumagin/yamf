@@ -8,7 +8,15 @@ importers:
 
   .: {}
 
-  packages/client: {}
+  packages/client:
+    dependencies:
+      '@yamf/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../test
 
   packages/core:
     dependencies:
@@ -71,6 +79,12 @@ importers:
       form-data:
         specifier: ^4.0.5
         version: 4.0.5
+
+  packages/shared:
+    devDependencies:
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../test
 
   packages/test:
     dependencies:
