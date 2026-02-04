@@ -10,7 +10,8 @@ import { serializeServicesMap, setToArray } from './gateway-state.js'
 import { selectServiceLocation } from '../registry/load-balancer.js'
 import { HEADERS } from '../shared/yamf-headers.js'
 import net from 'node:net'
-
+import { localState } from '../shared/local-state.js'
+import readStream from '../http-primitives/read-stream.js'
 
 const logger = new Logger({ logGroup: 'yamf-gateway' })
 
@@ -248,6 +249,14 @@ export async function streamProxyServiceCall(state, { name, request, response })
 
   const headers = filterForUsefulHeaders(request.headers)
   writeForwardedHeaders(request, headers) // TODO functional approach?
+
+  // const localService = localState.services[name]
+  // if (localService) {
+  //   let payload = readStream(request)
+  //   try { payload = JSON.parse(payload) } catch (err) { /* don't care */ }
+  //   return await localService(payload, request, response)
+  // }
+  
   return new Promise((resolve, reject) => {
     const options = {
       hostname: url.hostname,

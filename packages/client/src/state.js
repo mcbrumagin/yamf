@@ -113,7 +113,7 @@ export function createState(initialState = {}) {
         }
         
         // Compute new value
-        const value = computeFn(this.getAll())
+        const value = computeFn.call(this.getAll())
         const depValues = {}
         for (const dep of computedDeps.get(key)) {
           depValues[dep] = state[dep]
@@ -241,8 +241,9 @@ export function createReactiveComponent(state, renderFn, container) {
  * Helper to create a form state manager with validation
  */
 export function createFormState(initialValues = {}, validators = {}) {
+  const state = createState({ ...initialValues })
   const formState = createState({
-    values: { ...initialValues },
+    values: state,
     errors: {},
     touched: {},
     isSubmitting: false,
@@ -250,10 +251,12 @@ export function createFormState(initialValues = {}, validators = {}) {
   })
 
   return {
-    ...formState,
+    // ...formState,
+    ...state,
 
     setValue(field, value) {
-      const values = { ...formState.get('values'), [field]: value }
+      state.set(field, value)
+      const values = { ...state.getAll(), [field]: value }
       formState.set('values', values)
       
       // Validate if field has been touched
@@ -265,14 +268,14 @@ export function createFormState(initialValues = {}, validators = {}) {
     setTouched(field) {
       const touched = { ...formState.get('touched'), [field]: true }
       formState.set('touched', touched)
-      this.validateField(field, formState.get('values')[field])
+      this.validateField(field, state.getAll()[field])
     },
 
     validateField(field, value) {
       const validator = validators[field]
       if (!validator) return true
 
-      const error = validator(value, formState.get('values'))
+      const error = validator(value, state.getAll())
       const errors = { ...formState.get('errors') }
       
       if (error) {
@@ -288,7 +291,7 @@ export function createFormState(initialValues = {}, validators = {}) {
     },
 
     validateAll() {
-      const values = formState.get('values')
+      const values = state.getAll()
       const errors = {}
       
       for (const [field, validator] of Object.entries(validators)) {
@@ -305,8 +308,9 @@ export function createFormState(initialValues = {}, validators = {}) {
     },
 
     reset() {
+      state.update({ ...initialValues })
       formState.update({
-        values: { ...initialValues },
+        values: state,
         errors: {},
         touched: {},
         isSubmitting: false,
@@ -324,11 +328,11 @@ export function createFormState(initialValues = {}, validators = {}) {
  * Advanced render helper that integrates state management with @yamf/client elements
  * Provides automatic re-rendering, state binding, and performance optimizations
  */
-export function createRenderHelper(container, options = {}) {
+export function createRenderHelper(container, renderFn, options = {}) {
   const {
     debounceMs = 0,
     enableVirtualDOM = false,
-    onError = console.error
+    onError = err => { throw err },
   } = options
 
   let currentElement = null
@@ -344,7 +348,7 @@ export function createRenderHelper(container, options = {}) {
     throw new Error(`Container not found: ${container}`)
   }
 
-  const debouncedRender = (renderFn, state) => {
+  const debouncedRender = (state) => {
     if (renderTimeout) clearTimeout(renderTimeout)
     
     renderTimeout = setTimeout(() => {
@@ -382,15 +386,15 @@ export function createRenderHelper(container, options = {}) {
     /**
      * Render a component with optional state binding
      */
-    render(renderFn, state = null) {
+    render(state = null) {
       if (state && state.watch) {
         // Bind to state changes
-        const unwatch = state.watch(() => debouncedRender(renderFn, state))
+        const unwatch = state.watch(() => debouncedRender(state))
         stateBindings.set(renderFn, unwatch)
       }
       
       // Initial render
-      debouncedRender(renderFn, state)
+      debouncedRender(state)
       
       return this
     },

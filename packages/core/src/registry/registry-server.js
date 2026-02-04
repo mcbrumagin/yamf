@@ -12,15 +12,73 @@ import { createRegistryState, resetState } from './registry-state.js'
 import { routeCommand } from './command-router.js'
 import { validateRegistryEnvironment } from './registry-auth.js'
 import { preRegisterGatewayIfItExists } from './service-registry.js'
+import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
+import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
 
 /**
  * Create and start the registry server
+ * 
+ * @param {number} [port] - Port to listen on (defaults to YAMF_REGISTRY_URL port)
+ * @param {Object} [options] - Server options
+ * @param {Object} [options.rateLimit] - Rate limit configuration
+ * @param {Object} [options.rateLimit.default] - Default rate limit for all requests
+ * @param {Object} [options.rateLimit.services] - Pre-bound service-specific rate limits
+ * 
+ * @example
+ * await registryServer(8080, {
+ *   rateLimit: {
+ *     default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 10000 },
+ *     services: {
+ *       'auth-service': { 
+ *         windowMs: 60000, 
+ *         maxRequestsPerIp: 10,
+ *         customKeyFn: (payload) => payload?.username 
+ *       }
+ *     }
+ *   }
+ * })
  */
-export default async function createRegistryServer(port) {
+export default async function createRegistryServer(port, options = {}) {
   validateRegistryEnvironment()
   const state = createRegistryState()
+  
+  // Initialize rate limit configuration from options
+  if (options.rateLimit) {
+    const { default: defaultConfig, services: serviceConfigs } = options.rateLimit
+    
+    // Validate and store default config
+    if (defaultConfig) {
+      const validated = validateConfig(defaultConfig)
+      state.rateLimitConfig.default = validated
+      setDefaultRateLimit(state.rateLimiter, validated)
+      logger.info('Registry rate limit default configured:', {
+        windowMs: validated.windowMs,
+        maxRequestsPerIp: validated.maxRequestsPerIp,
+        maxTotalRequests: validated.maxTotalRequests
+      })
+    }
+    
+    // Validate and store service-specific configs
+    if (serviceConfigs && typeof serviceConfigs === 'object') {
+      for (const [serviceName, config] of Object.entries(serviceConfigs)) {
+        const validated = validateConfig(config)
+        // Preserve customKeyFn (not validated, but kept)
+        if (config.customKeyFn) {
+          validated.customKeyFn = config.customKeyFn
+        }
+        state.rateLimitConfig.services.set(serviceName, validated)
+        setServiceRateLimit(state.rateLimiter, serviceName, validated)
+        logger.info(`Registry rate limit for "${serviceName}" configured:`, {
+          windowMs: validated.windowMs,
+          maxRequestsPerIp: validated.maxRequestsPerIp,
+          maxTotalRequests: validated.maxTotalRequests,
+          hasCustomKeyFn: !!validated.customKeyFn
+        })
+      }
+    }
+  }
   
   // Add global unhandled rejection handler to prevent registry crashes
   // This is a safety net - errors should be caught at their source
@@ -67,10 +125,22 @@ export default async function createRegistryServer(port) {
   const server = await createProxyServer(port, async function registryServer(request, response) {
     let payload = null
     try {
-      // Parse body only for commands that need it (PUBSUB_PUBLISH)
-      // For proxy operations (SERVICE_CALL, routes, auth), leave the stream untouched
+      // Determine if we need to parse the body
+      // - PUBSUB_PUBLISH always needs body parsed
+      // - SERVICE_CALL needs body parsed if target service has customKeyFn for rate limiting
+      // TODO we should create a new deployable built-in service to offload customKeyFn processing for rate limits
       const command = request.headers['yamf-command']
-      const needsBodyParsing = command === 'pubsub-publish'
+      const serviceName = request.headers['yamf-service-name']
+      
+      let needsBodyParsing = command === 'pubsub-publish'
+      
+      // Check if SERVICE_CALL needs body parsing for custom key rate limiting
+      if (command === 'service-call' && serviceName) {
+        const serviceConfig = state.rateLimitConfig.services.get(serviceName)
+        if (serviceConfig?.customKeyFn) {
+          needsBodyParsing = true
+        }
+      }
       
       if (needsBodyParsing) {
         const bodyBuffer = await readStream(request)
@@ -85,6 +155,10 @@ export default async function createRegistryServer(port) {
         } else {
           payload = bodyBuffer
         }
+        
+        // Store the parsed body so it can be re-sent to the service
+        // This is needed because we've consumed the stream
+        request._parsedBody = payload
       }
       
       const result = await routeCommand(state, payload, request, response, {
@@ -131,5 +205,10 @@ export default async function createRegistryServer(port) {
   }
   
   server.isRegistry = true
+  
+  // Expose state for testing
+  // Note: In production, access to state should be restricted
+  server._state = state
+  
   return server
 }
