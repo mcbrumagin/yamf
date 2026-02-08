@@ -36,3 +36,13 @@ export {
 
 // Also export individual encoding functions for direct use
 export { encodeHtml, encodeAttr, unwrapTrusted } from './security/xss.js'
+
+// Case mapping utilities
+export {
+  camelToSnake,
+  snakeToCamel,
+  toSnakeCase,
+  toCamelCase,
+  createColumnMapping,
+  createFieldMapping
+} from './utils/case-mapper.js'

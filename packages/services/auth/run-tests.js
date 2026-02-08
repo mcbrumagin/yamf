@@ -2,7 +2,7 @@ import { runTests, withEnv } from '@yamf/test'
 
 withEnv({
   ADMIN_USER: 'testadmin',
-  ADMIN_SECRET: 'testsecret123',
+  ADMIN_PASS: 'testsecret123',
   YAMF_REGISTRY_URL: 'http://localhost:20000'
 }, async () => {
   const authTests = await import('./auth-tests.js')

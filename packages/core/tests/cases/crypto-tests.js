@@ -293,8 +293,8 @@ export async function testCreateSaltedHash() {
     ([r]) => r.hash !== undefined,
     ([r]) => typeof r.salt === 'string',
     ([r]) => typeof r.hash === 'string',
-    ([r]) => r.salt.length === 32, // 16 bytes in hex = 32 characters
-    ([r]) => r.hash.length === 64  // 32 bytes in hex = 64 characters
+    ([r]) => r.salt.length === 24, // 16 bytes in base64 = 24 characters
+    ([r]) => r.hash.length === 44  // 32 bytes in base64 = 44 characters
   )
 }
 

@@ -1,0 +1,19 @@
+{
+  "name": "@yamf/services-postgres",
+  "version": "0.1.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "service.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "postgres": "^3.4.8"
+  },
+  "peerDependencies": {
+    "@yamf/core": "workspace:*",
+    "@yamf/shared": "workspace:*"
+  }
+}

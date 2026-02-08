@@ -302,6 +302,14 @@ is.alphanumeric = function alphanumeric(opts = {}) {
 is.uuid = schema('string', { xss: 'check', pattern: 'uuid' })
 
 /**
+ * Base64 encoded string
+ * XSS protection enabled by default
+ */
+is.base64 = function base64(opts = {}) {
+  return schema('string', { xss: 'check', pattern: 'base64', ...opts })
+}
+
+/**
  * Slug string (lowercase, hyphens)
  * XSS protection enabled by default
  */

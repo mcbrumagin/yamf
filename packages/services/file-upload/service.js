@@ -407,7 +407,7 @@ export default async function createFileUploadService({
     // Wrap onSuccess to publish file events
     const wrappedOnSuccess = async (successData, req, res) => {
       // Publish file uploaded event
-      if (publishFileEvents && this.publish) {
+      if (publishFileEvents) {
         try {
           const { file } = successData
           const urlPath = path.join(urlPathPrefix, file.savedName).replace(/\\/g, '/')

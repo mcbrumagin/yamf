@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-auth",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "JWT-lite authentication service for YAMF microservices",
   "main": "service.js",
@@ -33,8 +33,8 @@
     "url": "https://github.com/mcbrumagin/yamf"
   },
   "peerDependencies": {
-    "@yamf/core": "workspace:^",
-    "@yamf/services-cache": "workspace:^"
+    "@yamf/core": "workspace:*",
+    "@yamf/services-cache": "workspace:*"
   },
   "devDependencies": {
     "@yamf/test": "workspace:*"

@@ -241,6 +241,9 @@ export function createReactiveComponent(state, renderFn, container) {
  * Helper to create a form state manager with validation
  */
 export function createFormState(initialValues = {}, validators = {}) {
+  // TODO if we add CSRF protection, we need to add a token to the form state
+  // NOTE it should not be needed since we are using JWT lite, but it would be good for defense in depth
+  // will be ideal for financial/medical data, legacy browsers, or samesite relaxation
   const state = createState({ ...initialValues })
   const formState = createState({
     values: state,

@@ -30,7 +30,7 @@ console.log(result.message) // "Hello, World"
 
 ## ✨ Core Features
 
-- **Zero Dependencies** - Pure Node.js implementation, virtually immune to supply-chain attacks
+- **Zero Dependencies** - Pure Node.js for core runtime, virtually immune to supply-chain attacks
 - **Service Discovery** - Automatic registration and dynamic service lookup
 - **API Gateway** - Built-in reverse proxy with HTTP routing
 - **Pub/Sub Messaging** - Event-driven communication between services
@@ -47,18 +47,20 @@ YAMF is organized as a monorepo with independently versioned packages:
 
 - **[@yamf/core](./packages/core/)** - Microservices framework with registry, gateway, RPC, and pub/sub
 - **[@yamf/client](./packages/client/)** - Isomorphic HTML-as-JavaScript library for building UIs
+- **[@yamf/shared](./packages/shared/)** - Shared utilities: validator, XSS helpers, case-mapping. See [Shared README](./packages/shared/README.md).
 
 ### Service Modules
 
-- **[@yamf/services-auth](./packages/services/auth/)** - JWT-lite authentication service
+- **[@yamf/services-auth](./packages/services/auth/)** - JWT-lite authentication (ed25519, optional sessions, custom password validation)
 - **[@yamf/services-cache](./packages/services/cache/)** - In-memory caching with TTL and eviction
 - **[@yamf/services-file-server](./packages/services/file-server/)** - Static file serving with flexible routing
 - **[@yamf/services-file-upload](./packages/services/file-upload/)** - Multipart file upload handling
+- **[@yamf/services-postgres](./packages/services/postgres/)** - Postgres.js wrapper with parameterized templates and camelCase mapping
+- **[@yamf/services-user](./packages/services/user/)** - User CRUD, self-signup, admin-invite, registration tokens, verification
 
 ### Development Tools
 
 - **[@yamf/test](./packages/test/)** - Custom testing framework with multi-assertion support
-- **[@yamf/shared](./packages/shared/)** - Shared utilities and types
 
 ## 🎯 Use Cases
 
@@ -97,15 +99,15 @@ create_service_sync("pythonService", python_service)
 │  - Service Discovery   │  │ - Pulls Regsitry State  │
 │  - Pub/Sub Routing     │  │ - API Routing           │
 │  - Load Balancing      │  │ - Also Load Balancing   │
-└───────────────┬────────┘  └─┬───────────────────────┘
-                │             |       
-        ┌───────┼─────────────┼─────────┐
-        │       │             │         │
-    ┌───▼───┐ ┌─▼─────┐ ┌─────▼──┐ ┌────▼───┐
-    │Service│ │Service│ │Service │ │Service │
-    │  A    │ │  B    │ │  C     │ │  D     │
-    │(Node) │ │(Node) │ │(Python)│ │(Node)  │
-    └───────┘ └───────┘ └────────┘ └────────┘
+└──────────────────┬─────┘  └─────┬───────────────────┘
+                   │              |       
+        ┌──────────┼──────────────┼───────────┐
+        │          │              │           │
+    ┌───▼───┐   ┌──▼────┐   ┌─────▼──┐   ┌────▼───┐
+    │Service│   │Service│   │Service │   │Service │
+    │  A    │   │  B    │   │  C     │   │  D     │
+    │(Node) │   │(Node) │   │(Python)│   │(Node)  │
+    └───────┘   └───────┘   └────────┘   └────────┘
 ```
 
 ## 📚 Documentation
@@ -113,6 +115,7 @@ create_service_sync("pythonService", python_service)
 ### Getting Started
 - [Core Framework](./packages/core/README.MD) - Complete API reference and examples
 - [Client Library](./packages/client/README.md) - UI development guide
+- [Shared Library](./packages/shared/README.md) - Validator, utilities, and isomorphic helpers
 - [Examples](./packages/core/examples/README.md) - Sample applications and patterns
 
 ### Multi-Language Clients
@@ -120,10 +123,14 @@ create_service_sync("pythonService", python_service)
 - [Go Client](./packages/core/src/api/languages/go/README.md) - Go client (in development)
 
 ### Service Modules
-- [Authentication](./packages/services/auth/README.md) - JWT-lite auth service
+- [Authentication](./packages/services/auth/README.md) - JWT-lite auth service (login, tokens, optional sessions)
 - [Caching](./packages/services/cache/README.md) - In-memory cache service
 - [File Server](./packages/services/file-server/README.md) - Static file serving
 - [File Upload](./packages/services/file-upload/README.md) - Multipart file uploads
+- [Postgres](./packages/services/postgres/README.md) - Postgres.js wrapper (parameterized queries, camelCase)
+- [User](./packages/services/user/README.md) - User CRUD, registration, verification, tokens
+
+For a full stack using **Postgres + User + Auth** together (self-signup, admin-invite, login), see the [psql-user-auth example](./packages/core/examples/psql-user-auth/).
 
 ## 🛠️ Development
 

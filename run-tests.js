@@ -4,7 +4,7 @@ const envMap = {
   YAMF_GATEWAY_URL: 'http://localhost:15000',
   YAMF_REGISTRY_TOKEN: 'dev-test-token-12345',
   ADMIN_USER: 'testadmin',
-  ADMIN_SECRET: 'testsecret123',
+  ADMIN_PASS: 'testsecret123',
   LOG_LEVEL: 'info',
   MUTE_LOG_GROUP_OUTPUT: true,
   LOG_INCLUDE_LINES: true,

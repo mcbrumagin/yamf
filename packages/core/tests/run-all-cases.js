@@ -101,6 +101,8 @@ import * as staticFileServiceTests from '../../services/file-server/tests/static
 import * as fileUploadTests from '../../services/file-upload/file-upload-tests.js'
 import * as autoRefreshTests from '../../services/file-server/tests/autorefresh-tests.js'
 
+import * as userServiceTests from '../../services/user/tests/user-service-tests.js'
+import * as userServiceIntegrationTests from '../../services/user/tests/integration-tests.js'
 
 // ============================================================================
 // Test Suite Configuration
@@ -147,6 +149,9 @@ runner.addSuites({
   staticFileServiceTests,
   fileUploadTests,
   autoRefreshTests,
+
+  userServiceTests,
+  userServiceIntegrationTests,
 })
 
 // Run all test suites

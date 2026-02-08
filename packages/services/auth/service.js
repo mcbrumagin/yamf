@@ -27,20 +27,22 @@ const logger = new Logger({ logGroup: 'yamf-services' })
   TODO: brute force protection for authentication endpoints (rate limiting, IP-based restrictions, CAPTCHAs)
 */
 
+// default to hardcoded single admin user
+const defaultValidateUser = async (username, password) => {
+  let user = envConfig.getRequired('ADMIN_USER')
+  let pass = envConfig.getRequired('ADMIN_PASS')
+  if (user !== username || pass !== password) return false
+  else return true
+}
 
 // eventually will be backed by a database
 export default async function createAuthService({
   serviceName = 'auth-service',
-  useSessions = 'refresh-only'
+  useSessions = 'refresh-only',
+  validateUserPassword = defaultValidateUser
 } = {}) {
   if (useSessions && useSessions !== true && useSessions !== 'refresh-only') {
     throw new Error('useSessions must be true or "refresh-only"')
-  }
-
-  // for now we hardcode a single admin user
-  const config = {
-    ADMIN_USER: envConfig.getRequired('ADMIN_USER'),
-    ADMIN_SECRET: envConfig.getRequired('ADMIN_SECRET'),
   }
 
   const keyPair = await ed25519.generateKeyPair()
@@ -74,8 +76,11 @@ export default async function createAuthService({
 
   const authenticate = async (payload, request, response) => {
     logger.debug(`authenticating user ${payload.user}`)
+
+    console.warn('payload', payload)
+    let isValid = await validateUserPassword(payload.user, payload.password)
     
-    if (payload.user !== config.ADMIN_USER || payload.password !== config.ADMIN_SECRET) {
+    if (!isValid) {
       throw new HttpError(401, 'Invalid credentials')
     }
 
@@ -153,11 +158,8 @@ export default async function createAuthService({
     try {
       decodedToken = decodeBase64(accessToken)
       const parts = decodedToken.split('.')
-      if (parts.length !== 2) {
-        throw new Error('Invalid token format')
-      }
-      tokenPayload = parts[0]
-      signature = parts[1]
+      signature = parts.pop() // only the last part is the signature
+      tokenPayload = parts.join('.') // reassemble the payload without the signature
     } catch (err) {
       throw new HttpError(401, 'Invalid access token')
     }
@@ -192,6 +194,10 @@ export default async function createAuthService({
     else if (payload.verifyAccess) return verifyAccessToken(payload.verifyAccess, request, response)
     else return getNewAccessToken(payload, request, response)
   })
+
+  // TODO if we add CSRF protection, we need to add process tokens for form state
+  // NOTE it should not be needed since we are using JWT lite, but it would be good for defense in depth
+  // will be ideal for financial/medical data, legacy browsers, or samesite relaxation
 
   return server
 }

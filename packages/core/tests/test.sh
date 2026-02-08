@@ -15,7 +15,7 @@ export LOG_INCLUDE_LINES=true
 export LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES=true
 
 export ADMIN_USER=testadmin
-export ADMIN_SECRET=testsecret123
+export ADMIN_PASS=testsecret123
 
 # Optional: Set coverage directory
 export NODE_V8_COVERAGE=../coverage/tmp
