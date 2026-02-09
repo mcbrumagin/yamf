@@ -39,6 +39,8 @@ import {
   isTokenExpired
 } from './token.js'
 
+const logger = new Logger({ logGroup: 'user-service' })
+
 // =============================================================================
 // Default Configuration
 // =============================================================================
@@ -74,7 +76,7 @@ const DEFAULT_CONFIG = {
 // =============================================================================
 
 async function createOrValidateUserTable(sql) {
-  // await sql(`DROP TABLE IF EXISTS yamf.user`) // TODO REMOVE
+  await sql(`DROP TABLE IF EXISTS yamf.user`) // TODO REMOVE
   // Create table with all columns
   let createResult = await sql(`
     CREATE TABLE IF NOT EXISTS yamf.user (
@@ -113,7 +115,7 @@ async function createOrValidateUserTable(sql) {
     )
   `)
   
-  console.log('Created yamf.user table', createResult)
+  logger.debug('Created yamf.user table', createResult)
 }
 
 // =============================================================================
@@ -201,14 +203,14 @@ async function createUser(sql, create, validators, config, hooks) {
     mfaEnabled: false,
   })
 
-  console.log('Created yamf.user:', user)
+  logger.debug('Created yamf.user:', user)
 
   // Call hook if token was generated
   if (registrationToken && hooks.onTokenGenerated) {
     try {
       await hooks.onTokenGenerated(user.userId, registrationToken)
     } catch (err) {
-      console.error('onTokenGenerated hook error:', err)
+      logger.error('onTokenGenerated hook error:', err)
     }
   }
 
@@ -261,13 +263,11 @@ async function registerWithToken(sql, register, validators, config, hooks) {
 
   let matchedUser = null
   for (const user of users) {
-    console.warn('REGISTERING WITH TOKEN', user)
     if (user.isRegistered) continue  // Skip already registered users
     
     // Check if token has expired
     if (isTokenExpired(user.registrationTokenExpires)) continue
     
-    console.warn('VERIFYING TOKEN', token, user.registrationTokenHash, user.registrationTokenSalt)
     // Verify token
     const isValid = await verifyRegistrationToken(
       token, 
@@ -312,14 +312,14 @@ async function registerWithToken(sql, register, validators, config, hooks) {
     userId: matchedUser.userId,
   })
 
-  console.log('Registered yamf.user with token:', updatedUser)
+  logger.debug('Registered yamf.user with token:', updatedUser)
 
   // Call hook
   if (hooks.onRegistered) {
     try {
       await hooks.onRegistered(updatedUser)
     } catch (err) {
-      console.error('onRegistered hook error:', err)
+      logger.error('onRegistered hook error:', err)
     }
   }
 
@@ -399,14 +399,14 @@ async function verifyUser(sql, verify, validators, config, hooks) {
     userId: targetUserId,
   })
 
-  console.log('Verified yamf.user:', updatedUser)
+  logger.debug('Verified yamf.user:', updatedUser)
 
   // Call hook
   if (hooks.onVerified) {
     try {
       await hooks.onVerified(updatedUser)
     } catch (err) {
-      console.error('onVerified hook error:', err)
+      logger.error('onVerified hook error:', err)
     }
   }
 
@@ -459,14 +459,14 @@ async function generateToken(sql, generateTokenData, validators, config, hooks) 
     throw new HttpError(404, 'User not found')
   }
 
-  console.log('Generated new token for yamf.user:', user.userId)
+  logger.debug('Generated new token for yamf.user:', user.userId)
 
   // Call hook
   if (hooks.onTokenGenerated) {
     try {
       await hooks.onTokenGenerated(user.userId, tokenData.token)
     } catch (err) {
-      console.error('onTokenGenerated hook error:', err)
+      logger.error('onTokenGenerated hook error:', err)
     }
   }
 
@@ -508,7 +508,7 @@ async function getUser(sql, get, validators) {
     WHERE user_id = :userId OR username = :username
   `, { userId, username })
 
-  console.log('Read yamf.user:', user, 'for', { userId, username })
+  logger.debug('Read yamf.user:', user, 'for', { userId, username })
   return user
 }
 
@@ -547,7 +547,7 @@ async function updateUser(sql, update, validators) {
     RETURNING user_id, username, is_registered, is_active, is_verified, username_updated_on
   `, { userId, username, usernameUpdatedOn, isActive })
 
-  console.log('Updated yamf.user:', user)
+  logger.debug('Updated yamf.user:', user)
   return user
 }
 
@@ -575,7 +575,7 @@ async function removeUser(sql, remove, validators) {
     RETURNING user_id, username
   `, { userId, username })
 
-  console.log('Removed yamf.user:', result)
+  logger.debug('Removed yamf.user:', result)
   return result[0] || null
 }
 

@@ -10,12 +10,9 @@ import postgres from 'postgres'
 import { toCamelCase } from '@yamf/shared'
 
 
-// TODO
-const defaultPsqlConfig = {
-  PGDATABASE: 'yamf',
-  PGUSER: 'yamf',
-  PGPASSWORD: 'changeme'
-}
+// requires a database, schema, and user all called "yamf"
+// make sure to grant the user permissions on the database and schema
+const defaultPsqlConfig = `postgres://yamf:changeme@localhost/yamf`
 
 // Strict pattern for placeholder names - only valid identifiers allowed
 const VALID_PLACEHOLDER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/
@@ -37,8 +34,6 @@ export default async function createPostgreSqlService({
   schema = null,
   seed = null
 }) {
-
-  console.warn({psqlConfig})
   const sql = postgres(psqlConfig) // psql environment variables
 
   /**
@@ -86,8 +81,6 @@ export default async function createPostgreSqlService({
       return `$${++paramIndex}`
     })
     
-    console.warn({ parameterizedQuery, values })
-    
     try {
       // Use sql.unsafe for the parameterized query - this is safe because:
       // 1. The query structure is from our template (not user input in production)
@@ -96,13 +89,11 @@ export default async function createPostgreSqlService({
       const result = await sql.unsafe(parameterizedQuery, values)
       
       // Convert result keys from snake_case to camelCase for JS consumption
-      console.warn('RESULT', result)
       return mapCase ? toCamelCase(result) : result
     } catch (err) {
       const httpError = new HttpError(500, `Query error: ${err.message}`)
       httpError.stack = err.stack
       httpError.parameterizedQuery = parameterizedQuery
-      console.warn(parameterizedQuery)
       throw httpError
     }
   }

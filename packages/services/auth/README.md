@@ -82,11 +82,19 @@ Send the token on each call to protected services:
 
 When creating a service, pass `useAuthService: 'auth-service'` (and optionally `accessControl: 'public'` for unauthenticated routes) so the gateway validates the token.
 
+### Logout
+
+Send a request with **headers**: `[HEADERS.COMMAND]: COMMANDS.AUTH_LOGOUT`. Optionally include the access token (`HEADERS.AUTH_TOKEN`) or the refresh-token cookie so the service knows which user to invalidate.
+
+- **If sessions are enabled**: Removes that user’s refresh and access entries from the session cache (so existing tokens stop working).
+- **If sessions are disabled**: No cache changes; the service still clears the refresh-token cookie so the client drops it.
+
+Response: `200` with `{ success: true }` and a `Set-Cookie` that clears the refresh-token cookie.
+
 ### Other payloads (internal)
 
 - `verifyAccess` – Verify an access token.
 - `getNewAccessToken` – Exchange refresh token (e.g. from cookie) for a new access token.
-- `logout` – (Planned) Invalidate session.
 
 ## Dependencies
 

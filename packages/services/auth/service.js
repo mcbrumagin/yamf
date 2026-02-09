@@ -3,7 +3,8 @@ import {
   Logger,
   HttpError,
   next,
-  envConfig
+  envConfig,
+  HEADERS
 } from '@yamf/core'
 
 import { createInMemoryCache } from '@yamf/services-cache'
@@ -103,14 +104,50 @@ export default async function createAuthService({
     return next()
   }
 
+  /**
+   * Logout: invalidate sessions when enabled, then clear the refresh-token cookie.
+   * If sessions are disabled, does nothing except clear the cookie so the client drops it.
+   */
   const logout = async (payload, request, response) => {
-    // if we have an accessToken, verify it
-    // if we have a sessionToken verify it
-    // if neither exist, 403
-    // if one or both exist and are valid, remove them from sessions (if enabled)
-    // return set-cookie null (or equivalent to unset session cookie)
-    // access token revocation will rely on ephemeral client code (if no sessions)
-    // ???
+    let user = null
+
+    const authToken = request.headers?.[HEADERS.AUTH_TOKEN]
+    if (authToken) {
+      try {
+        const decoded = decodeBase64(authToken)
+        const [tokenPayload] = decoded.split('.')
+        const parsed = JSON.parse(tokenPayload)
+        if (parsed?.user) user = parsed.user
+      } catch (_) { /* ignore invalid token */ }
+    }
+
+    if (!user && request.headers?.cookie) {
+      try {
+        const match = request.headers.cookie.match(/refresh-token=([^;]+)/)
+        const refreshTokenEncoded = match?.[1]
+        if (refreshTokenEncoded) {
+          const decoded = decodeBase64(refreshTokenEncoded)
+          const [tokenPayload] = decoded.split('.')
+          const parsed = JSON.parse(tokenPayload)
+          if (parsed?.user) user = parsed.user
+        }
+      } catch (_) { /* ignore */ }
+    }
+
+    if (useSessions && user) {
+      cache.del(`${user}:refresh-token`)
+      if (useSessions !== 'refresh-only') {
+        cache.del(`${user}:access-token`)
+      }
+    }
+
+    const clearCookie = 'refresh-token=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'
+    response.writeHead(200, {
+      'Set-Cookie': clearCookie,
+      'content-type': 'application/json'
+    })
+    response.end(JSON.stringify({ success: true }))
+    return next()
   }
 
   const getNewAccessToken = async (payload, request) => {
