@@ -13,95 +13,72 @@ import {
 
 import { HttpError } from '@yamf/core'
 
-// =============================================================================
-// Username Validator Factory
-// =============================================================================
-
-/**
- * Create a username validator based on configuration
- * 
- * @param {Object} config - Username validation configuration
- * @param {string} config.type - 'email' | 'pattern' | 'custom' | 'any'
- * @param {RegExp} config.pattern - Regex pattern (used if type: 'pattern')
- * @param {Function} config.validate - Custom validator function (used if type: 'custom')
- * @param {string} config.message - Custom error message
- * @returns {Object} Schema validator for username
- */
-export function createUsernameValidator(config = {}) {
-  const { type = 'email', pattern, validate, message } = config
-
-  if (type === 'email') {
-    return is.email
-  }
-
-  if (type === 'pattern') {
-    if (!pattern) {
-      throw new Error('usernameValidation.pattern is required when type is "pattern"')
-    }
-    return is.string({ pattern, minLength: 1 })
-  }
-
-  if (type === 'custom') {
-    if (typeof validate !== 'function') {
-      throw new Error('usernameValidation.validate must be a function when type is "custom"')
-    }
-    return is.refine(
-      is.string({ minLength: 1 }),
-      validate,
-      message || 'Invalid username'
-    )
-  }
-
-  // 'any' or fallback: any non-empty string
-  return is.string({ minLength: 1 })
-}
 
 // =============================================================================
 // Schema Definitions
 // =============================================================================
 
-/**
- * Create the full user schema based on configuration
- * 
- * @param {Object} usernameValidator - The username validator to use
- * @returns {Object} Full user schema
- */
-export function createUserSchema(usernameValidator) {
-  return {
-    // Core identity
-    userId: is.int({ positive: true }),       // SERIAL PRIMARY KEY
-    username: usernameValidator,              // validated based on config
-    
-    // Authentication (internal, never exposed in responses)
-    hash: is(is.nullable, is.base64()),
-    salt: is(is.nullable, is.base64()),
-    
-    // Status flags
-    isRegistered: is.bool,                    // user has set their password
-    isActive: is.bool,                        // account is active/enabled
-    isVerified: is.bool,                      // user has verified their identity
-    
-    // Lifecycle dates
-    createdOn: is.datetime(),
-    registeredOn: is(is.nullable, is.datetime()),
-    verifiedOn: is(is.nullable, is.datetime()),
-    usernameUpdatedOn: is(is.nullable, is.datetime()),
-    
-    // Registration token (internal, never exposed)
-    registrationTokenHash: is(is.nullable, is.base64()),
-    registrationTokenSalt: is(is.nullable, is.base64()),
-    registrationTokenExpires: is(is.nullable, is.datetime()),
-    
-    // Future: Social login
-    authProvider: is(is.nullable, is.oneOf('local', 'google', 'github', 'microsoft', 'apple')),
-    externalId: is(is.nullable, is.string()),
-    
-    // Future: MFA
-    mfaEnabled: is.bool,
-    mfaType: is(is.nullable, is.oneOf('totp', 'sms', 'email')),
-    mfaSecret: is(is.nullable, is.string()),  // encrypted
-  }
+
+const baseSchema = {
+  // Core identity
+  userId: is.int({ positive: true }),       // SERIAL PRIMARY KEY
+  username: is.anyOf(is.email, is.regex(/^[a-zA-Z0-9_-]+$/, { minLength: 3 })),
+  email: is(is.optional, is.email),
+  phone: is(is.optional, is.phone),
+  
+  // Role & Permissions
+  role: is(is.optional, is.string),
+  permissions: is(is.optional, is.array(is.string())),
+  
+  // Authentication (internal, never exposed in responses)
+  hash: is(is.nullable, is.base64()),
+  salt: is(is.nullable, is.base64()),
+  
+  // Status flags
+  isRegistered: is.bool,                    // user has set their password
+  isActive: is.bool,                        // account is active/enabled
+  isVerified: is.bool,                      // user has verified their identity
+  
+  // Lifecycle dates
+  createdOn: is.datetime(),
+  registeredOn: is(is.nullable, is.datetime()),
+  verifiedOn: is(is.nullable, is.datetime()),
+  usernameUpdatedOn: is(is.nullable, is.datetime()),
+  
+  // Token (internal, never exposed - used for registration or verification)
+  tokenHash: is(is.nullable, is.base64()),
+  tokenSalt: is(is.nullable, is.base64()),
+  tokenExpires: is(is.nullable, is.datetime()),
+  
+  // Future: Social login
+  authProvider: is(is.nullable, is.oneOf('local', 'google', 'github', 'microsoft', 'apple')),
+  externalId: is(is.nullable, is.string()),
+  
+  // Future: MFA
+  mfaEnabled: is.bool,
+  mfaType: is(is.nullable, is.oneOf('totp', 'sms', 'email')),
+  mfaSecret: is(is.nullable, is.string()),  // encrypted
 }
+
+// =============================================================================
+// General Validators
+// =============================================================================
+
+const validatePassword = is.password({ 
+  minLength: 8, 
+  requireUppercase: false, 
+  requireLowercase: false, 
+  requireNumber: false 
+})
+
+const validateUserIdOrUsername = is.refine(
+  is.object({
+    userId: is(is.optional, baseSchema.userId),
+    username: is(is.optional, baseSchema.username),
+  }),
+  (data) => data.userId !== undefined || data.username !== undefined,
+  'At least one of userId or username is required'
+)
 
 // =============================================================================
 // Action Validators Factory
@@ -110,80 +87,59 @@ export function createUserSchema(usernameValidator) {
 /**
  * Create all action validators based on configuration
  * 
- * @param {Object} usernameValidator - The username validator to use
  * @returns {Object} Object containing all action validators
  */
-export function createActionValidators(usernameValidator) {
-  const baseSchema = createUserSchema(usernameValidator)
+export function createActionValidators() {
 
   // Create (admin without password OR self-signup with password)
   const validateCreate = createValidator({
     username: baseSchema.username,
-    password: is(is.optional, is.password({ 
-      minLength: 8, 
-      requireUppercase: false, 
-      requireLowercase: false, 
-      requireNumber: false 
-    })),
+    email: baseSchema.email,
+    phone: baseSchema.phone,
+    role: baseSchema.role,
+    permissions: baseSchema.permissions,
+    password: is(is.optional, validatePassword),
     isActive: is(is.optional, baseSchema.isActive),
   }, { name: 'CreateUser' })
 
   // Register with token (complete registration)
-  const validateRegisterWithToken = createValidator({
+  const validateRegister = createValidator({
+    userId: is(is.optional, baseSchema.userId),
+    username: is(is.optional, baseSchema.username),
     token: is.string({ minLength: 1 }),
-    password: is.password({ 
-      minLength: 8, 
-      requireUppercase: false, 
-      requireLowercase: false, 
-      requireNumber: false 
-    }),
-  }, { name: 'RegisterWithToken' })
+    password: validatePassword,
+  }, { name: 'RegisterUser' })
+
+  // Verify with token (complete registration)
+  const validateVerify = createValidator({
+    ...validateUserIdOrUsername,
+    token: is.string({ minLength: 1 }),
+    // optional password - user may have created it and they are just verifying contact info
+    // we need to make sure it is created already
+    password: is(is.optional, validatePassword),
+  }, { name: 'VerifyUser' })
 
   // Get: requires at least one identifier
   const validateGet = createValidator(
-    is.refine(
-      is.object({
-        userId: is(is.optional, baseSchema.userId),
-        username: is(is.optional, baseSchema.username),
-      }),
-      (data) => data.userId !== undefined || data.username !== undefined,
-      'At least one of userId or username is required'
-    ),
+    validateUserIdOrUsername,
     { name: 'GetUser' }
   )
 
-  // Update: requires userId, optional other fields
+  // Update: requires userId or username, optional other fields
   const validateUpdate = createValidator({
-    userId: baseSchema.userId,
-    username: is(is.optional, baseSchema.username),
+    ...validateUserIdOrUsername,
+    email: baseSchema.email,
+    phone: baseSchema.phone,
+    role: baseSchema.role,
+    permissions: baseSchema.permissions,
     isActive: is(is.optional, baseSchema.isActive),
     // Note: isRegistered and isVerified are managed by specific actions, not general update
   }, { name: 'UpdateUser' })
 
   // Remove: requires at least one identifier
   const validateRemove = createValidator(
-    is.refine(
-      is.object({
-        userId: is(is.optional, baseSchema.userId),
-        username: is(is.optional, baseSchema.username),
-      }),
-      (data) => data.userId !== undefined || data.username !== undefined,
-      'At least one of userId or username is required'
-    ),
+    validateUserIdOrUsername,
     { name: 'RemoveUser' }
-  )
-
-  // Verify: userId or token
-  const validateVerify = createValidator(
-    is.refine(
-      is.object({
-        userId: is(is.optional, baseSchema.userId),
-        token: is(is.optional, is.string({ minLength: 1 })),
-      }),
-      (data) => data.userId !== undefined || data.token !== undefined,
-      'Either userId or token is required'
-    ),
-    { name: 'VerifyUser' }
   )
 
   // Generate token: requires userId
@@ -192,14 +148,21 @@ export function createActionValidators(usernameValidator) {
     expiresIn: is(is.optional, is.int({ positive: true })),  // ms
   }, { name: 'GenerateToken' })
 
+  // Check password: requires username and password
+  const validateCheckPassword = createValidator({
+    username: baseSchema.username,
+    password: validatePassword,
+  }, { name: 'CheckPassword' })
+
   return {
     validateCreate,
-    validateRegisterWithToken,
     validateGet,
     validateUpdate,
     validateRemove,
+    validateRegister,
     validateVerify,
     validateGenerateToken,
+    validateCheckPassword,
     baseSchema,
   }
 }

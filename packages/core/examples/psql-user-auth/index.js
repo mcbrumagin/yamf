@@ -72,28 +72,7 @@ async function main() {
     await createPostgreSqlService({
       psqlConfig: 'postgres://yamf:changeme@localhost/yamf'
     }),
-    await createUserService({
-      // Example: use custom username validation (pattern-based)
-      // usernameValidation: {
-      //   type: 'pattern',
-      //   pattern: /^[a-z0-9_]{3,30}$/i,
-      //   message: 'Username must be 3-30 alphanumeric characters or underscores'
-      // },
-      
-      // Hooks for extensibility
-      hooks: {
-        onTokenGenerated: async (userId, token) => {
-          console.log(`[HOOK] Token generated for user ${userId}:`, token)
-          // In production: send email, generate QR code, etc.
-        },
-        onRegistered: async (user) => {
-          console.log(`[HOOK] User registered:`, user)
-        },
-        onVerified: async (user) => {
-          console.log(`[HOOK] User verified:`, user)
-        },
-      },
-    })
+    await createUserService()
   ]
 
   // ==========================================================================
@@ -154,7 +133,7 @@ async function main() {
   })
 
   // Admin creates user WITHOUT password
-  // Results in: is_registered=false, is_verified=false, registrationToken returned
+  // Results in: is_registered=false, is_verified=false, token returned
   let adminCreate = await callService('user-service', {
     create: {
       username: 'invited@test.com',
@@ -163,7 +142,7 @@ async function main() {
     }
   })
   console.log('Admin created user:', adminCreate)
-  const inviteToken = adminCreate.create.registrationToken
+  const inviteToken = adminCreate.create.token
   console.log('Registration token (send to user):', inviteToken)
 
   // Get the user to see initial state
@@ -239,7 +218,7 @@ async function main() {
 
   // Generate a new token (e.g., user lost the first one)
   let newTokenResult = await callService('user-service', {
-    generateToken: {
+    createToken: {
       userId: newUser.create.userId,
       expiresIn: 24 * 60 * 60 * 1000,  // 24 hours
     }

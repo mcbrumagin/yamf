@@ -52,7 +52,6 @@ export const ed25519 = {
   },
 
   verify: async function(keyPair, data, signature) {
-    console.info(`signature: ${signature}`)
     return await crypto.subtle.verify(
       { name: 'Ed25519' },
       keyPair.publicKey,
@@ -89,14 +88,14 @@ export async function createArgonSaltAndHash(password) {
 
   const hash = derivedKey.toString('base64')
   const salt = saltBytes.toString('base64')
-  console.warn('createArgonSaltAndHash', { salt, hash })
+  // console.warn('createArgonSaltAndHash', { salt, hash })
 
   return { salt, hash }
 }
 
 export async function checkArgonPassword(passToCheck, salt, hash) {
 
-  console.warn('checkArgonPassword', { salt, hash })
+  // console.warn('checkArgonPassword', { salt, hash })
   let saltBytes = Buffer.from(salt, 'base64')
   let derivedKey = await argon2('argon2id', {
     ...argon2Parameters,

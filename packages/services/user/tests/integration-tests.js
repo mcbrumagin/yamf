@@ -18,21 +18,27 @@ import {
   registryServer,
   gatewayServer,
   callService,
-  HttpError
+  HttpError,
+  overrideConsoleGlobally
 } from '@yamf/core'
 
 import createPostgreSqlService from '@yamf/services-postgres'
 import createUserService from '../service.js'
+
+
+// overrideConsoleGlobally({
+//   includeLogLineNumbers: true
+// })
 
 // =============================================================================
 // Test Configuration
 // =============================================================================
 
 const TEST_PSQL_CONFIG = process.env.TEST_PSQL_URL || 
-  `postgres://${process.env.PGUSER || 'yamf'}:${process.env.PGPASSWORD || 'changeme'}@localhost/${process.env.PGDATABASE || 'yamf_test'}`
+  `postgres://${process.env.PGUSER || 'yamf'}:${process.env.PGPASSWORD || 'changeme'}@localhost/${process.env.PGDATABASE || 'yamf'}`
 
 // Unique test user prefix to avoid conflicts
-const TEST_PREFIX = `test_${Date.now()}_`
+const TEST_PREFIX = `test__integration__`
 
 /**
  * Helper to create test username
@@ -136,6 +142,7 @@ export async function testPostgresService_InvalidPlaceholder() {
 // User Service Integration Tests - Full Lifecycle
 // =============================================================================
 
+// testUserService_SelfSignupFlow.solo = true
 export async function testUserService_SelfSignupFlow() {
   const username = testUsername('self_signup')
   
@@ -146,12 +153,14 @@ export async function testUserService_SelfSignupFlow() {
     async () => {
       // Cleanup from previous runs
       await cleanupTestUsers(TEST_PREFIX)
+
+      const password = 'testpassword123'
       
       // 1. Create user with password (self-signup)
       const createResult = await callService('user-service', {
         create: {
           username,
-          password: 'testpassword123'
+          password
         }
       })
       
@@ -161,14 +170,20 @@ export async function testUserService_SelfSignupFlow() {
         r => r.create.isRegistered === true,
         r => r.create.isVerified === false,
         r => r.create.isActive === false,
-        r => r.create.registrationToken === undefined
+        r => r.create.token === undefined
       )
       
       const userId = createResult.create.userId
+
+      const tokenResult = await callService('user-service', {
+        createToken: { userId, expiresIn: 3600000 }
+      })
+
+      const token = tokenResult.createToken.token
       
       // 2. Verify user
       const verifyResult = await callService('user-service', {
-        verify: { userId }
+        verify: { userId, password, token }
       })
       
       await assert(verifyResult,
@@ -228,12 +243,11 @@ export async function testUserService_AdminInviteFlow() {
         r => r.create.isRegistered === false,
         r => r.create.isVerified === false,
         r => r.create.isActive === true,
-        r => r.create.registrationToken !== undefined,
-        r => typeof r.create.registrationToken === 'string'
+        r => r.create.token !== undefined,
+        r => typeof r.create.token === 'string'
       )
       
-      const token = createResult.create.registrationToken
-      console.warn('TOKEN', token)
+      const token = createResult.create.token
       
       // 2. User registers with token
       const registerResult = await callService('user-service', {
@@ -267,6 +281,54 @@ export async function testUserService_AdminInviteFlow() {
   )
 }
 
+// testUserService_VerifyAndRegister.solo = true
+export async function testUserService_VerifyAndRegister() {
+  const username = testUsername('verify_register')
+  
+  await terminateAfter(
+    await registryServer(),
+    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    await createUserService(),
+    async () => {
+      await cleanupTestUsers(TEST_PREFIX)
+      
+      // 1. Admin creates user without password (invite flow)
+      const createResult = await callService('user-service', {
+        create: { username, isActive: false }
+      })
+      
+      await assert(createResult,
+        r => r.create.username === username,
+        r => r.create.isRegistered === false,
+        r => r.create.token !== undefined
+      )
+      
+      const token = createResult.create.token
+      
+      // 2. User redeems token with password via verify
+      const verifyResult = await callService('user-service', {
+        verify: { username, token, password: 'securepass123' }
+      })
+      
+      await assert(verifyResult,
+        r => r.verify.isRegistered === true,
+        r => r.verify.isVerified === true,
+        r => r.verify.registeredOn !== undefined,
+        r => r.verify.verifiedOn !== undefined
+      )
+      
+      // 3. User can now log in
+      const checkResult = await callService('user-service', {
+        checkPassword: { username, password: 'securepass123' }
+      })
+      await assert(checkResult, r => r.checkPassword === true)
+      
+      // Cleanup
+      await callService('user-service', { remove: { username } })
+    }
+  )
+}
+
 export async function testUserService_InvalidToken() {
   await terminateAfter(
     await registryServer(),
@@ -281,12 +343,14 @@ export async function testUserService_InvalidToken() {
           }
         }),
         err => err.status === 401,
-        err => err.message.includes('Invalid or expired')
+        err => err.message.includes('Invalid or expired token')
       )
     }
   )
 }
 
+// testUserService_TokenRegeneration.solo = true
+// TODO test is flaky
 export async function testUserService_TokenRegeneration() {
   const username = testUsername('token_regen')
   
@@ -304,21 +368,21 @@ export async function testUserService_TokenRegeneration() {
       })
       
       const userId = createResult.create.userId
-      const firstToken = createResult.create.registrationToken
+      const firstToken = createResult.create.token
       
       // 2. Generate new token
       const regenResult = await callService('user-service', {
-        generateToken: {
+        createToken: {
           userId,
           expiresIn: 3600000  // 1 hour
         }
       })
       
       await assert(regenResult,
-        r => r.generateToken.userId === userId,
-        r => r.generateToken.registrationToken !== undefined,
-        r => r.generateToken.registrationToken !== firstToken,  // Different token
-        r => r.generateToken.expiresAt !== undefined
+        r => r.createToken.userId === userId,
+        r => r.createToken.token !== undefined,
+        r => r.createToken.token !== firstToken,  // Different token
+        r => r.createToken.expiresAt !== undefined
       )
       
       // 3. Old token should not work
@@ -333,7 +397,7 @@ export async function testUserService_TokenRegeneration() {
       )
       
       // 4. New token should work
-      const newToken = regenResult.generateToken.registrationToken
+      const newToken = regenResult.createToken.token
       const registerResult = await callService('user-service', {
         register: {
           token: newToken,
@@ -461,105 +525,6 @@ export async function testUserService_RemoveUser() {
         get: { userId }
       })
       await assert(getAfter, r => r.get === undefined)
-    }
-  )
-}
-
-// =============================================================================
-// Custom Username Validation Tests
-// =============================================================================
-
-export async function testUserService_PatternUsernameValidation() {
-  const username = 'john_doe_123'
-  
-  await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
-    await createUserService({
-      serviceName: 'pattern-user-service',
-      usernameValidation: {
-        type: 'pattern',
-        pattern: /^[a-z0-9_]{3,20}$/
-      }
-    }),
-    async () => {
-      // Cleanup
-      await callService('postgres-service', {
-        template: `DELETE FROM yamf.user WHERE username = :username`,
-        data: { username }
-      })
-      
-      // Valid pattern username
-      const createResult = await callService('pattern-user-service', {
-        create: { username, password: 'password123' }
-      })
-      
-      await assert(createResult, r => r.create.username === username)
-      
-      // Invalid pattern username
-      await assertErr(
-        async () => callService('pattern-user-service', {
-          create: { username: 'Invalid Username!', password: 'password123' }
-        }),
-        err => err.status === 400
-      )
-      
-      // Cleanup
-      await callService('pattern-user-service', { remove: { username } })
-    }
-  )
-}
-
-// =============================================================================
-// Hooks Integration Tests
-// =============================================================================
-
-export async function testUserService_HooksIntegration() {
-  const username = testUsername('hooks_test')
-  const hookEvents = []
-  
-  await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
-    await createUserService({
-      serviceName: 'hooks-user-service',
-      hooks: {
-        onTokenGenerated: async (userId, token) => {
-          hookEvents.push({ type: 'tokenGenerated', userId, hasToken: !!token })
-        },
-        onRegistered: async (user) => {
-          hookEvents.push({ type: 'registered', userId: user.userId })
-        },
-        onVerified: async (user) => {
-          hookEvents.push({ type: 'verified', userId: user.userId })
-        }
-      }
-    }),
-    async () => {
-      // Cleanup
-      await cleanupTestUsers(TEST_PREFIX)
-      
-      // Create without password (triggers onTokenGenerated)
-      const createResult = await callService('hooks-user-service', {
-        create: { username }
-      })
-      const userId = createResult.create.userId
-      const token = createResult.create.registrationToken
-      
-      // Register with token (triggers onRegistered)
-      await callService('hooks-user-service', {
-        register: { token, password: 'password123' }
-      })
-      
-      // Verify hooks were called
-      await assert(hookEvents,
-        h => h.length >= 2,
-        h => h.some(e => e.type === 'tokenGenerated' && e.userId === userId),
-        h => h.some(e => e.type === 'registered' && e.userId === userId)
-      )
-      
-      // Cleanup
-      await callService('hooks-user-service', { remove: { userId } })
     }
   )
 }

@@ -19,7 +19,6 @@ import {
 } from '@yamf/core'
 
 import {
-  createUsernameValidator,
   createActionValidators,
   createValidationError,
   ValidationError
@@ -119,72 +118,11 @@ export function testIsTokenExpired_StringDate() {
 }
 
 // =============================================================================
-// Username Validator Tests
-// =============================================================================
-
-export function testUsernameValidator_Email() {
-  const validator = createUsernameValidator({ type: 'email' })
-  
-  assert(validator,
-    v => v.type === 'email',
-    v => v.xss === 'check'
-  )
-}
-
-export function testUsernameValidator_Pattern() {
-  const validator = createUsernameValidator({
-    type: 'pattern',
-    pattern: /^[a-z0-9_]{3,20}$/
-  })
-  
-  assert(validator,
-    v => v.type === 'string',
-    v => v.pattern instanceof RegExp
-  )
-}
-
-export function testUsernameValidator_Custom() {
-  const validator = createUsernameValidator({
-    type: 'custom',
-    validate: (username) => username.length >= 3,
-    message: 'Username too short'
-  })
-  
-  assert(validator,
-    v => v.type === 'custom' || v.refine !== undefined
-  )
-}
-
-export function testUsernameValidator_Any() {
-  const validator = createUsernameValidator({ type: 'any' })
-  
-  assert(validator,
-    v => v.type === 'string',
-    v => v.minLength === 1
-  )
-}
-
-export function testUsernameValidator_PatternRequiresPattern() {
-  assertErr(
-    () => createUsernameValidator({ type: 'pattern' }),
-    err => err.message.includes('pattern is required')
-  )
-}
-
-export function testUsernameValidator_CustomRequiresFunction() {
-  assertErr(
-    () => createUsernameValidator({ type: 'custom', validate: 'not a function' }),
-    err => err.message.includes('must be a function')
-  )
-}
-
-// =============================================================================
 // Action Validators Tests
 // =============================================================================
 
 export function testActionValidators_Create() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
   // Valid: with password
   const result1 = validators.validateCreate({
@@ -207,21 +145,10 @@ export function testActionValidators_Create() {
   )
 }
 
-export function testActionValidators_Create_InvalidEmail() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
-  
-  assertErr(
-    () => validators.validateCreate({ username: 'not-an-email', password: 'password123' }),
-    err => err instanceof ValidationError
-  )
-}
-
 export function testActionValidators_RegisterWithToken() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
-  const result = validators.validateRegisterWithToken({
+  const result = validators.validateRegister({
     token: 'abc123token',
     password: 'mypassword123'
   })
@@ -233,34 +160,54 @@ export function testActionValidators_RegisterWithToken() {
 }
 
 export function testActionValidators_RegisterWithToken_MissingToken() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
   assertErr(
-    () => validators.validateRegisterWithToken({ password: 'mypassword123' }),
+    () => validators.validateRegister({ password: 'mypassword123' }),
+    err => err instanceof ValidationError
+  )
+}
+
+export function testActionValidators_Verify() {
+  const validators = createActionValidators()
+  
+  const result = validators.validateVerify({
+    username: 'test@example.com',
+    token: 'abc123token',
+    password: 'mypassword123'
+  })
+  
+  assert(result,
+    r => r.token === 'abc123token',
+    r => r.password === 'mypassword123'
+  )
+}
+
+export function testActionValidators_Verify_MissingToken() {
+  const validators = createActionValidators()
+  
+  assertErr(
+    () => validators.validateVerify({ password: 'mypassword123' }),
     err => err instanceof ValidationError
   )
 }
 
 export function testActionValidators_Get_ByUserId() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
   const result = validators.validateGet({ userId: 123 })
   assert(result, r => r.userId === 123)
 }
 
 export function testActionValidators_Get_ByUsername() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
   const result = validators.validateGet({ username: 'test@example.com' })
   assert(result, r => r.username === 'test@example.com')
 }
 
 export function testActionValidators_Get_RequiresIdentifier() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
   assertErr(
     () => validators.validateGet({}),
@@ -269,8 +216,7 @@ export function testActionValidators_Get_RequiresIdentifier() {
 }
 
 export function testActionValidators_Update() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
   const result = validators.validateUpdate({
     userId: 123,
@@ -285,35 +231,22 @@ export function testActionValidators_Update() {
   )
 }
 
-export function testActionValidators_Update_RequiresUserId() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
-  
-  assertErr(
-    () => validators.validateUpdate({ username: 'new@example.com' }),
-    err => err instanceof ValidationError
-  )
-}
-
 export function testActionValidators_Verify_ByUserId() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
   const result = validators.validateVerify({ userId: 123 })
   assert(result, r => r.userId === 123)
 }
 
 export function testActionValidators_Verify_ByToken() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
-  const result = validators.validateVerify({ token: 'verification-token' })
+  const result = validators.validateVerify({ userId: 123, token: 'verification-token' })
   assert(result, r => r.token === 'verification-token')
 }
 
 export function testActionValidators_GenerateToken() {
-  const usernameValidator = createUsernameValidator({ type: 'email' })
-  const validators = createActionValidators(usernameValidator)
+  const validators = createActionValidators()
   
   const result = validators.validateGenerateToken({
     userId: 123,
@@ -461,9 +394,9 @@ export async function testUserService_CreateWithoutPassword() {
             r => r.create.username === 'invited@example.com',
             r => r.create.isRegistered === false,
             r => r.create.isActive === true,
-            r => r.create.registrationToken !== undefined,  // Token returned
-            r => typeof r.create.registrationToken === 'string',
-            r => r.create.registrationToken.length > 0
+            r => r.create.token !== undefined,  // Token returned
+            r => typeof r.create.token === 'string',
+            r => r.create.token.length > 0
           )
         }
       )
@@ -556,6 +489,12 @@ export async function testUserService_VerifyUser() {
         isActive: true,
         isVerified: true,
         verifiedOn: new Date().toISOString()
+      }],
+      'SELECT': () => [{
+        userId: 1,
+        username: 'test@example.com',
+        hash: 'hash',
+        salt: 'salt'
       }]
     }),
     async () => {
@@ -594,123 +533,10 @@ export async function testUserService_ValidationError() {
         async () => {
           await assertErr(
             async () => callService('user-service', {
-              create: { username: 'not-an-email' }
+              create: { username: '!@#$%^&*()-=~`[]{}|;:' }
             }),
             err => err.status === 400,
             err => err.message.includes('Invalid')
-          )
-        }
-      )
-    }
-  )
-}
-
-export async function testUserService_CustomUsernameValidation() {
-  await terminateAfter(
-    await registryServer(),
-    await createMockPostgresService({
-      'CREATE TABLE': [],
-      'ALTER TABLE': [],
-      'INSERT INTO yamf.user': (data) => [{
-        userId: 1,
-        username: data.username,
-        isRegistered: true,
-        isActive: false,
-        isVerified: false,
-        createdOn: new Date().toISOString()
-      }]
-    }),
-    async () => {
-      const { default: createUserService } = await import('../service.js')
-      
-      // Create with pattern-based username validation
-      await terminateAfter(
-        await createUserService({
-          serviceName: 'custom-user-service',
-          usernameValidation: {
-            type: 'pattern',
-            pattern: /^[a-z0-9_]{3,20}$/
-          }
-        }),
-        async () => {
-          // Valid username
-          const result = await callService('custom-user-service', {
-            create: {
-              username: 'john_doe',
-              password: 'password123'
-            }
-          })
-          
-          await assert(result,
-            r => r.create.username === 'john_doe'
-          )
-        }
-      )
-    }
-  )
-}
-
-export async function testUserService_Hooks() {
-  let hooksCalled = {
-    onTokenGenerated: false,
-    onRegistered: false,
-    onVerified: false
-  }
-  
-  await terminateAfter(
-    await registryServer(),
-    await createMockPostgresService({
-      'CREATE TABLE': [],
-      'ALTER TABLE': [],
-      'INSERT INTO yamf.user': (data) => [{
-        userId: 1,
-        username: data.username,
-        isRegistered: false,
-        isActive: true,
-        isVerified: false,
-        createdOn: new Date().toISOString()
-      }],
-      'UPDATE yamf.user': (data) => [{
-        userId: 1,
-        username: 'test@example.com',
-        isRegistered: true,
-        isActive: true,
-        isVerified: true,
-        verifiedOn: new Date().toISOString()
-      }]
-    }),
-    async () => {
-      const { default: createUserService } = await import('../service.js')
-      
-      await terminateAfter(
-        await createUserService({
-          serviceName: 'hooks-test-service',
-          hooks: {
-            onTokenGenerated: async (userId, token) => {
-              hooksCalled.onTokenGenerated = true
-              assert(userId, u => u === 1)
-              assert(token, t => typeof t === 'string')
-            },
-            onVerified: async (user) => {
-              hooksCalled.onVerified = true
-              assert(user, u => u.isVerified === true)
-            }
-          }
-        }),
-        async () => {
-          // Create without password (triggers onTokenGenerated)
-          await callService('hooks-test-service', {
-            create: { username: 'test@example.com' }
-          })
-          
-          // Verify user (triggers onVerified)
-          await callService('hooks-test-service', {
-            verify: { userId: 1 }
-          })
-          
-          await assert(hooksCalled,
-            h => h.onTokenGenerated === true,
-            h => h.onVerified === true
           )
         }
       )

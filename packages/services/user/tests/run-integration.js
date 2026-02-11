@@ -39,6 +39,7 @@ async function main() {
   runner.addSuite('user-service-integration', {
     testUserService_SelfSignupFlow: integrationTests.testUserService_SelfSignupFlow,
     testUserService_AdminInviteFlow: integrationTests.testUserService_AdminInviteFlow,
+    testUserService_VerifyAndRegister: integrationTests.testUserService_VerifyAndRegister,
     testUserService_InvalidToken: integrationTests.testUserService_InvalidToken,
     testUserService_TokenRegeneration: integrationTests.testUserService_TokenRegeneration,
     testUserService_DuplicateUsername: integrationTests.testUserService_DuplicateUsername,
@@ -46,13 +47,11 @@ async function main() {
     testUserService_RemoveUser: integrationTests.testUserService_RemoveUser,
   })
   
-  runner.addSuite('user-service-custom-validation', {
-    testUserService_PatternUsernameValidation: integrationTests.testUserService_PatternUsernameValidation,
-  })
-  
-  runner.addSuite('user-service-hooks', {
-    testUserService_HooksIntegration: integrationTests.testUserService_HooksIntegration,
-  })
+  if (integrationTests.testUserService_HooksIntegration) {
+    runner.addSuite('user-service-hooks', {
+      testUserService_HooksIntegration: integrationTests.testUserService_HooksIntegration,
+    })
+  }
   
   await runner.run()
 }
