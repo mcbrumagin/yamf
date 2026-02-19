@@ -1,6 +1,6 @@
 {
   "name": "@yamf/shared",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Shared utilities for YAMF - truly isomorphic code that works in both browser and Node.js",
   "main": "src/index.js",
