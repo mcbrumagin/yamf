@@ -54,7 +54,7 @@ const DEFAULT_CONFIG = {
 // =============================================================================
 
 async function createOrValidateUserTable(sql) {
-  await sql(`DROP TABLE IF EXISTS yamf.user`) // TODO REMOVE
+  // await sql(`DROP TABLE IF EXISTS yamf.user`) // TODO REMOVE
   // Create table with all columns
   let createResult = await sql(`
     CREATE TABLE IF NOT EXISTS yamf.user (
