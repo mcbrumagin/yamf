@@ -124,11 +124,14 @@ export default async function createService(name, serviceFn, options = {}) {
     const existingAccess = getLocalServiceAccess(name)
     throw new Error(
       `Cannot create service "${name}" with accessControl="${config.accessControl}". ` +
-      `A ${existingAccess} service with this name already exists on this node.\n` +
-      `Options:\n` +
-      `  - Rename one of the services\n` +
-      `  - Change the existing service to use 'private' or 'public' access control\n` +
-      `  - Use a plain function instead of a service if load-balancing isn't needed`
+      `A ${existingAccess} service with this name already exists on this process.\n` +
+      `Options:\n`
+      + `  - Rename one of the services if they contain different functionality\n`
+      + `  - For load-balancing: run the second service on a different process or node\n`
+      // TODO this message doesn't make sense if the existing service is private
+      // + `  - Change the existing service to use 'private' or 'public' access control\n`
+      // TODO also doesn't make sense? idk
+      // + `  - Use a plain function instead of a service if load-balancing isn't needed`
     )
   }
 

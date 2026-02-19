@@ -19,7 +19,7 @@
     "yamf"
   ],
   "scripts": {
-    "test": "node run-tests.js"
+    "test": "yamf test -d ."
   },
   "files": [
     "service.js",
@@ -37,6 +37,7 @@
     "@yamf/services-cache": "workspace:*"
   },
   "devDependencies": {
-    "@yamf/test": "workspace:*"
+    "@yamf/test": "workspace:*",
+    "@yamf/cli": "workspace:*"
   }
 }

@@ -7,7 +7,7 @@
   "type": "module",
   "main": "service.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "yamf test -d ."
   },
   "dependencies": {
     "@yamf/core": "workspace:*",
@@ -15,6 +15,7 @@
     "@yamf/shared": "workspace:*"
   },
   "devDependencies": {
-    "@yamf/test": "workspace:*"
+    "@yamf/test": "workspace:*",
+    "@yamf/cli": "workspace:*"
   }
 }

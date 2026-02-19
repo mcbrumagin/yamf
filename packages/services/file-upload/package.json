@@ -19,7 +19,7 @@
     "yamf"
   ],
   "scripts": {
-    "test": "node run-tests.js"
+    "test": "yamf test -d ."
   },
   "files": [
     "service.js",
@@ -40,6 +40,7 @@
   },
   "devDependencies": {
     "@yamf/test": "workspace:*",
-    "form-data": "^4.0.5"
+    "form-data": "^4.0.5",
+    "@yamf/cli": "workspace:*"
   }
 }

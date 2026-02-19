@@ -6,7 +6,17 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:packages/cli
+
+  packages/cli:
+    devDependencies:
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../test
 
   packages/client:
     dependencies:
