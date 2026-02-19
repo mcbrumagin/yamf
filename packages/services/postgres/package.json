@@ -7,7 +7,7 @@
   "type": "module",
   "main": "service.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "yamf test -d ."
   },
   "dependencies": {
     "postgres": "^3.4.8"
@@ -15,5 +15,9 @@
   "peerDependencies": {
     "@yamf/core": "workspace:*",
     "@yamf/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@yamf/cli": "workspace:*",
+    "@yamf/test": "workspace:*"
   }
 }

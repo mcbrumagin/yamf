@@ -34,6 +34,9 @@ importers:
         specifier: workspace:*
         version: link:../client
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../test
@@ -50,6 +53,9 @@ importers:
         specifier: workspace:*
         version: link:../cache
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../../test
@@ -60,6 +66,9 @@ importers:
         specifier: workspace:^
         version: link:../../core
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../../test
@@ -70,6 +79,9 @@ importers:
         specifier: workspace:*
         version: link:../../core
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../../test
@@ -83,6 +95,9 @@ importers:
         specifier: ^1.6.0
         version: 1.6.0
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../../test
@@ -101,6 +116,13 @@ importers:
       postgres:
         specifier: ^3.4.8
         version: 3.4.8
+    devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../../test
 
   packages/services/user:
     dependencies:
@@ -114,12 +136,18 @@ importers:
         specifier: workspace:*
         version: link:../../shared
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../../test
 
   packages/shared:
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../test
