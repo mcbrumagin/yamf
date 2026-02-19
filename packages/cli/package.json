@@ -1,0 +1,32 @@
+{
+  "name": "@yamf/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Command-line interface for yamf",
+  "main": "src/cli.js",
+  "bin": {
+    "yamf": "./src/cli.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "test": "yamf test -d ."
+  },
+  "keywords": ["yamf", "cli"],
+  "license": "MIT",
+  "author": "Matthew C Brumagin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcbrumagin/yamf"
+  },
+  "peerDependencies": {
+    "@yamf/test": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@yamf/test": { "optional": true }
+  },
+  "devDependencies": {
+    "@yamf/test": "workspace:*"
+  }
+}

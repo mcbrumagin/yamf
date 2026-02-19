@@ -111,6 +111,8 @@ export async function testRateLimitRequiredButMissing() {
     await registryServer(),  // No rate limit config
     async (registry) => {
       await assertErr(
+        // TODO this service starts up successfully, which continues to occupy the port
+        // the rate limit check needs to happen in the setup call, not the register call
         async () => createService('my-service', async () => ({}), { 
           accessControl: 'public',
           rateLimit: true  // Require rate limit config

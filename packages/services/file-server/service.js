@@ -382,7 +382,10 @@ export default async function createStaticFileService({
    * @param {string} filePath - Full filesystem path
    */
   function addFile(urlPath, filePath) {
-    // TODO should determine urlPath based on filePath?
+    // For now, protect against overwriting root if there is no path
+    if (!urlPath) throw new Error('No urlPath to update')
+
+    // TODO should determine urlPath based on filePath
     urlPath = normalizePath(urlPath)
     
     // Security check

@@ -1,12 +1,12 @@
 {
   "name": "@yamf/shared",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Shared utilities for YAMF - truly isomorphic code that works in both browser and Node.js",
   "main": "src/index.js",
   "homepage": "https://github.com/mcbrumagin/yamf",
   "scripts": {
-    "test": "node tests/run-tests.js"
+    "test": "yamf test -d ."
   },
   "exports": {
     ".": "./src/index.js",
@@ -31,6 +31,7 @@
     "LICENSE"
   ],
   "devDependencies": {
+    "@yamf/cli": "workspace:*",
     "@yamf/test": "workspace:*"
   },
   "license": "MIT",
