@@ -27,7 +27,7 @@ import {
 import { default as createAuthService } from './service.js'
 
 const TEST_ADMIN_USER = envConfig.getRequired('ADMIN_USER')
-const TEST_ADMIN_SECRET = envConfig.getRequired('ADMIN_SECRET')
+const TEST_ADMIN_PASS = envConfig.getRequired('ADMIN_PASS')
 
 /**
  * Test that auth service basic functionality works
@@ -41,7 +41,7 @@ export async function testAuthServiceWorks() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -93,7 +93,7 @@ export async function testProtectedServiceWithAuth() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -175,7 +175,7 @@ export async function testProtectedServiceCallWithValidToken() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -306,7 +306,7 @@ export async function testAuthLoginCommand() {
         body: {
           authenticate: {
             user: TEST_ADMIN_USER,
-            password: TEST_ADMIN_SECRET
+            password: TEST_ADMIN_PASS
           }
         },
         headers: buildAuthLoginHeaders()
@@ -335,7 +335,7 @@ export async function testAuthRefreshCommand() {
         body: JSON.stringify({
           authenticate: {
             user: TEST_ADMIN_USER,
-            password: TEST_ADMIN_SECRET
+            password: TEST_ADMIN_PASS
           }
         }),
         headers: {
@@ -385,7 +385,7 @@ export async function testRouteWithAuth() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -447,7 +447,7 @@ export async function testMultipleAuthServices() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -530,7 +530,7 @@ export async function testAuthServiceWithSessions() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -564,7 +564,7 @@ export async function testAuthServiceWithRefreshOnlySessions() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -598,7 +598,7 @@ export async function testAuthServiceStateless() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -634,7 +634,7 @@ export async function testRefreshTokenFlow() {
         body: JSON.stringify({
           authenticate: {
             user: TEST_ADMIN_USER,
-            password: TEST_ADMIN_SECRET
+            password: TEST_ADMIN_PASS
           }
         }),
         headers: buildAuthLoginHeaders()
@@ -712,7 +712,7 @@ export async function testForwardedHeaderCapture() {
         body: JSON.stringify({
           authenticate: {
             user: TEST_ADMIN_USER,
-            password: TEST_ADMIN_SECRET
+            password: TEST_ADMIN_PASS
           }
         }),
         headers: {
@@ -752,7 +752,7 @@ export async function testXForwardedForHeader() {
         body: JSON.stringify({
           authenticate: {
             user: TEST_ADMIN_USER,
-            password: TEST_ADMIN_SECRET
+            password: TEST_ADMIN_PASS
           }
         }),
         headers: {
@@ -788,7 +788,7 @@ export async function testSessionInvalidation() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -832,7 +832,7 @@ export async function testConcurrentAuthRequests() {
           callService('auth-service', {
             authenticate: {
               user: TEST_ADMIN_USER,
-              password: TEST_ADMIN_SECRET
+              password: TEST_ADMIN_PASS
             }
           })
         )
@@ -862,7 +862,7 @@ export async function testConcurrentTokenValidation() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -907,7 +907,7 @@ export async function testRefreshTokenWithSessions() {
         body: JSON.stringify({
           authenticate: {
             user: TEST_ADMIN_USER,
-            password: TEST_ADMIN_SECRET
+            password: TEST_ADMIN_PASS
           }
         }),
         headers: buildAuthLoginHeaders()
@@ -1005,7 +1005,7 @@ export async function testProtectedServiceWithSessionAuth() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -1039,7 +1039,7 @@ export async function testTokenBase64Encoding() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       
@@ -1089,7 +1089,7 @@ export async function testTokenPayloadStructure() {
       const authResult = await callService('auth-service', {
         authenticate: {
           user: TEST_ADMIN_USER,
-          password: TEST_ADMIN_SECRET
+          password: TEST_ADMIN_PASS
         }
       })
       

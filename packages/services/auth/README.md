@@ -1,6 +1,6 @@
 # @yamf/services-auth
 
-JWT-lite authentication service for YAMF microservices.
+JWT-lite authentication service for YAMF: ed25519-signed tokens, optional sessions, and pluggable password validation.
 
 [![Version](https://img.shields.io/badge/version-0.1.2-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
@@ -11,75 +11,95 @@ JWT-lite authentication service for YAMF microservices.
 npm install @yamf/services-auth @yamf/services-cache
 ```
 
-## Quick Start
+## Quick Start (login flow)
+
+Credentials are validated by a **custom `validateUserPassword(username, password)`** function you provide. The auth service uses it on login and returns an access token (and sets a refresh-token cookie when sessions are enabled).
 
 ```javascript
-import { createAuthService } from '@yamf/services-auth'
+import { callService, HEADERS, COMMANDS } from '@yamf/core'
+import createAuthService from '@yamf/services-auth'
+
+async function validateUserPassword(username, password) {
+  // Check against your DB (e.g. via @yamf/services-postgres + Argon)
+  // Return true/false
+  return await myCheckUser(username, password)
+}
 
 const auth = await createAuthService({
-  secret: 'your-secret-key',
-  tokenExpiry: 3600000 // 1 hour in milliseconds
+  serviceName: 'auth-service',
+  validateUserPassword,
+  useSessions: 'refresh-only'  // or true | false
 })
 
-// Generate token
-const token = await callService('auth', {
-  generate: {
-    userId: '123',
-    email: 'user@example.com'
-  }
+// Client logs in by calling auth-service with AUTH_LOGIN command
+const authResult = await callService('auth-service', {
+  body: { authenticate: { user: 'alice@example.com', password: 'secret' } },
+  headers: { [HEADERS.COMMAND]: COMMANDS.AUTH_LOGIN }
 })
+// authResult.accessToken — send this on protected requests
 
-// Verify token
-const payload = await callService('auth', {
-  verify: token
+// Call a protected service
+const data = await callService('my-service', {
+  body: { ... },
+  headers: { [HEADERS.AUTH_TOKEN]: authResult.accessToken }
 })
 ```
+
+For a **full example** (Postgres + User + Auth, self-signup, admin-invite, login), see [psql-user-auth](../../core/examples/psql-user-auth/) in the repo.
 
 ## Features
 
-- **JWT-like Tokens** - Lightweight token generation and verification
-- **Session Management** - Token storage and invalidation
-- **Cache Integration** - Uses @yamf/services-cache for token storage
-- **Configurable Expiry** - Set custom token lifetimes
-- **Secure** - HMAC-based signatures
+- **Ed25519 signing** – Asymmetric signing for access/refresh tokens (no JWT header needed).
+- **Pluggable password validation** – You implement `validateUserPassword(username, password)` (e.g. using @yamf/services-postgres and Argon).
+- **Optional sessions** – `useSessions: 'refresh-only'` or `true`; uses @yamf/services-cache for token storage and optional revocation.
+- **Configurable expiry** – Access and refresh token lifetimes (defaults in code).
+- **Gateway integration** – Use `HEADERS.COMMAND`: `COMMANDS.AUTH_LOGIN` for login; send `HEADERS.AUTH_TOKEN` for protected service calls. Register services with `useAuthService: 'auth-service'` so the gateway enforces the token.
 
 ## API
 
-### Generate Token
+### createAuthService(options)
 
-```javascript
-await callService('auth', {
-  generate: {
-    userId: 'user-123',
-    email: 'user@example.com',
-    role: 'admin'
-  }
-})
-// Returns: "eyJhbGc...token"
-```
+| Option                 | Default             | Description |
+|------------------------|---------------------|-------------|
+| `serviceName`          | `'auth-service'`    | YAMF service name. |
+| `useSessions`          | `'refresh-only'`    | `true`, `'refresh-only'`, or `false`. |
+| `validateUserPassword` | env-based default   | `async (username, password) => boolean`. Required for real deployments. |
 
-### Verify Token
+### Login (authenticate)
 
-```javascript
-await callService('auth', {
-  verify: 'eyJhbGc...token'
-})
-// Returns: { userId: 'user-123', email: 'user@example.com', role: 'admin' }
-```
+Send a request to the auth service with:
 
-### Invalidate Token
+- **Headers**: `[HEADERS.COMMAND]: COMMANDS.AUTH_LOGIN`
+- **Body**: `{ authenticate: { user: username, password: password } }`
 
-```javascript
-await callService('auth', {
-  invalidate: 'eyJhbGc...token'
-})
-// Returns: { success: true }
-```
+Response includes `accessToken`. When sessions are enabled, a refresh-token cookie is also set.
+
+### Protected service calls
+
+Send the token on each call to protected services:
+
+- **Headers**: `[HEADERS.AUTH_TOKEN]: accessToken`
+
+When creating a service, pass `useAuthService: 'auth-service'` (and optionally `accessControl: 'public'` for unauthenticated routes) so the gateway validates the token.
+
+### Logout
+
+Send a request with **headers**: `[HEADERS.COMMAND]: COMMANDS.AUTH_LOGOUT`. Optionally include the access token (`HEADERS.AUTH_TOKEN`) or the refresh-token cookie so the service knows which user to invalidate.
+
+- **If sessions are enabled**: Removes that user’s refresh and access entries from the session cache (so existing tokens stop working).
+- **If sessions are disabled**: No cache changes; the service still clears the refresh-token cookie so the client drops it.
+
+Response: `200` with `{ success: true }` and a `Set-Cookie` that clears the refresh-token cookie.
+
+### Other payloads (internal)
+
+- `verifyAccess` – Verify an access token.
+- `getNewAccessToken` – Exchange refresh token (e.g. from cookie) for a new access token.
 
 ## Dependencies
 
-- `@yamf/core` - Core framework
-- `@yamf/services-cache` - Token storage
+- `@yamf/core` – createService, HttpError, crypto (ed25519)
+- `@yamf/services-cache` – Token/session storage when useSessions is enabled
 
 ## License
 

@@ -75,6 +75,9 @@ export function validate(data, schema, options = {}) {
     case 'email':
       data = validateEmail(data, schema, path, failures)
       break
+    case 'phone':
+      data = validatePhone(data, schema, path, failures)
+      break
     case 'url':
       data = validateUrl(data, schema, path, failures)
       break
@@ -263,6 +266,31 @@ function validateEmail(data, schema, path, failures) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(data)) {
     failures.push(new ValidationFailure(path, data, 'email', 'Invalid email address'))
+  }
+  
+  return data
+}
+
+function validatePhone(data, schema, path, failures) {
+  if (typeof data !== 'string') {
+    failures.push(new ValidationFailure(path, data, 'type', 'Expected a string'))
+    return data
+  }
+
+  // Basic phone validation
+  const phoneRegex = /^[0-9\s-()]+$/
+  if (!phoneRegex.test(data)) {
+    failures.push(new ValidationFailure(path, data, 'phone', 'Invalid phone number'))
+  }
+  
+  // XSS check (phones shouldn't contain XSS vectors)
+  const { xss } = schema
+  if (xss !== false) {
+    if (containsXss(data)) {
+      const patterns = getXssPatterns(data)
+      failures.push(new ValidationFailure(path, '[XSS content hidden]', 'xss', 
+        `Potential XSS detected in phone number: ${patterns.join(', ')}`))
+    }
   }
   
   return data

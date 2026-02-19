@@ -1,0 +1,19 @@
+{
+  "name": "psql-user-auth",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@yamf/core": "workspace:*",
+    "@yamf/services-auth": "workspace:*",
+    "@yamf/services-cache": "workspace:*",
+    "@yamf/services-postgres": "workspace:*",
+    "@yamf/services-user": "workspace:*"
+  }
+}

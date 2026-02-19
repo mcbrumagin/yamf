@@ -177,7 +177,7 @@ export async function testSubscriptionTermination() {
 
 /**
  * Test subscription with invalid handler
- */
+ */ 
 export async function testInvalidHandler() {
   await terminateAfter(
     registryServer(),

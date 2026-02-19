@@ -86,6 +86,10 @@ is.string = function string(opts = {}) {
   return schema('string', { xss: 'check', ...opts })
 }
 
+is.regex = function regex(pattern, opts = {}) {
+  return schema('string', { xss: 'check', pattern, ...opts })
+}
+
 /**
  * Unsafe string type - explicitly disables XSS protection
  * Use when you need raw string input without XSS checks.
@@ -126,6 +130,12 @@ is.bool = schema('bool')
  * XSS protection enabled by default
  */
 is.email = schema('email', { xss: 'check' })
+
+/**
+ * Phone type (string with phone pattern)
+ * XSS protection enabled by default
+ */
+is.phone = schema('phone', { xss: 'check' })
 
 /**
  * URL type (string with URL pattern)
@@ -281,7 +291,7 @@ is.patterns = {
   hex: /^[0-9a-fA-F]+$/,
   base64: /^[A-Za-z0-9+/]*={0,2}$/,
   // Basic patterns - full validation done by type validators
-  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
   url: /^https?:\/\/.+/,
   ipv4: /^(\d{1,3}\.){3}\d{1,3}$/,
   phone: /^\+?[\d\s-()]+$/,
@@ -300,6 +310,14 @@ is.alphanumeric = function alphanumeric(opts = {}) {
  * XSS protection enabled by default
  */
 is.uuid = schema('string', { xss: 'check', pattern: 'uuid' })
+
+/**
+ * Base64 encoded string
+ * XSS protection enabled by default
+ */
+is.base64 = function base64(opts = {}) {
+  return schema('string', { xss: 'check', pattern: 'base64', ...opts })
+}
 
 /**
  * Slug string (lowercase, hyphens)
