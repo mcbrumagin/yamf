@@ -40,7 +40,8 @@ const defaultValidateUser = async (username, password) => {
 export default async function createAuthService({
   serviceName = 'auth-service',
   useSessions = 'refresh-only',
-  validateUserPassword = defaultValidateUser
+  validateUserPassword = defaultValidateUser,
+  enrichTokenPayload = null
 } = {}) {
   if (useSessions && useSessions !== true && useSessions !== 'refresh-only') {
     throw new Error('useSessions must be true or "refresh-only"')
@@ -56,7 +57,8 @@ export default async function createAuthService({
 
   const createToken = async (user, type = 'access') => {
     let expire = Date.now() + (type === 'access' ? defaultAccessTokenExpireTime : defaultRefreshTokenExpireTime)
-    const payload = JSON.stringify({ user, expire })
+    const extra = enrichTokenPayload ? await enrichTokenPayload(user) : {}
+    const payload = JSON.stringify({ user, expire, ...extra })
     const signature = await ed25519.sign(keyPair, payload)
     logger.debug(`signature: ${signature}`)
     return encodeBase64(`${payload}.${signature}`)
@@ -221,7 +223,7 @@ export default async function createAuthService({
         throw new HttpError(401, 'Invalid session')
       }
     }
-    return { isValid, status: 'valid access token' }
+    return { isValid, status: 'valid access token', user: payload.user, payload }
   }
 
   const server = await createService(serviceName, async function authService(payload, request, response) {
