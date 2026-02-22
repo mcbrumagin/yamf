@@ -47,7 +47,7 @@ export async function callServiceWithCache (cache, name, payload) {
   // Validate payload against contract if the target service opted in
   const contract = cache.serviceContracts?.get(name)
   if (contract?.enforce) {
-    validatePayloadAgainstContract(name, payload, contract)
+    await validatePayloadAgainstContract(name, payload, contract)
   }
   
   let result

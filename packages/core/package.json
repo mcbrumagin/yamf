@@ -49,15 +49,20 @@
     "url": "https://github.com/mcbrumagin/yamf"
   },
   "peerDependencies": {
-    "@yamf/client": "workspace:*"
+    "@yamf/client": "workspace:*",
+    "@yamf/shared": "workspace:*"
   },
   "peerDependenciesMeta": {
     "@yamf/client": {
+      "optional": true
+    },
+    "@yamf/shared": {
       "optional": true
     }
   },
   "devDependencies": {
     "@yamf/cli": "workspace:*",
+    "@yamf/shared": "workspace:*",
     "@yamf/test": "workspace:*",
     "form-data": "^4.0.4"
   }
