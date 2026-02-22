@@ -667,3 +667,40 @@ export async function testValidatorContractEnforcesSchema() {
     }
   )
 }
+
+export async function testValidatorContractFromNamedServiceContextCall() {
+  const validatePayload = createValidator({
+    userId: is.int({ positive: true }),
+    action: is.oneOf('create', 'update', 'delete'),
+  })
+
+  await terminateAfter(
+    await registryServer(),
+    await createService(function namedService(payload) {
+      return { received: payload }
+    }, { useContract: validatePayload }),
+    await createService('caller-validated', async function caller(payload) {
+      return await this.namedService(payload.forward)
+    }),
+    async () => {
+      // Valid payload should pass
+      const result = await callService('caller-validated', { forward: { userId: 1, action: 'create' } })
+      assert(result,
+        r => r.received.userId === 1,
+        r => r.received.action === 'create'
+      )
+
+      // Invalid payload should fail (bad action value)
+      await assertErr(
+        async () => callService('caller-validated', { forward: { userId: 1, action: 'invalid' } }),
+        err => err.message.includes('Contract violation')
+      )
+
+      // Invalid payload should fail (wrong type for userId)
+      await assertErr(
+        async () => callService('caller-validated', { forward: { userId: 'not-a-number', action: 'create' } }),
+        err => err.message.includes('Contract violation')
+      )
+    }
+  )
+}

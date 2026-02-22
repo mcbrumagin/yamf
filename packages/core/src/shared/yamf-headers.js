@@ -105,7 +105,7 @@ export function buildRegisterHeaders(serviceName, location, {
   accessControl = 'private', // 'pure', 'local', 'private', 'public'
   registryToken = null,
   rateLimit = false,  // true = require rate limit config exists
-  contract = null
+  contract = true
 }) {
   // TODO: Hybrid rate limiting - if rateLimit is an object, serialize it
   // For now, only support boolean (true = require config exists)

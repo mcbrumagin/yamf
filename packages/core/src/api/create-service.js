@@ -14,7 +14,7 @@ import Logger from '../utils/logger.js'
 import envConfig from '../shared/env-config.js'
 
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
-import { buildEnhancedContext, bindServiceFunction } from '../service/service-context.js'
+import { buildEnhancedContext, updateContext, bindServiceFunction } from '../service/service-context.js'
 import { createCacheAwareHandler } from '../service/cache-handler.js'
 import { validateServiceName } from '../service/service-validator.js'
 import { createServiceBatch } from '../service/service-batch.js'
@@ -167,6 +167,7 @@ export default async function createService(name, serviceFn, options = {}) {
   const { location, server, registryData } = result
   
   updateCache(cache, registryData)
+  updateContext(context, cache)
 
   logger.info(`Service "${name}" running at ${location}`)
   
@@ -290,6 +291,7 @@ async function createPureService(name, boundServiceFn, cache, context, config) {
     const registryData = await notifyRegistryOfPureService(name, config)
     if (registryData) {
       updateCache(cache, registryData)
+      updateContext(context, cache)
     }
   } catch (err) {
     // Don't fail if registry notification fails - pure services work locally
