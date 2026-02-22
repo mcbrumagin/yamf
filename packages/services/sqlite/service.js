@@ -3,7 +3,9 @@ import {
   HttpError
 } from '@yamf/core'
 
-import { DatabaseSync } from 'node:sqlite'
+import { mkdir } from 'node:fs/promises'
+import { dirname } from 'node:path'
+import { backup as sqliteBackup, DatabaseSync } from 'node:sqlite'
 import { toCamelCase } from '@yamf/shared'
 
 const defaultSqliteConfig = ':memory:'
@@ -22,6 +24,48 @@ function validatePlaceholderName(name) {
   return true
 }
 
+/**
+ * Ensures the parent directory exists for a file-backed database path.
+ * No-op for :memory: or file: URLs.
+ *
+ * @param {string} path - Database path (e.g. './data/app.sqlite')
+ * @returns {Promise<string>} The path, for chaining
+ */
+export async function ensureDbPath(path) {
+  if (path === ':memory:' || path.startsWith('file:')) {
+    return path
+  }
+  const dir = dirname(path)
+  if (dir && dir !== '.') {
+    await mkdir(dir, { recursive: true })
+  }
+  return path
+}
+
+function runSchema(db, schema) {
+  if (!schema) return
+  const statements = Array.isArray(schema) ? schema : [schema]
+  for (const sql of statements) {
+    if (typeof sql === 'string' && sql.trim()) {
+      db.exec(sql)
+    }
+  }
+}
+
+function runSeed(db, seed) {
+  if (!seed) return
+  if (typeof seed === 'function') {
+    seed(db)
+  } else {
+    const statements = Array.isArray(seed) ? seed : [seed]
+    for (const sql of statements) {
+      if (typeof sql === 'string' && sql.trim()) {
+        db.exec(sql)
+      }
+    }
+  }
+}
+
 export default async function createSqliteService({
   serviceName = 'sqlite-service',
   sqliteConfig = defaultSqliteConfig,
@@ -29,6 +73,8 @@ export default async function createSqliteService({
   seed = null
 }) {
   const db = new DatabaseSync(sqliteConfig)
+  runSchema(db, schema)
+  runSeed(db, seed)
 
   /**
    * Processes a template query string with provided data using safe parameterized queries.
@@ -86,12 +132,25 @@ export default async function createSqliteService({
     }
   }
 
-
-  let service = await createService(serviceName, async ({ template, data, options }) => {
+  const service = await createService(serviceName, async ({ template, data, options }) => {
     if (!template) throw new HttpError(400, 'Expected "template" query string in payload')
     if (!data) throw new HttpError(400, 'Expected "data" map in payload')
     return await processQueryTemplate(template, data, options)
   })
+
+  /**
+   * Export/backup the database to a file.
+   *
+   * @param {string} targetPath - Path for the backup file
+   * @param {object} options - Optional { rate, progress } for sqlite backup API
+   * @returns {Promise<number>} Total pages transferred
+   */
+  async function backup(targetPath, options = {}) {
+    return sqliteBackup(db, targetPath, options)
+  }
+
+  service.database = db
+  service.backup = backup
 
   return service
 }
