@@ -90,6 +90,7 @@ function handleRegistryPull(state) {
       default: defaultRateLimit,
       services: serializedRateLimits
     },
+    serviceContracts: Object.fromEntries(state.serviceContracts),
     timestamp: Date.now()
   }
 }
@@ -110,7 +111,7 @@ async function handleRegister(state, payload, headers = {}) {
     command, serviceName, serviceLocation,
     useAuthService, accessControl,
     routePath, routeDataType, routeType,
-    rateLimitRequired
+    rateLimitRequired, contract
   } = parseCommandHeaders(headers)
   
   // Header-based registration
@@ -144,7 +145,8 @@ async function handleRegister(state, payload, headers = {}) {
       service: serviceName,
       location: serviceLocation,
       useAuthService: useAuthService,
-      accessControl
+      accessControl,
+      contract
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {

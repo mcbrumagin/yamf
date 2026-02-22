@@ -189,7 +189,7 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * @param {Object} [options.metadata] - Service metadata (for special services like gateway)
  * @param {Object} [options.rateLimit] - Rate limit configuration for this service
  */
-export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit }) {
+export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit, contract }) {
   logger.debug(`registerService - service "${service}" registering for ${location} (accessControl: ${accessControl})`)
   
   // Check for pure service load-balancing attempt
@@ -250,6 +250,12 @@ export async function registerService(state, { service, location, useAuthService
     logger.info(`Stored rate limit config for "${service}":`, rateLimit)
   }
   
+  // Store contract if provided
+  if (contract) {
+    state.serviceContracts.set(service, contract)
+    logger.info(`Stored contract for "${service}":`, { enforce: contract.enforce, params: contract.params, expectedKeys: contract.expectedKeys })
+  }
+
   // Store metadata if provided (for special services like gateway)
   if (Object.keys(metadata).length > 0) {
     state.serviceMetadata.set(service, { 
@@ -264,7 +270,7 @@ export async function registerService(state, { service, location, useAuthService
   const isPullOnly = metadata.pullOnly === true
   
   // Notify other services about the new registration using cache update headers
-  await publishCacheUpdate(state, { service, location })
+  await publishCacheUpdate(state, { service, location, contract: state.serviceContracts.get(service) })
   
   // Subscribe the new service to registration events (unless it's pull-only)
   if (!isPullOnly) {
@@ -277,7 +283,8 @@ export async function registerService(state, { service, location, useAuthService
   // Return current registry state
   return {
     services: serializeServicesMap(state.services),
-    addresses: Object.fromEntries(state.addresses)
+    addresses: Object.fromEntries(state.addresses),
+    serviceContracts: Object.fromEntries(state.serviceContracts)
   }
 }
 

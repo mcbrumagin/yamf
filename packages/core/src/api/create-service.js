@@ -18,6 +18,7 @@ import { buildEnhancedContext, bindServiceFunction } from '../service/service-co
 import { createCacheAwareHandler } from '../service/cache-handler.js'
 import { validateServiceName } from '../service/service-validator.js'
 import { createServiceBatch } from '../service/service-batch.js'
+import { buildContract } from '../service/service-contract.js'
 import { Next } from '../http-primitives/next.js'
 import {
   createAndRegisterService,
@@ -45,7 +46,8 @@ const DEFAULT_CONFIG = {
   muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false),
   sharedCache: null, // Optional pre-created cache for batch operations
   streamPayload: false, // If true, don't buffer request body - pass raw stream to handler
-  accessControl: 'private' // 'pure', 'local', 'private', 'public'
+  accessControl: 'private', // 'pure', 'local', 'private', 'public'
+  useContract: true
 }
 
 /**
@@ -107,6 +109,9 @@ export default async function createService(name, serviceFn, options = {}) {
 
   const config = { ...DEFAULT_CONFIG, ...options }
   config.useAuthService = config.useAuthService?.name || config.useAuthService
+
+  const contract = buildContract(config.useContract, serviceFn)
+  if (contract) config.contract = contract
   
   const cache = config.sharedCache || createServiceState()
 

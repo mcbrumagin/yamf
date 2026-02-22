@@ -4,6 +4,7 @@ import envConfig from '../shared/env-config.js'
 import { buildCallHeaders } from '../shared/yamf-headers.js'
 import Logger from '../utils/logger.js'
 import { getLocalService, hasLocalService } from '../shared/local-state.js'
+import { validatePayloadAgainstContract } from '../service/service-contract.js'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
@@ -41,6 +42,12 @@ export async function callServiceWithCache (cache, name, payload) {
   // Check if service exists in cache
   if (!cache.services.has(name)) {
     throw new HttpError(404, `No service by name "${name}" in cache`)
+  }
+
+  // Validate payload against contract if the target service opted in
+  const contract = cache.serviceContracts?.get(name)
+  if (contract?.enforce) {
+    validatePayloadAgainstContract(name, payload, contract)
   }
   
   let result

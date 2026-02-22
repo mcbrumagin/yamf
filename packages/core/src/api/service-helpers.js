@@ -120,7 +120,7 @@ export async function setupServiceWithRegistry(serviceName, serviceHome, options
  */
 export async function registerServiceWithRegistry(serviceName, location, options = {}) {
   const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService, accessControl, rateLimit /* TODO?, pubsubChannels */ } = options
+  const { useAuthService, accessControl, rateLimit, contract /* TODO?, pubsubChannels */ } = options
   
   logger.debug(`registerServiceWithRegistry - ${serviceName} at ${location}`)
   
@@ -128,9 +128,10 @@ export async function registerServiceWithRegistry(serviceName, location, options
   return await httpRequest(registryHost, {
     headers: buildRegisterHeaders(serviceName, location, {
       useAuthService,
-      accessControl, // allows us to make services accessible through gateways
+      accessControl,
       registryToken,
-      rateLimit // rate limit configuration
+      rateLimit,
+      contract
     })
   })
 }
@@ -147,7 +148,7 @@ export async function registerServiceWithRegistry(serviceName, location, options
  */
 export async function notifyRegistryOfPureService(serviceName, options = {}) {
   const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService } = options
+  const { useAuthService, contract } = options
   
   logger.debug(`notifyRegistryOfPureService - ${serviceName}`)
   
@@ -156,7 +157,8 @@ export async function notifyRegistryOfPureService(serviceName, options = {}) {
       headers: buildRegisterHeaders(serviceName, 'pure://local', {
         useAuthService,
         accessControl: 'pure',
-        registryToken
+        registryToken,
+        contract
       })
     })
   } catch (err) {

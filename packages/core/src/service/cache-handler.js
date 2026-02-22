@@ -77,7 +77,7 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
     // Check if this is a cache update from registry using yamf headers
     if (isCacheUpdateRequest(request)) {
       validateRegistryToken(request)
-      const { pubsubChannel, serviceName, accessControl, serviceLocation } = parseCommandHeaders(request.headers)
+      const { pubsubChannel, serviceName, accessControl, serviceLocation, contract } = parseCommandHeaders(request.headers)
       
       logger.debug('cacheAwareHandler - cache update request', { pubsubChannel, serviceName, serviceLocation })
 
@@ -86,7 +86,8 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
         subscription: pubsubChannel,
         service: serviceName,
         accessControl: accessControl,
-        location: serviceLocation
+        location: serviceLocation,
+        contract
       })
       
       // Update context to reflect new services
