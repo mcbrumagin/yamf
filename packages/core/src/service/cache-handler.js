@@ -9,6 +9,7 @@ import { Next } from '../http-primitives/next.js'
 import { HEADERS, COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import Logger from '../utils/logger.js'
+import readStream from '../http-primitives/read-stream.js'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
@@ -112,6 +113,11 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
         const subscriptions = context._pubSubManager.listSubscriptions()
         if (subscriptions[pubsubChannel]) {
           // Route to pubsub manager handlers
+          // in case the server is in stream mode, we need to read the stream and parse the body
+          if (request.headers['content-type'] === 'application/json') {
+            payload = await readStream(request)
+            try { payload = JSON.parse(payload) } catch { /* don't care */ }
+          }
           return await context._pubSubManager.handleIncomingMessage(pubsubChannel, payload)
         }
       }

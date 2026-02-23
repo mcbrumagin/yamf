@@ -9,6 +9,7 @@
     ".": "./src/index.js",
     "./create-service": "./src/api/create-service.js",
     "./create-subscription-service": "./src/api/create-subscription-service.js",
+    "./create-sse-service": "./src/api/create-sse-service.js",
     "./create-route": "./src/api/create-route.js",
     "./call-service": "./src/api/call-service.js",
     "./call-route": "./src/api/call-route.js",

@@ -91,6 +91,8 @@ function handleRegistryPull(state) {
       services: serializedRateLimits
     },
     serviceContracts: Object.fromEntries(state.serviceContracts),
+    serviceTypes: Object.fromEntries(state.serviceTypes),
+    serviceTimeouts: Object.fromEntries(state.serviceTimeouts),
     timestamp: Date.now()
   }
 }
@@ -98,8 +100,31 @@ function handleRegistryPull(state) {
 /**
  * Setup command - allocate port for new service
  */
-function handleSetup(state, payload, defaultStartPort) {
-  return allocateServicePort(state, payload.setup, defaultStartPort)
+function handleSetup(state, payload, headers, defaultStartPort) {
+  const { serviceName, serviceHome, rateLimitRequired } = parseCommandHeaders(headers)
+  if (!serviceName) {
+    throw new HttpError(400, 'SERVICE_SETUP requires yamf-service-name header')
+  }
+  if (!serviceHome) {
+    throw new HttpError(400, 'SERVICE_SETUP requires yamf-service-home header')
+  }
+  if (rateLimitRequired === true) {
+    const hasServiceConfig = state.rateLimitConfig.services.has(serviceName)
+    const hasDefaultConfig = state.rateLimitConfig.default !== null
+    
+    if (!hasServiceConfig && !hasDefaultConfig) {
+      throw new HttpError(400, 
+        `Service "${serviceName}" requires rate limiting (rateLimit: true) but no rate limit is configured. ` +
+        `Either configure a service-specific rate limit or a default rate limit on the registry.`
+      )
+    }
+    
+    logger.info(`Service "${serviceName}" rate limit requirement satisfied: ${hasServiceConfig ? 'service-specific' : 'default'}`)
+  }
+  return allocateServicePort(state, { 
+    service: serviceName, 
+    home: serviceHome 
+  }, defaultStartPort)
 }
 
 /**
@@ -111,7 +136,8 @@ async function handleRegister(state, payload, headers = {}) {
     command, serviceName, serviceLocation,
     useAuthService, accessControl,
     routePath, routeDataType, routeType,
-    rateLimitRequired, contract
+    rateLimitRequired, contract,
+    serviceType, timeout
   } = parseCommandHeaders(headers)
   
   // Header-based registration
@@ -123,21 +149,6 @@ async function handleRegister(state, payload, headers = {}) {
       throw new HttpError(400, 'SERVICE_REGISTER requires yamf-service-location header')
     }
     
-    // Safety check: if service requires rate limit, verify config exists
-    if (rateLimitRequired === true) {
-      const hasServiceConfig = state.rateLimitConfig.services.has(serviceName)
-      const hasDefaultConfig = state.rateLimitConfig.default !== null
-      
-      if (!hasServiceConfig && !hasDefaultConfig) {
-        throw new HttpError(400, 
-          `Service "${serviceName}" requires rate limiting (rateLimit: true) but no rate limit is configured. ` +
-          `Either configure a service-specific rate limit or a default rate limit on the registry.`
-        )
-      }
-      
-      logger.info(`Service "${serviceName}" rate limit requirement satisfied: ${hasServiceConfig ? 'service-specific' : 'default'}`)
-    }
-    
     // TODO: Hybrid rate limiting - if service provides rateLimit config object
     // and registry has no pre-bind, store service's config as the service-specific limit
     
@@ -146,7 +157,9 @@ async function handleRegister(state, payload, headers = {}) {
       location: serviceLocation,
       useAuthService: useAuthService,
       accessControl,
-      contract
+      contract,
+      serviceType,
+      timeout
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {
@@ -312,16 +325,7 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       return handleRegistryPull(state)
     
     case COMMANDS.SERVICE_SETUP:
-      if (!serviceName) {
-        throw new HttpError(400, 'SERVICE_SETUP requires yamf-service-name header')
-      }
-      if (!serviceHome) {
-        throw new HttpError(400, 'SERVICE_SETUP requires yamf-service-home header')
-      }
-      return allocateServicePort(state, { 
-        service: serviceName, 
-        home: serviceHome 
-      }, defaultStartPort)
+      return handleSetup(state, payload, headers, defaultStartPort)
     
     case COMMANDS.SERVICE_REGISTER:
     case COMMANDS.ROUTE_REGISTER:

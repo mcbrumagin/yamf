@@ -1,12 +1,14 @@
 import { Buffer } from 'node:buffer'
 
 export default async function readStream(stream) {
-  return new Promise((resolve, reject) => {
+  return await new Promise((resolve, reject) => {
     if (stream.readableEnded) return resolve(stream.read())
     else {
       let chunks = []
       stream.on('data', data => chunks.push(data))
-      stream.on('error', err => reject(err))
+      stream.on('error', err => {
+        reject(err)
+      })
       stream.on('end', err => {
         if (err) reject(err)
         else {

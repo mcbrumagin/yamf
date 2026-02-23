@@ -36,7 +36,11 @@ export const HEADERS = {
   RATE_LIMIT_REQUIRED: 'yamf-rate-limit-required', // 'true' if service requires rate limit config
 
   // Service contracts
-  SERVICE_CONTRACT: 'yamf-service-contract' // JSON-serialized contract object
+  SERVICE_CONTRACT: 'yamf-service-contract', // JSON-serialized contract object
+
+  // Service type and timeout (for SSE, future WebSocket, etc.)
+  SERVICE_TYPE: 'yamf-service-type',   // 'standard', 'sse', etc.
+  TIMEOUT: 'yamf-timeout'             // Per-service timeout in ms (0 = no timeout)
 }
 
 /**
@@ -74,12 +78,13 @@ export const COMMANDS = {
 /**
  * Build headers for service setup
  */
-export function buildSetupHeaders(serviceName, serviceHome, registryToken = null) {
+export function buildSetupHeaders(serviceName, serviceHome, registryToken = null, rateLimitRequired = false) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_HOME]: serviceHome,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
+    ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' })
   }
 }
 
@@ -105,7 +110,9 @@ export function buildRegisterHeaders(serviceName, location, {
   accessControl = 'private', // 'pure', 'local', 'private', 'public'
   registryToken = null,
   rateLimit = false,  // true = require rate limit config exists
-  contract = true
+  contract = true,
+  serviceType = null, // 'sse', etc. -- null means standard
+  timeout = null      // per-service timeout in ms (0 = no timeout)
 }) {
   // TODO: Hybrid rate limiting - if rateLimit is an object, serialize it
   // For now, only support boolean (true = require config exists)
@@ -119,7 +126,9 @@ export function buildRegisterHeaders(serviceName, location, {
     ...(accessControl && { [HEADERS.ACCESS_CONTROL]: accessControl }),
     ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
     ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' }),
-    ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) })
+    ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) }),
+    ...(serviceType && { [HEADERS.SERVICE_TYPE]: serviceType }),
+    ...(timeout !== null && { [HEADERS.TIMEOUT]: String(timeout) })
   }
 }
 
@@ -291,6 +300,10 @@ export function parseCommandHeaders(headers) {
     try { contract = JSON.parse(contractHeader) } catch {}
   }
   
+  // Parse timeout from header (string -> number or null)
+  const timeoutHeader = headers[HEADERS.TIMEOUT]
+  const timeout = timeoutHeader !== undefined ? Number(timeoutHeader) : null
+
   return {
     command: headers[HEADERS.COMMAND],
     serviceName: headers[HEADERS.SERVICE_NAME],
@@ -303,7 +316,9 @@ export function parseCommandHeaders(headers) {
     routeType: headers[HEADERS.ROUTE_TYPE],
     pubsubChannel: headers[HEADERS.PUBSUB_CHANNEL],
     rateLimitRequired,
-    contract
+    contract,
+    serviceType: headers[HEADERS.SERVICE_TYPE] || null,
+    timeout
   }
 }
 

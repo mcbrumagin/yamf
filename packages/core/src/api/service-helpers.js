@@ -98,7 +98,7 @@ export async function setupServiceWithRegistry(serviceName, serviceHome, options
   return await retry(
     async () => {
       const location = await httpRequest(registryHost, {
-        headers: buildSetupHeaders(serviceName, serviceHome, registryToken)
+        headers: buildSetupHeaders(serviceName, serviceHome, registryToken, !!config.rateLimit)
       })
       return location
     },
@@ -120,7 +120,7 @@ export async function setupServiceWithRegistry(serviceName, serviceHome, options
  */
 export async function registerServiceWithRegistry(serviceName, location, options = {}) {
   const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService, accessControl, rateLimit, contract /* TODO?, pubsubChannels */ } = options
+  const { useAuthService, accessControl, rateLimit, contract, serviceType, timeout /* TODO?, pubsubChannels */ } = options
   
   logger.debug(`registerServiceWithRegistry - ${serviceName} at ${location}`)
   
@@ -131,7 +131,9 @@ export async function registerServiceWithRegistry(serviceName, location, options
       accessControl,
       registryToken,
       rateLimit,
-      contract
+      contract,
+      serviceType,
+      timeout
     })
   })
 }
@@ -254,10 +256,11 @@ export async function createAndRegisterService(serviceName, handler, options = {
   
   // 2. Create HTTP server
   let server
+  const serverOptions = { streamPayload: options.streamPayload || false }
+  if (options.requestTimeout !== undefined) serverOptions.requestTimeout = options.requestTimeout
+  if (options.headersTimeout !== undefined) serverOptions.headersTimeout = options.headersTimeout
   try {
-    server = await createServiceHttpServer(port, handler, {
-      streamPayload: options.streamPayload || false
-    })
+    server = await createServiceHttpServer(port, handler, serverOptions)
   } catch (err) {
     // Handle port collision - retry with new port
     if (err.message.includes('listen EADDRINUSE')) {
@@ -272,6 +275,7 @@ export async function createAndRegisterService(serviceName, handler, options = {
           // NOTE registry increments port on setup... maybe it shouldn't?
         }
       } else retryInfo.attempts++
+
       if (retryInfo.attempts >= retryInfo.limit) throw err
       return await createAndRegisterService(serviceName, handler, options, retryInfo)
       // throw err // Let caller handle retry

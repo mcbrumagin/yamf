@@ -30,6 +30,12 @@ export function createGatewayState() {
     // Base path -> { service, dataType } (for wildcard routes)
     controllerRoutes: new Map(),
     
+    // Service name -> service type ('sse', etc.)
+    serviceTypes: new Map(),
+    
+    // Service name -> timeout in ms (0 = no timeout)
+    serviceTimeouts: new Map(),
+    
     // Subscription type -> Set<location>
     subscriptions: new Map(),
     
@@ -58,6 +64,8 @@ export function createGatewayState() {
 export function resetState(state) {
   state.services.clear()
   state.serviceAuth.clear()
+  state.serviceTypes.clear()
+  state.serviceTimeouts.clear()
   state.addresses.clear()
   state.routes.clear()
   state.controllerRoutes.clear()
