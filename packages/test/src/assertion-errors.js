@@ -38,7 +38,7 @@ export class AssertionFailureDetail {
     childMessages = childMessages || ''
     return `${pad}for target (${type}) value = ${val}`
     + this.assertFns.map(fn =>
-      `\n${pad}failed -> ${fn?.name || fn.toString().replace(/^\s?.+\=\>\s?/, '')}`
+      `\n${pad}failed -> ${fn?.name || fn.toString().replace(/^\s?.+?\=\>\s?/, '')}`
     ).join('')
     + childMessages
   }

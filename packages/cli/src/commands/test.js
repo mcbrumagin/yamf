@@ -125,6 +125,7 @@ function isTestFile(filePath, content) {
   if (!importMatch) return false
 
   if (/\b(TestRunner|runTests)\b/.test(importMatch[0])) {
+    console.warn(`Test file "${filePath}" not auto-imported because it runs its own tests.`)
     return false
   }
 
@@ -223,7 +224,7 @@ export async function runTestCommand(args) {
     const testModule = await import('@yamf/test')
     TestRunner = testModule.TestRunner
   } catch (err) {
-    if (err.code === 'ERR_MODULE_NOT_FOUND' || err.message?.includes('Cannot find package')) {
+    if (err.code === 'ERR_MODULE_NOT_FOUND' && err.message.includes('@yamf/test') || err.message?.includes('Cannot find package')) {
       console.error(`The 'test' subcommand requires @yamf/test. Install it with:`)
       console.error('')
       console.error('  pnpm add -D @yamf/test')

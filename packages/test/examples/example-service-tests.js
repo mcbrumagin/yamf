@@ -6,7 +6,6 @@
  * - Using terminateAfter for automatic cleanup
  * - Testing routes and service dependencies
  * - Error handling and validation
- * - Using TestRunner for organized test suites
  */
 
 import {
@@ -16,9 +15,8 @@ import {
   assertSequence,
   assertErrEach,
   assertErrSequence,
-  terminateAfter,
-  TestRunner
-} from '../src/index.js'
+  terminateAfter
+} from '@yamf/test'
 
 import {
   registryServer,
@@ -382,50 +380,20 @@ export async function testServicePipeline() {
   )
 }
 
-// ============================================================================
-// Run Tests with TestRunner
-// ============================================================================
-
-// only run if this file is the main entry point
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const runner = new TestRunner()
-  
-  runner.addSuite('service-tests', {
-    testBasicService,
-    testServiceValidation,
-    testServiceDependencies,
-    testHttpRoute,
-    testWildcardRoute,
-    testConcurrentCalls,
-    testStatefulService,
-    testMultipleServicesWithAssertEach,
-    testValidationSequence,
-    testMultipleErrorConditions,
-    testErrorSequence,
-    testServicePipeline
-  })
-  
-  // Run all test suites
-  runner.run()
-    .then(() => process.exit(0))
-    .catch(err => process.exit(err.code || 1))
-}
-
 /*
  * Key Patterns Demonstrated:
  * 
- * 1. terminateAfter() - Automatic cleanup of servers/services
- * 2. Service dependencies using this.call()
- * 3. HTTP route testing with fetch()
- * 4. Error handling with HttpError and assertErr()
- * 5. Stateful services using closures
- * 6. Concurrent service testing
- * 7. Test organization with TestRunner
- * 8. Wildcard routes for controller patterns
- * 9. assertEach() - Test multiple results with same criteria
- * 10. assertSequence() - Test ordered results with specific criteria
- * 11. assertErrEach() - Test multiple errors with same criteria
- * 12. assertErrSequence() - Test ordered errors with specific criteria
+ * - terminateAfter() - Automatic cleanup of servers/services
+ * - Service dependencies using this.call()
+ * - HTTP route testing with fetch()
+ * - Error handling with HttpError and assertErr()
+ * - Stateful services using closures
+ * - Concurrent service testing
+ * - Wildcard routes for controller patterns
+ * - assertEach() - Test multiple results with same criteria
+ * - assertSequence() - Test ordered results with specific criteria
+ * - assertErrEach() - Test multiple errors with same criteria
+ * - assertErrSequence() - Test ordered errors with specific criteria
  * 
  * Best Practices:
  * 

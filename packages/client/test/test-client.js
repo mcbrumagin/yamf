@@ -13,6 +13,8 @@ import {
   createReactiveComponent, 
   createFormState, 
   createRenderHelper,
+  router,
+  hashRouter,
   waitForElement,
   isMobileBrowser,
   initializeYamf,
@@ -20,14 +22,13 @@ import {
   trusted,
   isTrusted,
   encode
-} from '../src/index.js'
+} from '@yamf/client'
 
 import {
   assert,
   assertErr,
   assertEach,
   assertSequence,
-  runTests,
   sleep
 } from '@yamf/test'
 
@@ -796,60 +797,59 @@ export function testXssPreservesElementChildren() {
   )
 }
 
-// ============================================================================
-// Run Tests
-// ============================================================================
+// TODO CLIENT MOCK TESTS
 
-runTests({
-  // Element Rendering Tests
-  testBasicUsage,
-  testForm,
-  testSemanticElements,
-  testVoidElements,
-  testTableElements,
-  testListElements,
-  testFormElements,
-  testMediaElements,
-  testTextFormattingElements,
-  testEventHandlers,
-  testComplexNestedStructure,
+// export async function testHandleRouteChange() {
+//   const routeMap = {
+//     '/': () => div('Home'),
+//     '/about': () => div('About'),
+//     '/contact': () => div('Contact')
+//   }
 
-  // State Management Tests
-  testStateManagement,
-  testStateWatching,
-  testStateBatching,
-  testStateComputed,
-  testElementStateBinding,
-  testFormState,
-  testRenderHelper,
+//   const options = {
+//     renderLocation: 'body'
+//   }
 
-  // Client Utils Tests
-  testIsMobileBrowser,
-  testInitializeYamf,
-  testGetYamf,
-  testWaitForElementNotFound,
+//   await handleRouteChange(null, routeMap, options)
+//   assert(document.body.innerHTML, r => r.includes('Home'))
 
-  // Integration Tests
-  testReactiveComponentBasic,
-  testElementWithAttributes,
-  testAttributeHandling,
-  testNestedListStructure,
+//   await handleRouteChange({ target: { getAttribute: () => '/about' } }, routeMap, options)
+//   assert(document.body.innerHTML, r => r.includes('About'))
 
-  // XSS Prevention Tests
-  testXssEncodesStringChildren,
-  testXssEncodesAttributeValues,
-  testXssTrustedContentNotEncoded,
-  testXssTrustedAttributeNotEncoded,
-  testXssInvalidAttributeNameIgnored,
-  testXssValidDataAttributes,
-  testXssValidAriaAttributes,
-  testXssEncodesNestedStrings,
-  testXssMixedTrustedAndUntrusted,
-  testEncodeHtmlExported,
-  testIsTrustedExported,
-  testXssEncodesAmpersands,
-  testXssPreservesElementChildren
-}).catch(err => {
-  console.error('Test suite failed:', err)
-  process.exit(1)
-})
+//   await handleRouteChange({ target: { getAttribute: () => '/contact' } }, routeMap, options)
+//   assert(document.body.innerHTML, r => r.includes('Contact'))
+// }
+
+
+// export function testRouter() {
+//   const container = { innerHTML: '' }
+//   const routeMap = {
+//     '/': () => div('Home'),
+//     '/about': () => div('About'),
+//     '/contact': () => div('Contact')
+//   }
+
+//   router(routeMap)
+//   assert(container.innerHTML, r => r.includes('Home'))
+
+//   router(routeMap, { renderLocation: 'body' })
+//   assert(container.innerHTML, r => r.includes('Home'))
+
+//   router(routeMap, { renderLocation: 'body' })
+//   assert(container.innerHTML, r => r.includes('Home'))
+
+//   router(routeMap, { renderLocation: 'body' })
+//   assert(container.innerHTML, r => r.includes('Home'))
+// }
+
+
+// export function testHashRouter() {
+//   const routeMap = {
+//     '/': () => div('Home'),
+//     '/about': () => div('About'),
+//     '/contact': () => div('Contact')
+//   }
+
+//   hashRouter(routeMap)
+//   assert(document.body.innerHTML, r => r.includes('Home'))
+// }

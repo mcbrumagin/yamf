@@ -24,6 +24,9 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../test

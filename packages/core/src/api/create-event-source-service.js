@@ -89,7 +89,7 @@ function createClientHandle(clientId, response, request, metadata = {}) {
  * @returns {Promise<Object>} SSE service instance
  * 
  * @example
- * const sse = await createSSEService('live-updates', {
+ * const sse = await createEventSourceService('live-updates', {
  *   onConnect: async (client, request) => {
  *     client.send('connected', { message: 'Welcome' })
  *   },
@@ -105,7 +105,7 @@ function createClientHandle(clientId, response, request, metadata = {}) {
  * 
  * sse.broadcast('news', { headline: 'Something happened' })
  */
-export default async function createSSEService(serviceName, handlers = {}, options = {}) {
+export default async function createEventSourceService(serviceName, handlers = {}, options = {}) {
   const { onConnect, onDisconnect, channels } = handlers
   const accessControl = options.accessControl || 'public'
   const heartbeatInterval = options.heartbeatInterval !== undefined ? options.heartbeatInterval : 30000
@@ -166,7 +166,7 @@ export default async function createSSEService(serviceName, handlers = {}, optio
 
     // node client request waits for first write before continuing to callback
     // send a start event to signal the connection is ready
-    response.write(formatSSE('start', { message: 'Connection established' }))
+    response.write(formatSSE('start'))
 
     // Disable socket timeout for this long-lived connection
     if (request.socket) request.socket.setTimeout(0)
@@ -343,6 +343,7 @@ export default async function createSSEService(serviceName, handlers = {}, optio
     clients.clear()
 
     unregisterLocalService(serviceName)
+
     removeFromCache(cache, { service: serviceName, location })
 
     if (pubSubManager) {
