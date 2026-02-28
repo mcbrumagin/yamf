@@ -113,11 +113,15 @@ async function main() {
 
   // pubsub example using standalone subscription
   const subscription1 = await createSubscriptionService('sub1', 'test', async (message) => {
-    console.info(`subscription received message: ${JSON.stringify(message)}`)
+    message = `subscription received message: ${JSON.stringify(message)}`
+    console.info(message)
+    return message
   })
   
   const subscription2 = await createSubscriptionService('sub2', 'test', async (message) => {
-    console.info(`subscription2 received message: ${JSON.stringify(message)}`)
+    message = `subscription2 received message: ${JSON.stringify(message)}`
+    console.info(message)
+    return message
   })
   
   await publishMessage('test', { data: 'Hello subscribers!' })

@@ -1,11 +1,15 @@
 {
   "name": "@yamf/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Command-line interface for yamf",
-  "main": "src/cli.js",
+  "main": "src/index.js",
   "bin": {
     "yamf": "./src/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./pm3": "./src/lib/pm3.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -13,7 +17,10 @@
   "scripts": {
     "test": "yamf test -d ."
   },
-  "keywords": ["yamf", "cli"],
+  "keywords": [
+    "yamf",
+    "cli"
+  ],
   "license": "MIT",
   "author": "Matthew C Brumagin",
   "repository": {
@@ -24,9 +31,16 @@
     "@yamf/test": "workspace:*"
   },
   "peerDependenciesMeta": {
-    "@yamf/test": { "optional": true }
+    "@yamf/test": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@yamf/test": "workspace:*"
+  },
+  "dependencies": {
+    "@yamf/core": "workspace:*",
+    "@yamf/services-cache": "workspace:*",
+    "@yamf/services-pm3": "workspace:*"
   }
 }

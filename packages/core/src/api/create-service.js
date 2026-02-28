@@ -259,6 +259,11 @@ export default async function createService(name, serviceFn, options = {}) {
     await httpServerTerminate()
   }
 
+  process.once('SIGTERM', async () => {
+    logger.debug('SIGTERM received for service', name)
+    await server.terminate()
+  })
+
   return server
 }
 

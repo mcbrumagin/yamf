@@ -57,6 +57,7 @@ export const COMMANDS = {
   SERVICE_LOOKUP: 'service-lookup',
   SERVICE_CALL: 'service-call',
   ROUTE_REGISTER: 'route-register',
+  ROUTE_UNREGISTER: 'route-unregister',
   PUBSUB_PUBLISH: 'pubsub-publish',
   PUBSUB_SUBSCRIBE: 'pubsub-subscribe',
   PUBSUB_UNSUBSCRIBE: 'pubsub-unsubscribe',
@@ -175,6 +176,17 @@ export function buildRouteRegisterHeaders(serviceName, routePath, dataType, rout
     [HEADERS.ROUTE_PATH]: routePath,
     [HEADERS.ROUTE_DATATYPE]: dataType || 'application/json',
     [HEADERS.ROUTE_TYPE]: routeType,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
+  }
+}
+
+/**
+ * Build headers for route unregistration
+ */
+export function buildRouteUnregisterHeaders(routePath, registryToken = null) {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.ROUTE_UNREGISTER,
+    [HEADERS.ROUTE_PATH]: routePath,
     ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }

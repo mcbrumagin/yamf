@@ -37,6 +37,34 @@ export function registerRoute(state, { service, path, dataType = 'dynamic' }) {
 }
 
 /**
+ * Unregister a route by path
+ */
+export function unregisterRoute(state, { path }) {
+  if (!path) throw new HttpError(400, 'Route path is required for unregistration')
+
+  const basePath = path.replace('*', '')
+  let removed = false
+
+  if (state.routes.has(path)) {
+    state.routes.delete(path)
+    removed = true
+    logger.debug(`route "${path}" unregistered`)
+  }
+
+  if (state.controllerRoutes.has(basePath)) {
+    state.controllerRoutes.delete(basePath)
+    removed = true
+    logger.debug(`controller route "${path}" unregistered`)
+  }
+
+  if (!removed) {
+    throw new HttpError(404, `Route "${path}" not found`)
+  }
+
+  return { success: true }
+}
+
+/**
  * Find a controller route that matches the URL prefix
  */
 export function findControllerRoute(state, url) {

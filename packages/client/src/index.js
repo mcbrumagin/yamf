@@ -20,7 +20,6 @@ import {
   loadResource,
   router,
   hashRouter,
-  handleRouteChange
 } from './client-utils.js'
 
 import {

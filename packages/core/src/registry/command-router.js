@@ -13,7 +13,7 @@ import {
   findServiceLocation,
   streamProxyServiceCall
 } from './service-registry.js'
-import { registerRoute, findControllerRoute } from './route-registry.js'
+import { registerRoute, unregisterRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
 import { HEADERS,COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/yamf-headers.js'
 import HttpError from '../http-primitives/http-error.js'
@@ -42,6 +42,7 @@ const PROTECTED_COMMANDS = new Set([
   COMMANDS.SERVICE_REGISTER,
   COMMANDS.SERVICE_UNREGISTER,
   COMMANDS.ROUTE_REGISTER,
+  COMMANDS.ROUTE_UNREGISTER,
   COMMANDS.PUBSUB_PUBLISH,
   COMMANDS.PUBSUB_SUBSCRIBE,
   COMMANDS.PUBSUB_UNSUBSCRIBE,
@@ -335,6 +336,11 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       return unregisterService(state, { 
         service: serviceName, 
         location: serviceLocation 
+      })
+
+    case COMMANDS.ROUTE_UNREGISTER:
+      return unregisterRoute(state, {
+        path: parseCommandHeaders(headers).routePath
       })
     
     case COMMANDS.SERVICE_LOOKUP:
