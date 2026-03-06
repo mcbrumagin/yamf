@@ -8,6 +8,9 @@
   "scripts": {
     "test": "yamf test -d ."
   },
+  "files": [
+    "service.js"
+  ],
   "peerDependencies": {
     "@yamf/core": "workspace:*",
     "@yamf/shared": "workspace:*"

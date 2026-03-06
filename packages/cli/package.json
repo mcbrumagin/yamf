@@ -17,6 +17,13 @@
   "scripts": {
     "test": "yamf test -d ."
   },
+  "files": [
+    "src/cli.js",
+    "src/commands",
+    "src/example",
+    "src/index.js",
+    "src/lib"
+  ],
   "keywords": [
     "yamf",
     "cli"
