@@ -1,8 +1,10 @@
 {
   "type": "module",
   "scripts": {
-    "test": "c8 yamf test -d .",
-    "test:search": "yamf test -d packages/core --list"
+    "test": "c8 pnpm -r --filter=\\!cli test",
+    "test:integration": "c8 pnpm -r --filter=cli test",
+    "test:all": "c8 pnpm -r test",
+    "test:parallel": "c8 pnpm -r --parallel test"
   },
   "devDependencies": {
     "@yamf/cli": "workspace:*"

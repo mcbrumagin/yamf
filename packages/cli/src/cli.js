@@ -67,6 +67,11 @@ async function main() {
       await runRequestCommand(subcommandArgs)
       break
     }
+    case 'auth': {
+      const { runAuthCommand } = await import('./commands/auth.js')
+      await runAuthCommand(subcommandArgs)
+      break
+    }
 
 
     // registry commands

@@ -1,7 +1,7 @@
 import { callService, Logger } from '@yamf/core'
 import parseArgs from '../lib/parse-args.js'
 
-const logger = new Logger()
+const logger = new Logger({ maxDepth: 10 }) // TODO configurable from CLI
 
 const ARGS = {
   help:      { flags: ['-h', '--help'] },

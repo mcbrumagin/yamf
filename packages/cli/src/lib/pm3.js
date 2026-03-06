@@ -162,19 +162,24 @@ export class PM3 {
   }
 
   async checkRegistryRunning() {
-    if (!this.registryUrl) {
-      this.registryRunning = false
-      return false
-    }
-    try {
-      await httpRequest(this.registryUrl, {
-        headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL }
-      })
-      this.registryRunning = true
-    } catch (err) {
-      if (err.message && err.message.includes('Fetch failed')) this.registryRunning = false
-      else if (err.httpStatus) this.registryRunning = true
-      else this.registryRunning = false
+    let maxAttempts = 10
+    let attempts = 0
+    while (++attempts < maxAttempts) {
+      await sleep(100)
+      if (!this.registryUrl) {
+        this.registryRunning = false
+        return false
+      }
+      try {
+        await httpRequest(this.registryUrl, {
+          headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL }
+        })
+        this.registryRunning = true
+      } catch (err) {
+        if (err.message && err.message.includes('Fetch failed')) this.registryRunning = false
+        else if (err.httpStatus) this.registryRunning = true
+        else this.registryRunning = false
+      }
     }
     return this.registryRunning
   }
@@ -301,7 +306,7 @@ export class PM3 {
     }
 
     if (this.registryRunning) {
-      const services = await this.pollForNewServices(beforeSnapshot)
+      const services = await this.pollUntilNoNewServices(beforeSnapshot)
       if (Object.keys(services).length > 0) {
         const updated = loadState()
         if (updated.processes[stateKey]) {
@@ -314,13 +319,15 @@ export class PM3 {
     return loadState().processes[stateKey]
   }
 
-  async pollForNewServices(beforeSnapshot, { maxAttempts = 10, intervalMs = 500 } = {}) {
+  async pollUntilNoNewServices(beforeSnapshot, { maxAttempts = 40, intervalMs = 250 } = {}) {
+    let lastLength = 0
     for (let i = 0; i < maxAttempts; i++) {
       await sleep(intervalMs)
       try {
         const afterSnapshot = await getServiceStateSnapshot(this.registryUrl)
         const services = detectNewServices(beforeSnapshot, afterSnapshot)
-        if (Object.keys(services).length > 0) return services
+        if ((lastLength > 0) && lastLength == Object.keys(services).length) return services
+        lastLength = Object.keys(services).length
       } catch {
         // registry may have just started, or the process is still booting
       }

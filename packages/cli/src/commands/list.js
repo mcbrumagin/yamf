@@ -12,6 +12,7 @@ const ARGS = {
   locations: { flags: ['-l', '--locations'] }
 }
 
+// TODO list --routes
 function getListHelp() {
   return `
 yamf list - List managed processes, services, or locations

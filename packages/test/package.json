@@ -5,7 +5,7 @@
   "description": "Functional testing module - with polymorphic async/await and simultaneous assertion reports",
   "main": "src/index.js",
   "scripts": {
-    "test": "./tests/test.sh"
+    "test": "yamf test -d ."
   },
   "homepage": "https://github.com/mcbrumagin/yamf",
   "exports": {

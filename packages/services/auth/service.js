@@ -48,7 +48,6 @@ export default async function createAuthService({
   }
 
   const keyPair = await ed25519.generateKeyPair()
-  // console.log('keyPair:', keyPair)
 
   // should use an internal memory-only cache for security
   const defaultAccessTokenExpireTime = 60000 * 30
@@ -80,7 +79,6 @@ export default async function createAuthService({
   const authenticate = async (payload, request, response) => {
     logger.debug(`authenticating user ${payload.user}`)
 
-    console.warn('payload', payload)
     let isValid = await validateUserPassword(payload.user, payload.password)
     
     if (!isValid) {
@@ -157,7 +155,6 @@ export default async function createAuthService({
 
     // TODO error if payload is not null? we are using the refresh token header
     if (!request.headers.cookie) {
-      console.warn("headers", request.headers)
       throw new HttpError(400, 'Invalid auth request')
     }
 

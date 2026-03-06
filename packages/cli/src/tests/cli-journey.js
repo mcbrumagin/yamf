@@ -18,9 +18,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const EXAMPLES = join(__dirname, '..', 'example')
 const YAMF_HOME = join(__dirname, '..', '.yamf-test')
-
-// Set YAMF_TEST_DEBUG=1 to print every CLI invocation and its output
-const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const CLI_CWD = join(__dirname, '..')
+const DEBUG = true
 
 const ENV = {
   ...process.env,
@@ -35,6 +34,7 @@ function cli(cmd) {
   try {
     const stdout = execSync(`node ${CLI} ${cmd}`, {
       env: ENV,
+      cwd: CLI_CWD,
       encoding: 'utf8',
       timeout: 15000
     })
@@ -104,7 +104,6 @@ export async function testInitDevStartsBootstrap() {
       o => o.includes('Started process'),
       o => o.includes('dev-bootstrap')
     )
-    await sleep(1500)
 
     const listOut = cli('list --all')
     assert(listOut,
@@ -120,8 +119,6 @@ export async function testStartAndStopService() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     const startOut = cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
     assert(startOut,
       o => o.includes('Started process'),
@@ -147,8 +144,6 @@ export async function testStopByServiceName() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const listOut = cli('list --services')
@@ -165,8 +160,6 @@ export async function testDeleteByServiceName() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     cli('delete simple-service')
@@ -183,8 +176,6 @@ export async function testStartByServiceNameRestartsExisting() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const startOut = cli('start simple-service')
@@ -215,8 +206,6 @@ export async function testMultipleInstancesAndViews() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
     cli(`start ${join(EXAMPLES, 'load-balanced.js')} --env YAMF_SERVICE_URL=http://127.0.0.1`)
 
@@ -242,10 +231,7 @@ export async function testLogsCommand() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
-    await sleep(500)
 
     const logsOut = cli(`logs ${join(EXAMPLES, 'load-balanced.js')}`)
     assert(logsOut,
@@ -260,8 +246,6 @@ export async function testLogsList() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const listOut = cli('logs --list')
@@ -278,8 +262,6 @@ export async function testDeleteRemovesFromList() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     cli(`delete ${join(EXAMPLES, 'load-balanced.js')}`)
@@ -296,8 +278,6 @@ export async function testStopAllAndDeleteAll() {
   cleanup()
   try {
     cli('init --dev')
-    await sleep(2000)
-
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     cli('stop --all')
