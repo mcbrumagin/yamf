@@ -201,6 +201,10 @@ const headerWhitelist = [
   'if-range',
   'accept-ranges',
 
+  // SSE-specific headers
+  'last-event-id',
+  'cache-control',
+
   // TODO verify relevant yamf-headers are forwarded
   'cookie', // TODO only for auth services
   'yamf-command',
@@ -248,14 +252,10 @@ export async function streamProxyServiceCall(state, { name, request, response })
   logger.debug('streamProxyServiceCall - location:', location)
 
   const headers = filterForUsefulHeaders(request.headers)
-  writeForwardedHeaders(request, headers) // TODO functional approach?
+  writeForwardedHeaders(request, headers)
 
-  // const localService = localState.services[name]
-  // if (localService) {
-  //   let payload = readStream(request)
-  //   try { payload = JSON.parse(payload) } catch (err) { /* don't care */ }
-  //   return await localService(payload, request, response)
-  // }
+  // Look up per-service timeout (0 = no timeout for SSE/long-lived connections)
+  const serviceTimeout = state.serviceTimeouts?.get(name)
   
   return new Promise((resolve, reject) => {
     const options = {
@@ -265,13 +265,25 @@ export async function streamProxyServiceCall(state, { name, request, response })
       method: request.method,
       headers: {
         ...headers,
-        host: url.host // Override host header for target service
+        host: url.host
       }
     }
-
-    // logger.debug('streamProxyServiceCall - options:', options)
+    
+    if (serviceTimeout === 0) {
+      options.timeout = 0
+    }
 
     const proxyReq = http.request(options, (proxyRes) => {
+      // Detect SSE responses and disable socket timeouts to keep connection alive
+      const contentType = proxyRes.headers['content-type'] || ''
+      const isSSE = contentType.includes('text/event-stream')
+      if (isSSE) {
+        logger.debug(`streamProxyServiceCall - SSE connection detected for "${name}", disabling socket timeouts`)
+        if (request.socket) request.socket.setTimeout(0)
+        if (response.socket) response.socket.setTimeout(0)
+        if (proxyReq.socket) proxyReq.socket.setTimeout(0)
+      }
+
       // Forward status code and headers to client
       response.writeHead(proxyRes.statusCode, proxyRes.headers)
       
@@ -288,7 +300,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
         if (!response.writableEnded) {
           response.end()
         }
-        // Don't reject if response already ended - just resolve to prevent unhandled rejection
         if (response.writableEnded) {
           resolve(false)
         } else {
@@ -304,7 +315,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
         response.end('Bad Gateway')
         reject(err)
       } else {
-        // Response already started - log error but don't reject to avoid unhandled rejection
         logger.error('Proxy request error after response started:', err)
         if (!response.writableEnded) {
           response.end()
@@ -319,7 +329,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
       if (!response.headersSent) {
         reject(err)
       } else {
-        // Response already started - log but don't reject
         logger.error('Request stream error after response started:', err)
         resolve(false)
       }
@@ -329,11 +338,8 @@ export async function streamProxyServiceCall(state, { name, request, response })
       logger.debug('streamProxyServiceCall - request stream ended')
     })
 
-    // Pipe request body directly to service (no buffering)
-    // Make sure to properly end the proxy request when input ends
     request.pipe(proxyReq, { end: true })
   }).catch(err => {
-    // Additional safety: catch any unhandled rejections in the promise chain
     logger.debugErr('Caught unhandled error in streamProxyServiceCall:', err)
     if (!response.headersSent && !response.writableEnded) {
       try {
@@ -343,7 +349,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
         logger.error('Failed to send error response:', writeErr)
       }
     }
-    // Return false to indicate response was handled
     return false
   })
 }

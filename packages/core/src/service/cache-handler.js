@@ -9,6 +9,7 @@ import { Next } from '../http-primitives/next.js'
 import { HEADERS, COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import Logger from '../utils/logger.js'
+import readStream from '../http-primitives/read-stream.js'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
@@ -77,7 +78,7 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
     // Check if this is a cache update from registry using yamf headers
     if (isCacheUpdateRequest(request)) {
       validateRegistryToken(request)
-      const { pubsubChannel, serviceName, accessControl, serviceLocation } = parseCommandHeaders(request.headers)
+      const { pubsubChannel, serviceName, accessControl, serviceLocation, contract } = parseCommandHeaders(request.headers)
       
       logger.debug('cacheAwareHandler - cache update request', { pubsubChannel, serviceName, serviceLocation })
 
@@ -86,7 +87,8 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
         subscription: pubsubChannel,
         service: serviceName,
         accessControl: accessControl,
-        location: serviceLocation
+        location: serviceLocation,
+        contract
       })
       
       // Update context to reflect new services
@@ -111,6 +113,11 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
         const subscriptions = context._pubSubManager.listSubscriptions()
         if (subscriptions[pubsubChannel]) {
           // Route to pubsub manager handlers
+          // in case the server is in stream mode, we need to read the stream and parse the body
+          if (request.headers['content-type'] === 'application/json') {
+            payload = await readStream(request)
+            try { payload = JSON.parse(payload) } catch { /* don't care */ }
+          }
           return await context._pubSubManager.handleIncomingMessage(pubsubChannel, payload)
         }
       }

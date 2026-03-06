@@ -31,12 +31,15 @@ export default async function createProxyServer(port, serverFn, options = {}) {
   if (!port) throw new Error('"port" is required')
   if (!serverFn) throw new Error('"serverFn" is required')
 
+  const requestTimeout = options.requestTimeout !== undefined ? options.requestTimeout : 60000
+  const headersTimeout = options.headersTimeout !== undefined ? options.headersTimeout : 30000
+
   return new Promise((resolve, reject) => {
     const server = http.createServer({
       keepAlive: true,
       keepAliveInitialDelay: 0,
-      requestTimeout: 60000,
-      headersTimeout: 30000,
+      requestTimeout,
+      headersTimeout: Math.min(headersTimeout, requestTimeout || Infinity),
     }, async (request, response) => {
       try {
         // Pass request and response directly to handler without reading body

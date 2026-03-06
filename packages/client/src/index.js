@@ -1,23 +1,30 @@
 import Element from './Element.js'
 import elements from './elements.js'
 import htmlTags from './html-tags.js'
+
 import { 
   createState, 
   createReactiveComponent, 
   createFormState, 
   createRenderHelper 
 } from './state.js'
+
 import {
   initializeYamf,
   getYamf
 } from './client-init.js'
+
 import {
   waitForElement,
   isMobileBrowser,
   loadResource,
   router,
-  hashRouter
+  hashRouter,
 } from './client-utils.js'
+
+import {
+  subscribeToEventSource
+} from './event-source.js'
 
 // Import and re-export XSS utilities from shared for client convenience
 import { 
@@ -44,7 +51,8 @@ export {
   isMobileBrowser,
   loadResource,
   router,
-  hashRouter
+  hashRouter,
+  subscribeToEventSource
 }
 
 // Default export for backward compatibility

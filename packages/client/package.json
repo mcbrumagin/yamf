@@ -26,13 +26,14 @@
     "zero-dependency"
   ],
   "scripts": {
-    "test": "node test/index.js"
+    "test": "yamf test -d ."
   },
   "dependencies": {
     "@yamf/shared": "workspace:*"
   },
   "devDependencies": {
-    "@yamf/test": "workspace:*"
+    "@yamf/test": "workspace:*",
+    "@yamf/cli": "workspace:*"
   },
   "files": [
     "src",

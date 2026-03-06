@@ -10,6 +10,9 @@
  * - Advanced service tests with suites
  */
 
+
+// TODO need to import @yamf/test and remaining examples to add to regular test run
+
 import { overrideConsoleGlobally } from '../src/index.js'
 
 overrideConsoleGlobally({

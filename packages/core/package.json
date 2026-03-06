@@ -1,6 +1,6 @@
 {
   "name": "@yamf/core",
-  "version": "0.3.6",
+  "version": "0.4.0",
   "type": "module",
   "description": "A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, api gateway, pub/sub messaging, HTTP routing, and load balancing.",
   "main": "src/index.js",
@@ -9,6 +9,7 @@
     ".": "./src/index.js",
     "./create-service": "./src/api/create-service.js",
     "./create-subscription-service": "./src/api/create-subscription-service.js",
+    "./create-event-source-service": "./src/api/create-event-source-service.js",
     "./create-route": "./src/api/create-route.js",
     "./call-service": "./src/api/call-service.js",
     "./call-route": "./src/api/call-route.js",
@@ -49,15 +50,20 @@
     "url": "https://github.com/mcbrumagin/yamf"
   },
   "peerDependencies": {
-    "@yamf/client": "workspace:*"
+    "@yamf/client": "workspace:*",
+    "@yamf/shared": "workspace:*"
   },
   "peerDependenciesMeta": {
     "@yamf/client": {
+      "optional": true
+    },
+    "@yamf/shared": {
       "optional": true
     }
   },
   "devDependencies": {
     "@yamf/cli": "workspace:*",
+    "@yamf/shared": "workspace:*",
     "@yamf/test": "workspace:*",
     "form-data": "^4.0.4"
   }

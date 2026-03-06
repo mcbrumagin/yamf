@@ -49,6 +49,7 @@ export function buildContext(cache, serviceName = 'anonymous') {
  */
 export function buildEnhancedContext(cache, serviceName = 'anonymous') {
   const context = buildContext(cache, serviceName) // include call, publish
+  context._serviceStubs = new Set()
   
   // Add service-specific stubs for better autocomplete
   // Support both Map and plain object for backwards compatibility
@@ -58,17 +59,15 @@ export function buildEnhancedContext(cache, serviceName = 'anonymous') {
       : Object.keys(cache.services)
     
     for (const svcName of serviceNames) {
-      // Create a stub function for this service
-      // Allows: context.userService(payload) instead of context.call('userService', payload)
       context[svcName] = function serviceStub(payload) {
         return callServiceWithCache(cache, svcName, payload)
       }
       
-      // Override function name
       Object.defineProperty(context[svcName], 'name', {
         value: svcName,
         writable: false
       })
+      context._serviceStubs.add(svcName)
     }
   }
   
@@ -86,21 +85,19 @@ export function updateContext(context, cache) {
   // Update the call function binding
   context.call = callServiceWithCache.bind(null, cache)
   context.publish = publishMessageWithCache.bind(null, cache)
-  
-  // Keep track of protected keys (built-in methods)
-  // TODO this.name, this.log
-  const protectedKeys = new Set(['call', 'publish'])
+
+  if (!context._serviceStubs) context._serviceStubs = new Set()
   
   // Get current service names (support both Map and plain object)
   const currentServices = cache.services instanceof Map
     ? new Set(cache.services.keys())
     : new Set(Object.keys(cache.services || {}))
   
-  // Remove old service stubs that no longer exist
-  logger.debug('updateContext:', context)
-  for (const key of Object.keys(context)) {
-    if (!protectedKeys.has(key) && !currentServices.has(key)) {
+  // Remove stale service stubs (only keys we previously created)
+  for (const key of context._serviceStubs) {
+    if (!currentServices.has(key)) {
       delete context[key]
+      context._serviceStubs.delete(key)
     }
   }
   
@@ -114,6 +111,7 @@ export function updateContext(context, cache) {
       value: serviceName,
       writable: false
     })
+    context._serviceStubs.add(serviceName)
   }
 }
 

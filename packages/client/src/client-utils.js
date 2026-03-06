@@ -1,3 +1,9 @@
+// TODO need to mock window and document for testing
+// var context
+// if (typeof window !== "undefined") {
+//   context = window
+// } else context = {}
+
 
 /**
  * Client utilities for YAMF browser applications

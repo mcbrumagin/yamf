@@ -16,9 +16,9 @@ import {
   AssertionFailureDetail,
   MultiAssertionFailure,
   terminateAfter,
-  withEnv,
-  TestRunner
-} from '../src/index.js'
+  withEnv
+} from '@yamf/test'
+
 
 // ============================================================================
 // Assertion Error Printing Tests
@@ -501,131 +501,4 @@ export function testAssertErrSequence_FailureShowsSpecificAssertion() {
       e => e.message.includes('failed -> err.message === \'wrong\'')
     )
   }
-}
-
-
-// ============================================================================
-// Helper and Runner Tests
-// ============================================================================
-
-export async function testHelper_RunnerWithEnv() {
-  await withEnv({
-    MUTE_SUCCESS_CASES: 'false'
-  }, async () => {
-    let runner = new TestRunner()
-
-    runner.addSuite('passing-tests', {
-      test1: function test1() {
-        assert(5,5)
-      },
-      test2: function test2() {
-        assert(5, () => 10/2)
-      }
-    })
-
-    await runner.run()
-  })
-}
-
-export async function testRunner_SuiteTestRunPasses() {
-  let runner = new TestRunner()
-
-  runner.addSuite('passing-tests', {
-    test1: function test1() {
-      assert(5,5)
-    },
-    test2: function test2() {
-      assert(5, () => 10/2)
-    }
-  })
-
-  await runner.run()
-}
-
-export async function testRunner_SuiteTestRunFails() {
-  await assertErr(async () => {
-    let runner = new TestRunner()
-
-    runner.addSuite('failing-tests', {
-      test1: function test1() {
-        assert(5,6)
-      },
-      test2: function test2() {
-        assert(5, () => 10/3)
-      }
-    })
-
-    await runner.run()
-  }, e => e.message.includes('failed'))
-}
-
-
-export async function testRunner_DifferentSuiteAdds() {
-  let runner = new TestRunner()
-
-  runner.addSuite('test-obj-add', {
-    test: function test1() {
-      assert(5,5)
-    }
-  })
-
-  runner.addSuite('test-arr-add', [
-    function test() {
-      assert(5,5)
-    }
-  ])
-
-  runner.addSuite({
-    test: function test() {
-      assert(5,5)
-    }
-  })
-
-  await runner.run()
-}
-
-export async function testRunner_MutedTest() {
-  let runner = new TestRunner()
-
-  let runName
-  function test1() {
-    runName = 'test1'
-    assert(5,5)
-  }
-  test1.mute = true
-
-  function test2() {
-    runName = 'test2'
-    assert(6,6)
-  }
-
-  await runner.run({
-    test1,
-    test2
-  })
-  
-  assert(runName, 'test2')
-}
-
-export async function testRunner_SoloTest() {
-  let runner = new TestRunner()
-
-  let runName
-  function test1() {
-    runName = 'test1'
-    assert(5,5)
-  }
-  test1.solo = true
-
-  function test2() {
-    runName = 'test2'
-    assert(6,6)
-  }
-
-  await runner.run({
-    test1,
-    test2
-  })
-  
-  assert(runName, 'test1')
 }

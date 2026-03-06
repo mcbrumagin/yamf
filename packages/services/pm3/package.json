@@ -1,0 +1,23 @@
+{
+  "name": "@yamf/services-pm3",
+  "version": "0.1.0",
+  "description": "PM3 process management service for yamf - enables remote CLI capabilities",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "service.js",
+  "scripts": {
+    "test": "yamf test -d ."
+  },
+  "files": [
+    "service.js"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "@yamf/core": "workspace:*",
+    "@yamf/cli": "workspace:*"
+  },
+  "devDependencies": {
+    "@yamf/test": "workspace:*"
+  }
+}
