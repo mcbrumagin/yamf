@@ -33,7 +33,14 @@ export const HEADERS = {
   PUBSUB_CHANNEL: 'yamf-pubsub-channel',
   
   // Rate limiting
-  RATE_LIMIT_REQUIRED: 'yamf-rate-limit-required' // 'true' if service requires rate limit config
+  RATE_LIMIT_REQUIRED: 'yamf-rate-limit-required', // 'true' if service requires rate limit config
+
+  // Service contracts
+  SERVICE_CONTRACT: 'yamf-service-contract', // JSON-serialized contract object
+
+  // Service type and timeout (for SSE, future WebSocket, etc.)
+  SERVICE_TYPE: 'yamf-service-type',   // 'standard', 'sse', etc.
+  TIMEOUT: 'yamf-timeout'             // Per-service timeout in ms (0 = no timeout)
 }
 
 /**
@@ -50,6 +57,7 @@ export const COMMANDS = {
   SERVICE_LOOKUP: 'service-lookup',
   SERVICE_CALL: 'service-call',
   ROUTE_REGISTER: 'route-register',
+  ROUTE_UNREGISTER: 'route-unregister',
   PUBSUB_PUBLISH: 'pubsub-publish',
   PUBSUB_SUBSCRIBE: 'pubsub-subscribe',
   PUBSUB_UNSUBSCRIBE: 'pubsub-unsubscribe',
@@ -71,12 +79,13 @@ export const COMMANDS = {
 /**
  * Build headers for service setup
  */
-export function buildSetupHeaders(serviceName, serviceHome, registryToken = null) {
+export function buildSetupHeaders(serviceName, serviceHome, registryToken = null, rateLimitRequired = false) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_HOME]: serviceHome,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
+    ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' })
   }
 }
 
@@ -101,7 +110,10 @@ export function buildRegisterHeaders(serviceName, location, {
   useAuthService,
   accessControl = 'private', // 'pure', 'local', 'private', 'public'
   registryToken = null,
-  rateLimit = false  // true = require rate limit config exists
+  rateLimit = false,  // true = require rate limit config exists
+  contract = true,
+  serviceType = null, // 'sse', etc. -- null means standard
+  timeout = null      // per-service timeout in ms (0 = no timeout)
 }) {
   // TODO: Hybrid rate limiting - if rateLimit is an object, serialize it
   // For now, only support boolean (true = require config exists)
@@ -114,7 +126,10 @@ export function buildRegisterHeaders(serviceName, location, {
     ...(useAuthService && { [HEADERS.USE_AUTH_SERVICE]: useAuthService }),
     ...(accessControl && { [HEADERS.ACCESS_CONTROL]: accessControl }),
     ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
-    ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' })
+    ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' }),
+    ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) }),
+    ...(serviceType && { [HEADERS.SERVICE_TYPE]: serviceType }),
+    ...(timeout !== null && { [HEADERS.TIMEOUT]: String(timeout) })
   }
 }
 
@@ -166,6 +181,17 @@ export function buildRouteRegisterHeaders(serviceName, routePath, dataType, rout
 }
 
 /**
+ * Build headers for route unregistration
+ */
+export function buildRouteUnregisterHeaders(routePath, registryToken = null) {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.ROUTE_UNREGISTER,
+    [HEADERS.ROUTE_PATH]: routePath,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
+  }
+}
+
+/**
  * Build headers for pub/sub publish
  */
 export function buildPublishHeaders(channel, registryToken = null) {
@@ -203,13 +229,14 @@ export function buildUnsubscribeHeaders(channel, location, registryToken = null)
 /**
  * Build headers for cache update notifications
  */
-export function buildCacheUpdateHeaders(pubsubChannel, serviceName, location, registryToken = null) {
+export function buildCacheUpdateHeaders(pubsubChannel, serviceName, location, registryToken = null, contract = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.CACHE_UPDATE,
     [HEADERS.PUBSUB_CHANNEL]: pubsubChannel,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
+    ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) })
   }
 }
 
@@ -277,7 +304,18 @@ export function buildAuthLogoutHeaders() {
 export function parseCommandHeaders(headers) {
   // Parse rate limit required flag
   const rateLimitRequired = headers[HEADERS.RATE_LIMIT_REQUIRED] === 'true'
+
+  // Parse contract from JSON header
+  let contract = null
+  const contractHeader = headers[HEADERS.SERVICE_CONTRACT]
+  if (contractHeader) {
+    try { contract = JSON.parse(contractHeader) } catch {}
+  }
   
+  // Parse timeout from header (string -> number or null)
+  const timeoutHeader = headers[HEADERS.TIMEOUT]
+  const timeout = timeoutHeader !== undefined ? Number(timeoutHeader) : null
+
   return {
     command: headers[HEADERS.COMMAND],
     serviceName: headers[HEADERS.SERVICE_NAME],
@@ -289,7 +327,10 @@ export function parseCommandHeaders(headers) {
     routeDataType: headers[HEADERS.ROUTE_DATATYPE],
     routeType: headers[HEADERS.ROUTE_TYPE],
     pubsubChannel: headers[HEADERS.PUBSUB_CHANNEL],
-    rateLimitRequired
+    rateLimitRequired,
+    contract,
+    serviceType: headers[HEADERS.SERVICE_TYPE] || null,
+    timeout
   }
 }
 

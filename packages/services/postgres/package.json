@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-postgres",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "",
   "license": "ISC",
   "author": "",
@@ -9,6 +9,10 @@
   "scripts": {
     "test": "yamf test -d ."
   },
+  "files": [
+    "service.js",
+    "README.md"
+  ],
   "dependencies": {
     "postgres": "^3.4.8"
   },

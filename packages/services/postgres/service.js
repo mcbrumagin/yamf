@@ -53,8 +53,8 @@ export default async function createPostgreSqlService({
    * @param {boolean} options.mapCase Whether to convert output from snake_case to camelCase (default: true)
    * @returns {Promise<Array>} The query result with camelCase keys.
    */
-  async function processQueryTemplate(template, data, options = {}) {
-    const { mapCase = true } = options
+  async function processQueryTemplate(template, data, options) {
+    const { mapCase = true } = options || {}
     
     // Extract all placeholder names from template (placeholders are camelCase)
     const placeholderMatches = [...template.matchAll(/(?<!:):([a-zA-Z_][a-zA-Z0-9_]*)/g)]

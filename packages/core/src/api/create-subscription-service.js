@@ -224,6 +224,11 @@ export default async function createSubscriptionService(serviceName, channelOrMa
     
     logger.info(`Subscription service "${serviceName}" terminated`)
   }
+
+  process.once('SIGTERM', async () => {
+    logger.debug('SIGTERM received for service', serviceName)
+    await server.terminate()
+  })
   
   return server
 }

@@ -40,14 +40,14 @@ const defaultValidateUser = async (username, password) => {
 export default async function createAuthService({
   serviceName = 'auth-service',
   useSessions = 'refresh-only',
-  validateUserPassword = defaultValidateUser
+  validateUserPassword = defaultValidateUser,
+  enrichTokenPayload = null
 } = {}) {
   if (useSessions && useSessions !== true && useSessions !== 'refresh-only') {
     throw new Error('useSessions must be true or "refresh-only"')
   }
 
   const keyPair = await ed25519.generateKeyPair()
-  // console.log('keyPair:', keyPair)
 
   // should use an internal memory-only cache for security
   const defaultAccessTokenExpireTime = 60000 * 30
@@ -56,7 +56,8 @@ export default async function createAuthService({
 
   const createToken = async (user, type = 'access') => {
     let expire = Date.now() + (type === 'access' ? defaultAccessTokenExpireTime : defaultRefreshTokenExpireTime)
-    const payload = JSON.stringify({ user, expire })
+    const extra = enrichTokenPayload ? await enrichTokenPayload(user) : {}
+    const payload = JSON.stringify({ user, expire, ...extra })
     const signature = await ed25519.sign(keyPair, payload)
     logger.debug(`signature: ${signature}`)
     return encodeBase64(`${payload}.${signature}`)
@@ -78,7 +79,6 @@ export default async function createAuthService({
   const authenticate = async (payload, request, response) => {
     logger.debug(`authenticating user ${payload.user}`)
 
-    console.warn('payload', payload)
     let isValid = await validateUserPassword(payload.user, payload.password)
     
     if (!isValid) {
@@ -155,7 +155,6 @@ export default async function createAuthService({
 
     // TODO error if payload is not null? we are using the refresh token header
     if (!request.headers.cookie) {
-      console.warn("headers", request.headers)
       throw new HttpError(400, 'Invalid auth request')
     }
 
@@ -221,7 +220,7 @@ export default async function createAuthService({
         throw new HttpError(401, 'Invalid session')
       }
     }
-    return { isValid, status: 'valid access token' }
+    return { isValid, status: 'valid access token', user: payload.user, payload }
   }
 
   const server = await createService(serviceName, async function authService(payload, request, response) {

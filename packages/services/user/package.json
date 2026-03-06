@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-user",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "",
   "license": "ISC",
   "author": "",
@@ -9,6 +9,12 @@
   "scripts": {
     "test": "yamf test -d ."
   },
+  "files": [
+    "service.js",
+    "token.js",
+    "validators.js",
+    "README.md"
+  ],
   "dependencies": {
     "@yamf/core": "workspace:*",
     "@yamf/services-postgres": "workspace:*",

@@ -20,8 +20,7 @@ import {
   assertSequence,
   assertErr,
   assertErrEach,
-  assertErrSequence,
-  runTests
+  assertErrSequence
 } from '@yamf/test'
 
 // ============================================================================
@@ -284,56 +283,17 @@ function testThisWillShowMultipleFailures() {
   // Shows all three failing assertion functions
 }
 
-// ============================================================================
-// Run All Tests
-// ============================================================================
-
-// Collect all test functions
-const tests = {
-  testDirectValue,
-  testFunctionResult,
-  testArrowFunction,
-  testMultipleConditions,
-  testPromiseValue,
-  testAsyncFunction,
-  testPromiseReturningFunction,
-  testThrownError,
-  testDirectError,
-  testAsyncError,
-  testPromiseRejection,
-  testAssertEach,
-  testAssertEachAsync,
-  testAssertSequence,
-  testAssertSequenceAsync,
-  testAssertErrEach,
-  testAssertErrEachFunctions,
-  testAssertErrEachAsync,
-  testAssertErrSequence,
-  testAssertErrSequenceFunctions,
-  testAssertErrSequenceAsync,
-  // testThisWillShowSingleFailure,
-  // testThisWillShowMultipleFailures
-}
-
-// Run tests without using test suites
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runTests(tests)
-    .then(() => process.exit(0))
-    .catch(err => process.exit(err.code || 1))
-}
-
 /*
  * Key Takeaways:
  * 
- * 1. assert() and assertErr() automatically detect if async is needed
- * 2. Just add "await" when dealing with Promises or async functions
- * 3. Multiple assertion functions run simultaneously and all failures are reported
- * 4. Error messages show the exact assertion function(s) that failed
- * 5. Tests can run without test suites using runTests() directly
- * 6. Test functions should be named for clear test reporting
- * 7. Use assertEach when all values must pass the same assertions
- * 8. Use assertSequence when each value has a specific corresponding assertion
- * 9. Use assertErrEach when testing multiple errors with the same criteria
- * 10. Use assertErrSequence when each error has specific expected behavior
+ * - assert() and assertErr() automatically detect if async is needed
+ * - Just add "await" when dealing with Promises or async functions
+ * - Multiple assertion functions run simultaneously and all failures are reported
+ * - Error messages show the exact assertion function(s) that failed
+ * - Test functions should be named for clear test reporting
+ * - Use assertEach when all values must pass the same assertions
+ * - Use assertSequence when each value has a specific corresponding assertion
+ * - Use assertErrEach when testing multiple errors with the same criteria
+ * - Use assertErrSequence when each error has specific expected behavior
  */
 

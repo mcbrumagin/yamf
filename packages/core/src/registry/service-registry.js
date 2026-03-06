@@ -189,7 +189,7 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * @param {Object} [options.metadata] - Service metadata (for special services like gateway)
  * @param {Object} [options.rateLimit] - Rate limit configuration for this service
  */
-export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit }) {
+export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit, contract, serviceType, timeout }) {
   logger.debug(`registerService - service "${service}" registering for ${location} (accessControl: ${accessControl})`)
   
   // Check for pure service load-balancing attempt
@@ -250,6 +250,24 @@ export async function registerService(state, { service, location, useAuthService
     logger.info(`Stored rate limit config for "${service}":`, rateLimit)
   }
   
+  // Store contract if provided
+  if (contract) {
+    state.serviceContracts.set(service, contract)
+    logger.info(`Stored contract for "${service}": ${JSON.stringify(contract)}`) //enforce=${contract.enforce}, params=${contract.params}, expectedKeys=${contract.expectedKeys}`)
+  }
+
+  // Store service type if provided (e.g. 'sse')
+  if (serviceType) {
+    state.serviceTypes.set(service, serviceType)
+    logger.info(`Stored service type for "${service}":`, serviceType)
+  }
+
+  // Store per-service timeout if provided (0 = no timeout for long-lived connections)
+  if (timeout !== null && timeout !== undefined) {
+    state.serviceTimeouts.set(service, timeout)
+    logger.info(`Stored timeout for "${service}":`, timeout)
+  }
+
   // Store metadata if provided (for special services like gateway)
   if (Object.keys(metadata).length > 0) {
     state.serviceMetadata.set(service, { 
@@ -264,7 +282,7 @@ export async function registerService(state, { service, location, useAuthService
   const isPullOnly = metadata.pullOnly === true
   
   // Notify other services about the new registration using cache update headers
-  await publishCacheUpdate(state, { service, location })
+  await publishCacheUpdate(state, { service, location, contract: state.serviceContracts.get(service) })
   
   // Subscribe the new service to registration events (unless it's pull-only)
   if (!isPullOnly) {
@@ -277,7 +295,8 @@ export async function registerService(state, { service, location, useAuthService
   // Return current registry state
   return {
     services: serializeServicesMap(state.services),
-    addresses: Object.fromEntries(state.addresses)
+    addresses: Object.fromEntries(state.addresses),
+    serviceContracts: Object.fromEntries(state.serviceContracts)
   }
 }
 
@@ -418,6 +437,10 @@ const headerWhitelist = [
   'if-range',
   'accept-ranges',
 
+  // SSE-specific headers
+  'last-event-id',
+  'cache-control',
+
   // TODO verify relevant yamf-headers are forwarded
   'cookie', // TODO only for auth services
   'yamf-command',
@@ -456,14 +479,10 @@ export async function streamProxyServiceCall(state, { name, request, response })
   logger.debug('streamProxyServiceCall - location:', location)
 
   const headers = filterForUsefulHeaders(request.headers)
-  writeForwardedHeaders(request, headers) // TODO functional approach?
+  writeForwardedHeaders(request, headers)
 
-  // const localService = localState.services[name]
-  // if (localService) {
-  //   let payload = readStream(request)
-  //   try { payload = JSON.parse(payload) } catch (err) { /* don't care */ }
-  //   return await localService(payload, request, response)
-  // }
+  // Look up per-service timeout (0 = no timeout for SSE/long-lived connections)
+  const serviceTimeout = state.serviceTimeouts?.get(name)
 
   return new Promise((resolve, reject) => {
     const options = {
@@ -473,13 +492,25 @@ export async function streamProxyServiceCall(state, { name, request, response })
       method: request.method,
       headers: {
         ...headers,
-        host: url.host // Override host header for target service
+        host: url.host
       }
     }
 
-    // logger.debug('streamProxyServiceCall - options:', options)
+    if (serviceTimeout === 0) {
+      options.timeout = 0
+    }
 
     const proxyReq = http.request(options, (proxyRes) => {
+      // Detect SSE responses and disable socket timeouts to keep connection alive
+      const contentType = proxyRes.headers['content-type'] || ''
+      const isSSE = contentType.includes('text/event-stream')
+      if (isSSE) {
+        logger.debug(`streamProxyServiceCall - SSE connection detected for "${name}", disabling socket timeouts`)
+        if (request.socket) request.socket.setTimeout(0)
+        if (response.socket) response.socket.setTimeout(0)
+        if (proxyReq.socket) proxyReq.socket.setTimeout(0)
+      }
+
       // Forward status code and headers to client
       response.writeHead(proxyRes.statusCode, proxyRes.headers)
       
@@ -496,7 +527,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
         if (!response.writableEnded) {
           response.end()
         }
-        // Don't reject if response already ended - just resolve to prevent unhandled rejection
         if (response.writableEnded) {
           resolve(false)
         } else {
@@ -512,7 +542,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
         response.end('Bad Gateway')
         reject(err)
       } else {
-        // Response already started - log error but don't reject to avoid unhandled rejection
         logger.error('Proxy request error after response started:', err)
         if (!response.writableEnded) {
           response.end()
@@ -527,7 +556,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
       if (!response.headersSent) {
         reject(err)
       } else {
-        // Response already started - log but don't reject
         logger.error('Request stream error after response started:', err)
         resolve(false)
       }
@@ -537,8 +565,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
       logger.debug('streamProxyServiceCall - request stream ended')
     })
 
-    // If body was already parsed (e.g., for custom key rate limiting), send the parsed body
-    // Otherwise, pipe the request stream directly to service (no buffering)
     // TODO remove this once we have a new built-in service to offload customKeyFn processing for rate limits
     if (request._parsedBody !== undefined) {
       const bodyData = typeof request._parsedBody === 'string' 
@@ -548,12 +574,9 @@ export async function streamProxyServiceCall(state, { name, request, response })
       proxyReq.end()
       logger.debug('streamProxyServiceCall - sent parsed body')
     } else {
-      // Pipe request body directly to service (no buffering)
-      // Make sure to properly end the proxy request when input ends
       request.pipe(proxyReq, { end: true })
     }
   }).catch(err => {
-    // Additional safety: catch any unhandled rejections in the promise chain
     logger.debugErr('Caught unhandled error in streamProxyServiceCall:', err)
     if (!response.headersSent && !response.writableEnded) {
       try {
@@ -563,7 +586,6 @@ export async function streamProxyServiceCall(state, { name, request, response })
         logger.error('Failed to send error response:', writeErr)
       }
     }
-    // Return false to indicate response was handled
     return false
   })
 }

@@ -37,16 +37,15 @@ export default async function createServer(port, serverFn, options = {}) {
   if (!serverFn) throw new Error('"serverFn" is required')
 
   const { streamPayload = false } = options
+  const requestTimeout = options.requestTimeout !== undefined ? options.requestTimeout : 60000
+  const headersTimeout = options.headersTimeout !== undefined ? options.headersTimeout : 30000
 
   return new Promise((resolve, reject) => {
-    // Use modern HTTP server options for better performance
     const server = http.createServer({
-      // Enable keep-alive connections for better performance
       keepAlive: true,
       keepAliveInitialDelay: 0,
-      // Set reasonable timeouts
-      requestTimeout: 60000,
-      headersTimeout: 30000, // NOTE can't exceed requestTimeout
+      requestTimeout,
+      headersTimeout: Math.min(headersTimeout, requestTimeout || Infinity),
     }, async (request, response) => {
       response = overrideResponse(response) // TODO VERIFY
       try {
@@ -67,13 +66,13 @@ export default async function createServer(port, serverFn, options = {}) {
           body = null
         } else {
           body = await readStream(request)
-          
+
           // Determine if we should parse as JSON based on content-type
           // Binary content types should NOT be parsed as JSON
-          const isBinaryContent = contentType.includes('octet-stream') ||
-                                 contentType.includes('audio/') ||
-                                 contentType.includes('video/') ||
-                                 contentType.includes('image/')
+          const isBinaryContent = contentType.includes('octet-stream')
+              || contentType.includes('audio/')
+              || contentType.includes('video/')
+              || contentType.includes('image/')
           
           // Parse body as JSON if it's not binary
           if (!isBinaryContent && body && body.length > 0) {

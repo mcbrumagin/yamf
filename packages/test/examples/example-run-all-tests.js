@@ -2,7 +2,7 @@
  * Import and run all example tests
  */
 
-import { TestRunner } from '../src/index.js'
+import { TestRunner } from '@yamf/test'
 
 const runner = new TestRunner()
 

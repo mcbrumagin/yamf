@@ -54,7 +54,7 @@ const DEFAULT_CONFIG = {
 // =============================================================================
 
 async function createOrValidateUserTable(sql) {
-  await sql(`DROP TABLE IF EXISTS yamf.user`) // TODO REMOVE
+  // await sql(`DROP TABLE IF EXISTS yamf.user`) // TODO REMOVE
   // Create table with all columns
   let createResult = await sql(`
     CREATE TABLE IF NOT EXISTS yamf.user (
@@ -586,7 +586,7 @@ export default async function createUserService(options = {}) {
   const validators = createActionValidators()
 
   // Initialize SQL helper and table
-  const sql = async (template, data = {}) => callService(dataService, { template, data })
+  const sql = async (template, data = null, options = null) => callService(dataService, { template, data, options })
   // await createOrValidateUserTable(sql) // TODO REMOVE
 
   // Create the service
@@ -603,7 +603,7 @@ export default async function createUserService(options = {}) {
     }
 
     // Create SQL helper bound to this request context
-    const sql = async (template, data = {}) => this.call(dataService, { template, data })
+    const sql = async (template, data = null, options = null) => this.call(dataService, { template, data, options })
 
     // Execute actions (register and verifyAndRegister use same handler - register kept for backward compat)
     const results = {

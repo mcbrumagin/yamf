@@ -77,7 +77,7 @@ export async function notifyGatewayOfUpdate(state, { service, location }) {
  * Uses yamf headers to identify internal cache update calls
  * Also notifies gateway via pull model
  */
-export async function publishCacheUpdate(state, { subscription, service, location }) {
+export async function publishCacheUpdate(state, { subscription, service, location, contract }) {
   const results = []
   const errors = []
   const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
@@ -97,7 +97,7 @@ export async function publishCacheUpdate(state, { subscription, service, locatio
     try {
       const result = await httpRequest(subscriberLocation, {
         body: null, // No body needed - all info is in headers
-        headers: buildCacheUpdateHeaders(subscription, service, location, registryToken)
+        headers: buildCacheUpdateHeaders(subscription, service, location, registryToken, contract || null)
       })
       results.push(result)
     } catch (err) {

@@ -26,7 +26,10 @@ export function createServiceState() {
     addresses: new Map(),
 
     // subscription type -> Set<location>
-    subscriptions: new Map()
+    subscriptions: new Map(),
+
+    // service name -> contract object (opt-in via useContract)
+    serviceContracts: new Map()
   }
 }
 
@@ -86,13 +89,20 @@ export function updateCache(cache, registryData) {
       cache.subscriptions.set(type, new Set(Array.isArray(locations) ? locations : [locations]))
     }
   }
+
+  if (registryData.serviceContracts) {
+    cache.serviceContracts.clear()
+    for (const [name, contract] of Object.entries(registryData.serviceContracts)) {
+      cache.serviceContracts.set(name, contract)
+    }
+  }
 }
 
 /**
  * Update cache with a single service/location pair
  * Used when registry broadcasts service additions
  */
-export function updateCacheEntry(cache, { subscription, service, accessControl, location }) {
+export function updateCacheEntry(cache, { subscription, service, accessControl, location, contract }) {
   logger.debug('updateCacheEntry', { subscription, service, accessControl, location })
   
   // Handle service registration updates
@@ -114,6 +124,10 @@ export function updateCacheEntry(cache, { subscription, service, accessControl, 
     } else if (accessControl && accessControl !== 'pure' && accessControl !== 'local') {
       // For private/public services, store the actual access control
       cache.serviceAccess.set(service, accessControl)
+    }
+
+    if (contract) {
+      cache.serviceContracts.set(service, contract)
     }
   } 
   // Handle subscription updates
@@ -142,6 +156,7 @@ export function removeFromCache(cache, { service, location }) {
     if (serviceLocations.size === 0) {
       cache.services.delete(service)
       cache.serviceAccess.delete(service)
+      cache.serviceContracts.delete(service)
     }
   }
 }
@@ -154,6 +169,7 @@ export function clearCache(cache) {
   cache.serviceAccess.clear()
   cache.addresses.clear()
   cache.subscriptions.clear()
+  cache.serviceContracts.clear()
 }
 
 /**

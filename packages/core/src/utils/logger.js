@@ -21,7 +21,7 @@ function escapeTemplateChar(string) {
 }
 
 // recursively stringify objects with depth limiting
-function stringify(obj, depth = 0, maxDepth = 2) {
+function stringify(obj, depth = 0, maxDepth = 2, currentColor) {
   if (depth > maxDepth) {
     return colors.yellow + '[Object depth exceeded - use higher maxDepth to see more]' + colors.reset
   }
@@ -32,10 +32,12 @@ function stringify(obj, depth = 0, maxDepth = 2) {
     if (obj[prop] instanceof Error) {
       string += `\n${indent}${prop}: \`${obj[prop].stack}\``
     } else if (typeof obj[prop] === 'object' && obj[prop] !== null) {
+      // TODO different colors for object values depending on num or str
       if (depth === maxDepth) {
-        string += `\n${indent}${prop}: \`${colors.yellow}[object depth limit reached]${colors.reset}\``
+        // todo need colors.previous not reset
+        string += `\n${indent}${prop}: \`${colors.yellow}[object depth limit reached]${currentColor || colors.reset}\``
       } else {
-        string += `\n${indent}${prop}: {${stringify(obj[prop], depth + 1, maxDepth)}\n${indent}}`
+        string += `\n${indent}${prop}: {${stringify(obj[prop], depth + 1, maxDepth, currentColor)}\n${indent}}`
       }
     } else if (typeof obj[prop] === 'function') {
       string += `\n${indent}${prop}: \`${escapeTemplateChar(obj[prop]?.toString())}\``
@@ -277,7 +279,7 @@ export default class Logger {
     let logContent = ''
     for (let arg of args) {
       if (arg instanceof Error) logContent += arg.stack
-      else if (typeof arg === 'object' && arg !== null) logContent += stringify(arg, 0, this.options.maxDepth)
+      else if (typeof arg === 'object' && arg !== null) logContent += stringify(arg, 0, this.options.maxDepth, color)
       else logContent += arg
 
       if (arg !== color && !logContent.endsWith('\n')) logContent += ' | '

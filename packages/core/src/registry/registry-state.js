@@ -38,6 +38,15 @@ export function createRegistryState() {
     
     // Subscription type -> Set<location>
     subscriptions: new Map(),
+
+    // Service name -> contract object (opt-in via useContract)
+    serviceContracts: new Map(),
+    
+    // Service name -> service type ('sse', etc. -- absence means standard)
+    serviceTypes: new Map(),
+    
+    // Service name -> timeout in ms (0 = no timeout, absence means default)
+    serviceTimeouts: new Map(),
     
     // Pre-bound rate limit configuration (set at server startup)
     // Structure: { default: RateLimitConfig | null, services: Map<serviceName, RateLimitConfig> }
@@ -63,6 +72,9 @@ export function resetState(state) {
   state.controllerRoutes.clear()
   state.domainPorts.clear()
   state.subscriptions.clear()
+  state.serviceContracts.clear()
+  state.serviceTypes.clear()
+  state.serviceTimeouts.clear()
   
   // Note: rateLimitConfig is NOT reset - it's configuration set at startup
   // Only reset the runtime rate limiter state

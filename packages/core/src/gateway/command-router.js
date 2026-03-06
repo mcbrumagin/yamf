@@ -157,6 +157,18 @@ export function updateGatewayStateFromRegistry(state, registryState) {
     state.serviceAccess.set(service, accessControl)
   }
   
+  // Update service types (e.g. 'sse')
+  state.serviceTypes.clear()
+  for (const [service, serviceType] of Object.entries(registryState.serviceTypes || {})) {
+    state.serviceTypes.set(service, serviceType)
+  }
+  
+  // Update per-service timeouts
+  state.serviceTimeouts.clear()
+  for (const [service, timeout] of Object.entries(registryState.serviceTimeouts || {})) {
+    state.serviceTimeouts.set(service, timeout)
+  }
+  
   // Merge rate limit configurations from registry with gateway's own configs
   // Precedence: gateway service > registry service > gateway default > registry default
   const registryRateLimitConfig = registryState.rateLimitConfig || {}

@@ -13,6 +13,16 @@ importers:
         version: link:packages/cli
 
   packages/cli:
+    dependencies:
+      '@yamf/core':
+        specifier: workspace:*
+        version: link:../core
+      '@yamf/services-cache':
+        specifier: workspace:*
+        version: link:../services/cache
+      '@yamf/services-pm3':
+        specifier: workspace:*
+        version: link:../services/pm3
     devDependencies:
       '@yamf/test':
         specifier: workspace:*
@@ -24,6 +34,9 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@yamf/test':
         specifier: workspace:*
         version: link:../test
@@ -37,6 +50,9 @@ importers:
       '@yamf/cli':
         specifier: workspace:*
         version: link:../cli
+      '@yamf/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@yamf/test':
         specifier: workspace:*
         version: link:../test
@@ -105,6 +121,35 @@ importers:
         specifier: ^4.0.5
         version: 4.0.5
 
+  packages/services/nodeman:
+    dependencies:
+      '@yamf/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@yamf/shared':
+        specifier: workspace:*
+        version: link:../../shared
+    devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../../test
+
+  packages/services/pm3:
+    dependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@yamf/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../../test
+
   packages/services/postgres:
     dependencies:
       '@yamf/core':
@@ -116,6 +161,22 @@ importers:
       postgres:
         specifier: ^3.4.8
         version: 3.4.8
+    devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../../test
+
+  packages/services/sqlite:
+    dependencies:
+      '@yamf/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@yamf/shared':
+        specifier: workspace:*
+        version: link:../../shared
     devDependencies:
       '@yamf/cli':
         specifier: workspace:*

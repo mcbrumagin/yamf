@@ -12,40 +12,19 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import parseArgs from '../lib/parse-args.js'
 
 // TODO: Add --env KEY=val support for inline env overrides (e.g. yamf test --env YAMF_REGISTRY_URL=http://localhost:20000)
 
 const EXCLUDED_DIRS = ['node_modules', '.git', 'coverage', 'dist', 'build']
 
-function parseArgs(args) {
-  const options = {
-    dir: process.cwd(),
-    file: null,
-    name: null,
-    list: false,
-    help: false,
-    verbose: false
-  }
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]
-    if (arg === '-d' || arg === '--dir') {
-      options.dir = args[++i] ?? process.cwd()
-    } else if (arg === '-f' || arg === '--file') {
-      options.file = args[++i] ?? null
-    } else if (arg === '-n' || arg === '--name') {
-      options.name = args[++i] ?? null
-    } else if (arg === '--list') {
-      options.list = true
-    } else if (arg === '--help' || arg === '-h') {
-      options.help = true
-    } else if (arg === '--verbose' || arg === '-v') {
-      options.verbose = true
-    }
-  }
-
-  options.dir = path.resolve(process.cwd(), options.dir)
-  return options
+const ARGS = {
+  help:    { flags: ['-h', '--help'] },
+  verbose: { flags: ['-v', '--verbose'] },
+  list:    { flags: ['--list'] },
+  dir:     { flags: ['-d', '--dir'], type: 'string', default: process.cwd() },
+  file:    { flags: ['-f', '--file'], type: 'string' },
+  name:    { flags: ['-n', '--name'], type: 'string' }
 }
 
 function getTestHelp() {
@@ -125,6 +104,7 @@ function isTestFile(filePath, content) {
   if (!importMatch) return false
 
   if (/\b(TestRunner|runTests)\b/.test(importMatch[0])) {
+    console.warn(`Test file "${filePath}" not auto-imported because it runs its own tests.`)
     return false
   }
 
@@ -209,7 +189,8 @@ function extractTestFns(module, suiteName, nameRegex) {
 }
 
 export async function runTestCommand(args) {
-  const options = parseArgs(args)
+  const options = parseArgs(args, ARGS)
+  options.dir = path.resolve(process.cwd(), options.dir)
 
   if (options.help) {
     console.log(getTestHelp())
@@ -223,7 +204,7 @@ export async function runTestCommand(args) {
     const testModule = await import('@yamf/test')
     TestRunner = testModule.TestRunner
   } catch (err) {
-    if (err.code === 'ERR_MODULE_NOT_FOUND' || err.message?.includes('Cannot find package')) {
+    if (err.code === 'ERR_MODULE_NOT_FOUND' && err.message.includes('@yamf/test') || err.message?.includes('Cannot find package')) {
       console.error(`The 'test' subcommand requires @yamf/test. Install it with:`)
       console.error('')
       console.error('  pnpm add -D @yamf/test')

@@ -12,22 +12,21 @@ import crypto from 'crypto'
 let logger = new Logger({ logGroup: 'file-upload-service' })
 
 /**
- * Handles streaming multipart file upload
+ * Sanitize a filename to prevent path traversal attacks.
+ * Strips directory components and .. sequences.
+ */
+function sanitizeFilename(filename) {
+  return path.basename(filename || 'unnamed').replace(/\.\./g, '').replace(/\0/g, '') || 'unnamed'
+}
+
+/**
+ * Handles streaming multipart file upload (single or multi-file).
+ *
+ * When multiFile is false (default): scalar state, onSuccess receives { file, fields }.
+ * When multiFile is true: array state, onSuccess receives { files: [...], fields }.
+ *
  * Files are written to a temporary location with a crypto-generated name,
  * then renamed to the final name once all form fields are received.
- * This allows form fields to come in any order relative to the file.
- * 
- * @param {null} payload - Not used (payload is null when streamPayload: true)
- * @param {Object} req - HTTP request object (raw stream, not pre-read)
- * @param {Object} res - HTTP response object
- * @param {Object} options - Upload configuration
- * @param {string} options.uploadDir - Directory to save files
- * @param {string} options.fileFieldName - Name of the file input field
- * @param {Array<string>} options.textFields - Array of text field names to capture
- * @param {Function} options.getFileName - Function to determine final filename (optional)
- * @param {Function} options.validateFile - Function to validate file before saving (optional)
- * @param {Function} options.onSuccess - Callback on successful upload
- * @param {Function} options.onError - Callback on error
  */
 function handleStreamingUpload(_payload, req, res, options) {
   const {
@@ -38,221 +37,242 @@ function handleStreamingUpload(_payload, req, res, options) {
     validateFile = null,
     onSuccess = null,
     onError = null,
+    multiFile = false,
+    maxFileSize = null,
+    maxFiles = null,
   } = options
 
-  const bb = busboy({ headers: req.headers })
-  
+  const limits = {}
+  if (maxFileSize) limits.fileSize = maxFileSize
+  if (maxFiles) limits.files = maxFiles
+
+  const bb = busboy({ headers: req.headers, limits })
+
   const formData = {}
   let uploadError = null
-  let writeStreamPromise = null
   let busboyFinished = false
-  let uploadedFileInfo = null
+
+  // -- Single-file state (multiFile === false) --
+  let writeStreamPromise = null
   let tempFilePath = null
   let originalFileInfo = null
 
-  // Rename temp file to final name and send response
-  const finishUpload = async () => {
-    if (!busboyFinished || !writeStreamPromise) {
-      return // Not ready yet
-    }
+  // -- Multi-file state (multiFile === true) --
+  const fileEntries = []
 
-    try {
-      // Wait for temp file to be written
-      await writeStreamPromise
-      
-      const { filename, encoding, mimeType } = originalFileInfo
-      
-      // Determine final filename now that we have all form data
-      let finalFileName = filename
-      if (getFileName) {
-        finalFileName = getFileName(filename, formData)
-      }
-
-      const finalPath = path.join(uploadDir, finalFileName)
-      
-      logger.debug(`Renaming temp file to: ${finalFileName}`)
-      
-      // Rename temp file to final name
-      await fsPromises.rename(tempFilePath, finalPath)
-      
-      // Get final file stats
-      const stats = await fsPromises.stat(finalPath)
-      
-      uploadedFileInfo = {
-        originalName: filename,
-        savedName: finalFileName,
-        mimeType: mimeType,
-        encoding: encoding,
-        path: finalPath,
-        size: stats.size
-      }
-
-      logger.info('Upload completed successfully', { fileName: finalFileName, size: stats.size })
-      
-      const successData = {
-        success: true,
-        message: 'File uploaded successfully',
-        file: uploadedFileInfo,
-        fields: formData
-      }
-
-      // Call onSuccess callback (will be the wrapped version from the service)
-      if (onSuccess) {
-        await onSuccess(successData, req, res)
-      } else {
-        if (!res.headersSent) {
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-        }
-        if (!res.writableEnded) {
-          res.end(JSON.stringify(successData))
-        }
-      }
-    } catch (err) {
-      logger.error('Error finalizing upload:', err)
-      
-      // Clean up temp file if it exists
-      if (tempFilePath) {
-        try {
-          await fsPromises.unlink(tempFilePath)
-          logger.debug('Cleaned up temp file after error')
-        } catch (cleanupErr) {
-          logger.error('Failed to clean up temp file:', cleanupErr)
-        }
-      }
-      
-      handleError(err, 'Failed to save file')
+  const cleanupTempFiles = async (entries) => {
+    for (const entry of entries) {
+      try { await fsPromises.unlink(entry.tempFilePath) } catch {}
     }
   }
 
-  // Centralized error handling
+  const finishUpload = async () => {
+    if (!busboyFinished) return
+
+    if (multiFile) {
+      if (fileEntries.length === 0) {
+        logger.warn('No files uploaded')
+        if (!res.headersSent) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'No files uploaded' }))
+        }
+        return
+      }
+
+      try {
+        await Promise.all(fileEntries.map(e => e.writePromise))
+
+        const uploadedFiles = []
+        for (const entry of fileEntries) {
+          const { filename, encoding, mimeType } = entry.originalInfo
+          let finalFileName = sanitizeFilename(filename)
+          if (getFileName) {
+            finalFileName = getFileName(finalFileName, formData)
+          }
+          const finalPath = path.join(uploadDir, finalFileName)
+          await fsPromises.rename(entry.tempFilePath, finalPath)
+          const stats = await fsPromises.stat(finalPath)
+          uploadedFiles.push({
+            originalName: filename,
+            savedName: finalFileName,
+            mimeType, encoding,
+            path: finalPath,
+            size: stats.size
+          })
+          logger.info('File upload completed', { fileName: finalFileName, size: stats.size })
+        }
+
+        const successData = {
+          success: true,
+          message: `${uploadedFiles.length} file(s) uploaded successfully`,
+          files: uploadedFiles,
+          fields: formData
+        }
+
+        if (onSuccess) {
+          await onSuccess(successData, req, res)
+        } else {
+          if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'application/json' })
+          if (!res.writableEnded) res.end(JSON.stringify(successData))
+        }
+      } catch (err) {
+        logger.error('Error finalizing multi-file upload:', err)
+        await cleanupTempFiles(fileEntries)
+        handleError(err, 'Failed to save files')
+      }
+    } else {
+      // Single-file path (original behavior)
+      if (!writeStreamPromise) {
+        logger.warn('No file uploaded')
+        if (!res.headersSent) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'No file uploaded' }))
+        }
+        return
+      }
+
+      try {
+        await writeStreamPromise
+        const { filename, encoding, mimeType } = originalFileInfo
+        let finalFileName = sanitizeFilename(filename)
+        if (getFileName) {
+          finalFileName = getFileName(finalFileName, formData)
+        }
+        const finalPath = path.join(uploadDir, finalFileName)
+        await fsPromises.rename(tempFilePath, finalPath)
+        const stats = await fsPromises.stat(finalPath)
+
+        const uploadedFileInfo = {
+          originalName: filename,
+          savedName: finalFileName,
+          mimeType, encoding,
+          path: finalPath,
+          size: stats.size
+        }
+
+        logger.info('Upload completed successfully', { fileName: finalFileName, size: stats.size })
+
+        const successData = {
+          success: true,
+          message: 'File uploaded successfully',
+          file: uploadedFileInfo,
+          fields: formData
+        }
+
+        if (onSuccess) {
+          await onSuccess(successData, req, res)
+        } else {
+          if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'application/json' })
+          if (!res.writableEnded) res.end(JSON.stringify(successData))
+        }
+      } catch (err) {
+        logger.error('Error finalizing upload:', err)
+        if (tempFilePath) {
+          try { await fsPromises.unlink(tempFilePath) } catch {}
+        }
+        handleError(err, 'Failed to save file')
+      }
+    }
+  }
+
   const handleError = (error, message = 'Upload failed') => {
-    if (res.headersSent) {
-      return
-    }
-
-    const errorData = {
-      success: false,
-      error: message,
-      details: error?.message
-    }
-
+    if (res.headersSent) return
+    const errorData = { success: false, error: message, details: error?.message }
     if (onError) {
       onError(errorData, error, req, res)
     } else {
-      if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-      }
-      if (!res.writableEnded) {
-        res.end(JSON.stringify(errorData))
-      }
+      if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' })
+      if (!res.writableEnded) res.end(JSON.stringify(errorData))
     }
   }
 
-  // Handle file fields
   bb.on('file', (fieldname, file, info) => {
     if (fieldname !== fileFieldName) {
-      logger.debug(`Ignoring file field: ${fieldname}`)
-      file.resume() // Drain unwanted file streams
+      file.resume()
       return
     }
 
     const { filename, encoding, mimeType } = info
     logger.info(`Receiving file: ${filename} (${mimeType})`)
 
-    // Validate file if validator provided
     if (validateFile) {
-      logger.debug('Validating file')
       const validationResult = validateFile(info, formData)
       if (!validationResult.valid) {
         uploadError = new Error(validationResult.error)
         logger.warn('File validation failed:', validationResult.error)
-        file.resume() // Drain the stream
+        file.resume()
         return
       }
     }
 
-    // Store original file info for later renaming
-    originalFileInfo = info
-
-    // Generate unique temporary filename using crypto
     const tempFileName = `upload-${crypto.randomBytes(16).toString('hex')}.tmp`
-    tempFilePath = path.join(uploadDir, tempFileName)
+    const currentTempPath = path.join(uploadDir, tempFileName)
 
-    logger.debug(`Writing to temporary file: ${tempFileName}`)
-
-    // Create write stream and pipe directly to temp file
-    const writeStream = fs.createWriteStream(tempFilePath)
-    
+    const writeStream = fs.createWriteStream(currentTempPath)
     file.pipe(writeStream)
 
-    // Create a promise that resolves when write stream finishes
-    writeStreamPromise = new Promise((resolve, reject) => {
+    let fileTruncated = false
+    file.on('limit', () => {
+      fileTruncated = true
+      logger.warn(`File size limit exceeded for: ${filename}`)
+    })
+
+    const writePromise = new Promise((resolve, reject) => {
       writeStream.on('error', (err) => {
         logger.error('Error writing temp file:', err)
         uploadError = err
-        file.resume() // Drain the stream
+        file.resume()
         reject(err)
       })
-
       writeStream.on('finish', () => {
+        if (fileTruncated) {
+          const err = new Error(`File "${sanitizeFilename(filename)}" exceeds maximum size limit`)
+          uploadError = err
+          fsPromises.unlink(currentTempPath).catch(() => {})
+          reject(err)
+          return
+        }
         logger.debug(`Temp file written successfully: ${tempFileName}`)
         resolve()
       })
     })
+
+    if (multiFile) {
+      fileEntries.push({ tempFilePath: currentTempPath, writePromise, originalInfo: info })
+    } else {
+      originalFileInfo = info
+      tempFilePath = currentTempPath
+      writeStreamPromise = writePromise
+    }
   })
 
-  // Handle text fields
   bb.on('field', (fieldname, val) => {
-    logger.debug(`Field [${fieldname}]: ${val}`)
-    
-    // Capture all specified text fields (if textFields is empty, capture all)
     if (textFields.length === 0 || textFields.includes(fieldname)) {
-      logger.debug(`Capturing field: ${fieldname}`)
       formData[fieldname] = val
     }
   })
 
-  // Handle completion
   bb.on('close', async () => {
     logger.debug('Busboy parsing complete')
-    
+
     if (uploadError) {
-      // Clean up temp file if it exists
-      if (tempFilePath) {
-        try {
-          await fsPromises.unlink(tempFilePath)
-          logger.debug('Cleaned up temp file after error')
-        } catch (cleanupErr) {
-          logger.error('Failed to clean up temp file:', cleanupErr)
-        }
+      if (multiFile) {
+        await cleanupTempFiles(fileEntries)
+      } else if (tempFilePath) {
+        try { await fsPromises.unlink(tempFilePath) } catch {}
       }
       return handleError(uploadError, uploadError.message || 'Failed to process file')
-    }
-
-    if (!writeStreamPromise) {
-      logger.warn('No file uploaded')
-      if (!res.headersSent) {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({
-          success: false,
-          error: 'No file uploaded'
-        }))
-      }
-      return
     }
 
     busboyFinished = true
     finishUpload()
   })
 
-  // Handle busboy errors
   bb.on('error', (err) => {
     logger.error('Busboy error:', err)
     handleError(err, 'Failed to parse multipart data')
   })
 
-  // Pipe the request stream directly to busboy
-  // When streamPayload: true is set, the request stream is not pre-read
   req.pipe(bb)
 }
 
@@ -389,6 +409,10 @@ export default async function createFileUploadService({
   onError = null,
   useAuthService = null,
   urlPathPrefix = '/uploads',
+
+  multiFile = false,
+  maxFileSize = null,
+  maxFiles = null,
   
   // auto-publish upload events
   publishFileEvents = false,
@@ -404,42 +428,36 @@ export default async function createFileUploadService({
     // The service is designed to work with HTTP multipart requests
     // It handles the response internally and returns false to signal this
     
-    // Wrap onSuccess to publish file events
-    const wrappedOnSuccess = async (successData, req, res) => {
-      // Publish file uploaded event
-      if (publishFileEvents) {
-        try {
-          const { file } = successData
-          const urlPath = path.join(urlPathPrefix, file.savedName).replace(/\\/g, '/')
-          
-          const fileEvent = {
-            urlPath,
-            filePath: file.path,
-            size: file.size,
-            mimeType: file.mimeType,
-            originalName: file.originalName,
-            savedName: file.savedName,
-            timestamp: Date.now()
-          }
-          
-          logger.info('publishing file event:', fileEvent)
-          await this.publish(updateChannel, fileEvent)
-        } catch (err) {
-          logger.error('Failed to publish file event:', err)
-        }
+    const publishFileEvent = async (file) => {
+      if (!publishFileEvents) return
+      try {
+        const urlPath = path.join(urlPathPrefix, file.savedName).replace(/\\/g, '/')
+        await this.publish(updateChannel, {
+          urlPath,
+          filePath: file.path,
+          size: file.size,
+          mimeType: file.mimeType,
+          originalName: file.originalName,
+          savedName: file.savedName,
+          timestamp: Date.now()
+        })
+      } catch (err) {
+        logger.error('Failed to publish file event:', err)
       }
-      
-      // Call original onSuccess if provided
+    }
+
+    const wrappedOnSuccess = async (successData, req, res) => {
+      if (multiFile && successData.files) {
+        for (const file of successData.files) await publishFileEvent(file)
+      } else if (successData.file) {
+        await publishFileEvent(successData.file)
+      }
+
       if (onSuccess) {
-        onSuccess(successData, req, res)
+        await onSuccess(successData, req, res)
       } else {
-        // Default success response
-        if (!res.headersSent) {
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-        }
-        if (!res.writableEnded) {
-          res.end(JSON.stringify(successData))
-        }
+        if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'application/json' })
+        if (!res.writableEnded) res.end(JSON.stringify(successData))
       }
     }
     
@@ -450,7 +468,10 @@ export default async function createFileUploadService({
       getFileName,
       validateFile,
       onSuccess: wrappedOnSuccess,
-      onError
+      onError,
+      multiFile,
+      maxFileSize,
+      maxFiles,
     })
     
     // Return false to indicate that the response is handled by the function itself
@@ -521,4 +542,4 @@ export default async function createFileUploadService({
 }
 
 // Export helper utilities for use in other modules
-export { ensureUploadDir, listUploadedFiles, validators }
+export { ensureUploadDir, listUploadedFiles, validators, sanitizeFilename }
