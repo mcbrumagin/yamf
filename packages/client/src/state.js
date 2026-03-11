@@ -180,9 +180,34 @@ export function createState(initialState = {}) {
   }
 }
 
+
+function preserveAndRestoreFocus(containerEl, applyFn) {
+  const active = document.activeElement
+  const isDescendant = active && containerEl.contains(active)
+  let saved = null
+  if (isDescendant && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+    saved = {
+      id: active.id,
+      value: active.value,
+      selectionStart: active.selectionStart,
+      selectionEnd: active.selectionEnd,
+    }
+  }
+  applyFn()
+  if (saved?.id) {
+    const el = document.getElementById(saved.id)
+    if (el) {
+      el.value = saved.value
+      if (typeof el.selectionStart === 'number') {
+        el.selectionStart = saved.selectionStart
+        el.selectionEnd = saved.selectionEnd
+      }
+      el.focus()
+    }
+  }
+}
+
 /**
- * Create a reactive component that auto-updates when state changes
- * 
  * @param {Object} state - State object from createState()
  * @param {Function} renderFn - Function that returns @yamf/client elements
  * @param {HTMLElement|string} container - DOM element or selector to render into
@@ -191,7 +216,7 @@ export function createState(initialState = {}) {
 export function createReactiveComponent(state, renderFn, container) {
   let mounted = false
   let unwatch = null
-  const containerEl = typeof container === 'string' 
+  const containerEl = typeof container === 'string'
     ? document.querySelector(container)
     : container
 
@@ -201,14 +226,12 @@ export function createReactiveComponent(state, renderFn, container) {
 
   const render = () => {
     if (!mounted) return
-    
     try {
       const element = renderFn(state.getAll())
-      if (element && element.render) {
-        containerEl.innerHTML = element.render()
-      } else if (typeof element === 'string') {
-        containerEl.innerHTML = element
-      }
+      const html = element && element.render ? element.render() : (typeof element === 'string' ? element : '')
+      preserveAndRestoreFocus(containerEl, () => {
+        containerEl.innerHTML = html
+      })
     } catch (error) {
       console.error('Render error:', error)
     }
@@ -219,9 +242,8 @@ export function createReactiveComponent(state, renderFn, container) {
       if (mounted) return
       mounted = true
       unwatch = state.watch(render)
-      render() // Initial render
+      render()
     },
-
     unmount() {
       if (!mounted) return
       mounted = false
@@ -230,12 +252,12 @@ export function createReactiveComponent(state, renderFn, container) {
         unwatch = null
       }
     },
-
     update() {
       render()
-    }
+    },
   }
 }
+
 
 /**
  * Helper to create a form state manager with validation

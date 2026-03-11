@@ -160,6 +160,41 @@ export async function testStaticFileWithWildcardMapping() {
   }
 }
 
+export async function testStaticFileCatchAllFallback() {
+  const tempDir = await createTempTestFiles()
+  
+  try {
+    await terminateAfter(
+      await registryServer(),
+      await createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: {
+          '/public/*': 'public',
+          '/*': 'index.html'
+        },
+        externalRootDir: true
+      }),
+      async () => {
+        // Explicit mappings should work
+        let styleResult = await callService('static-file-service', { url: '/public/style.css' })
+        await assert(styleResult, r => r.includes('body { color: red; }'))
+        
+        // Unmatched paths should fall back to index.html (SPA-style)
+        let dashboardResult = await callService('static-file-service', { url: '/dashboard' })
+        let nestedResult = await callService('static-file-service', { url: '/app/settings/profile' })
+        
+        await assert(dashboardResult, r => r.includes('Index Page'))
+        await assert(nestedResult, r => r.includes('Index Page'))
+        
+        return { style: styleResult, dashboard: dashboardResult, nested: nestedResult }
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
 export async function testStaticFileNotFound() {
   const tempDir = await createTempTestFiles()
   
