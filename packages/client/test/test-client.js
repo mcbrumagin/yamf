@@ -574,20 +574,118 @@ export function testWaitForElementNotFound() {
 // Integration Tests
 // ============================================================================
 
+function createMockContainer() {
+  return { innerHTML: '', contains: () => false }
+}
+
+function ensureDocumentForReactiveTests() {
+  if (typeof global.document === 'undefined') {
+    global.document = { activeElement: null, getElementById: () => null, querySelector: () => null }
+  }
+  if (global.document.activeElement == null) global.document.activeElement = null
+  if (typeof global.document.getElementById !== 'function') global.document.getElementById = () => null
+}
+
 export function testReactiveComponentBasic() {
   const state = createState({ title: 'Test Title' })
   
-  const renderFn = function() {
-    return div(h1(this.title))
-  }
+  const renderFn = (data) => div(h1(data.title))
 
-  const container = { innerHTML: '' }
+  const container = createMockContainer()
 
-  // Test that we can create a reactive component without errors
   const component = createReactiveComponent(state, renderFn, container)
   assert(component, c => c !== undefined)
   assert(component, c => typeof c.mount === 'function')
   assert(component, c => typeof c.unmount === 'function')
+  assert(component, c => typeof c.update === 'function')
+}
+
+export function testReactiveComponentMountRenders() {
+  ensureDocumentForReactiveTests()
+  const state = createState({ title: 'Hello', count: 42 })
+  const renderFn = (data) => div(h1(data.title), p(`Count: ${data.count}`))
+  const container = createMockContainer()
+
+  const component = createReactiveComponent(state, renderFn, container)
+  component.mount()
+
+  assert(container.innerHTML, h => h.includes('Hello'))
+  assert(container.innerHTML, h => h.includes('Count: 42'))
+}
+
+export function testReactiveComponentReactivity() {
+  ensureDocumentForReactiveTests()
+  const state = createState({ value: 'initial' })
+  const renderFn = (data) => div(span(data.value))
+  const container = createMockContainer()
+
+  const component = createReactiveComponent(state, renderFn, container)
+  component.mount()
+
+  assert(container.innerHTML, h => h.includes('initial'))
+
+  state.set('value', 'updated')
+  assert(container.innerHTML, h => h.includes('updated'))
+}
+
+export function testReactiveComponentUnmountStopsUpdates() {
+  ensureDocumentForReactiveTests()
+  const state = createState({ value: 'mounted' })
+  const renderFn = (data) => div(span(data.value))
+  const container = createMockContainer()
+
+  const component = createReactiveComponent(state, renderFn, container)
+  component.mount()
+  assert(container.innerHTML, h => h.includes('mounted'))
+
+  component.unmount()
+  state.set('value', 'after-unmount')
+  assert(container.innerHTML, h => h.includes('mounted'))
+  assert(container.innerHTML, h => !h.includes('after-unmount'))
+}
+
+export function testReactiveComponentUpdateForcesRerender() {
+  ensureDocumentForReactiveTests()
+  const state = createState({ value: 'v1' })
+  const renderFn = (data) => div(span(data.value))
+  const container = createMockContainer()
+
+  const component = createReactiveComponent(state, renderFn, container)
+  component.mount()
+  assert(container.innerHTML, h => h.includes('v1'))
+
+  state.set('value', 'v2')
+  assert(container.innerHTML, h => h.includes('v2'))
+
+  component.update()
+  assert(container.innerHTML, h => h.includes('v2'))
+}
+
+export function testReactiveComponentDoubleMountNoop() {
+  ensureDocumentForReactiveTests()
+  const state = createState({ value: 'once' })
+  const renderFn = (data) => div(span(data.value))
+  const container = createMockContainer()
+
+  const component = createReactiveComponent(state, renderFn, container)
+  component.mount()
+  component.mount()
+  assert(container.innerHTML, h => h.includes('once'))
+}
+
+export function testReactiveComponentContainerNotFoundThrows() {
+  ensureDocumentForReactiveTests()
+  const origQuerySelector = global.document.querySelector
+  global.document.querySelector = () => null
+
+  const state = createState({})
+  const renderFn = () => div()
+  assertErr(
+    () => createReactiveComponent(state, renderFn, '#nonexistent'),
+    err => err.message.includes('Container not found')
+  )
+
+  global.document.querySelector = origQuerySelector
 }
 
 export function testElementWithAttributes() {

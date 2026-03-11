@@ -95,8 +95,8 @@ export default async function createServer(port, serverFn, options = {}) {
           let responseBody = result
           
           if (Buffer.isBuffer(result)) {
-            // Binary data - send as-is
-            contentType = 'application/octet-stream'
+            // Binary data - send as-is unless a content-type is explicitly set
+            contentType = response.getHeader('content-type') || 'application/octet-stream'
             responseBody = result
           } else if (typeof result === 'string') {
             // Strings - detect if HTML, XML, JSON, or plain text

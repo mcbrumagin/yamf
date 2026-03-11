@@ -17,8 +17,9 @@ let logger = new Logger({ logGroup: 'static-file-service' })
 {
   '/': 'index.html',
   '/styles/main.css': 'public/main.css',
-  '/assets/*': 'public/assets'.
-  '/modules/*: 'node_modules'
+  '/assets/*': 'public/assets',
+  '/modules/*': 'node_modules',
+  '/*': 'index.html'  // catch-all: return index.html for any unmatched path (SPA fallback)
 }
 */
 
@@ -42,38 +43,46 @@ function validateMapEntry(rootDir, item, target) {
 
   // check if target path exists (strip wildcard for directory check)
   const targetPath = target.endsWith('/*') ? target.slice(0, -2) : target
-  if (!fs.existsSync(path.join(rootDir, targetPath))) {
+  const targetFsPath = targetPath.startsWith('/') ? path.join(rootDir, targetPath.slice(1)) : path.join(rootDir, targetPath)
+  if (!fs.existsSync(targetFsPath)) {
     return new Error(`fileMap file path does not exist: "${target}"`)
   }
 }
 
 function populateQuickLookupForDirectoryTree(quickLookup, rootDir, urlRoute, targetDir) {
+  const targetDirFs = targetDir.startsWith('/') ? targetDir.slice(1) : targetDir
 
   // check that target is a directory
-  if (!fs.statSync(path.join(rootDir, targetDir)).isDirectory()) {
+  if (!fs.statSync(path.join(rootDir, targetDirFs)).isDirectory()) {
     throw new Error(`fileMap file path is not a directory: "${targetDir}"`)
   }
 
   // TODO read all files/folders in the directory and recursively add to quickLookup
   const urlPrefix = urlRoute
-  const files = fs.readdirSync(path.join(rootDir, targetDir))
+  const files = fs.readdirSync(path.join(rootDir, targetDirFs))
 
   for (let file of files) {
     const urlPath = urlPrefix === '' ? `/${file}` : `${urlPrefix}/${file}`
-    if (fs.statSync(path.join(rootDir, targetDir, file)).isDirectory()) {
+    if (fs.statSync(path.join(rootDir, targetDirFs, file)).isDirectory()) {
       // TODO VERIFY
-      populateQuickLookupForDirectoryTree(quickLookup, rootDir, urlPath, `${targetDir}/${file}`)
+      populateQuickLookupForDirectoryTree(quickLookup, rootDir, urlPath, `${targetDirFs}/${file}`)
     } else {
-      quickLookup[urlPath] = path.join(rootDir, targetDir, file)
+      quickLookup[urlPath] = path.join(rootDir, targetDirFs, file)
     }
   }
+}
+
+function targetToFsPath(rootDir, target) {
+  const relative = target.startsWith('/') ? target.slice(1) : target
+  return path.join(rootDir, relative)
 }
 
 function generateQuickLookupMap(fileMap, urlRoot, rootDir, skipValidation = false) {
   // even though the map doesn't have nesting, the file structure can
   const quickLookup = {}
+  let catchAllFallbackPath = null
   let errors = []
-  
+
   for (let urlRoute in fileMap) {
     let target = fileMap[urlRoute]
 
@@ -88,20 +97,30 @@ function generateQuickLookupMap(fileMap, urlRoot, rootDir, skipValidation = fals
     const createSpecificFileMapping = (urlRoute, target) => {
       if (urlRoute.endsWith('/')) {
         let explicitFileItem = `${urlRoute}${target.split('/').pop()}`
-        quickLookup[explicitFileItem] = path.join(rootDir, target)
+        quickLookup[explicitFileItem] = targetToFsPath(rootDir, target)
       }
     }
 
-    if (urlRoute.endsWith('/*')) { // wildcard mapping, so recursively populate
+    if (urlRoute === '/*') {
+      // Catch-all: return a default file for any unmatched path (e.g. SPA index.html)
+      const targetFsPath = targetToFsPath(rootDir, target)
+      if (fs.statSync(targetFsPath).isDirectory()) {
+        // Target is directory: treat like /* mapping - populate from root
+        populateQuickLookupForDirectoryTree(quickLookup, rootDir, '', target)
+      } else {
+        catchAllFallbackPath = targetFsPath
+      }
+    } else if (urlRoute.endsWith('/*')) {
+      // Wildcard mapping, recursively populate directory tree
       urlRoute = urlRoute.slice(0, -2) // remove /*
       populateQuickLookupForDirectoryTree(quickLookup, rootDir, urlRoute, target)
 
-    } else if (urlRoute === '/') { // root mapping
-      quickLookup['/'] = path.join(rootDir, target)
+    } else if (urlRoute === '/') {
+      quickLookup['/'] = targetToFsPath(rootDir, target)
       createSpecificFileMapping(urlRoute, target)
 
-    } else { // direct file path mapping
-      quickLookup[urlRoute] = path.join(rootDir, target)
+    } else {
+      quickLookup[urlRoute] = targetToFsPath(rootDir, target)
       createSpecificFileMapping(urlRoute, target)
 
     }
@@ -110,8 +129,8 @@ function generateQuickLookupMap(fileMap, urlRoot, rootDir, skipValidation = fals
   if (errors.length > 0) {
     throw new Error(`Errors in static-file-service filemap: ${errors.join('\n')}`)
   }
-  
-  return quickLookup
+
+  return { quickLookup, catchAllFallbackPath }
 }
 
 
@@ -230,8 +249,8 @@ export default async function createStaticFileService({
     fileMap = { '/' : fileMap }
   }
 
-  let quickLookup = generateQuickLookupMap(fileMap, urlRoot, rootDir)
-  logger.info(`Static files mapped for "${urlRoot}" ${prettyPrintQuickLookup(quickLookup)}`)
+  const { quickLookup, catchAllFallbackPath } = generateQuickLookupMap(fileMap, urlRoot, rootDir)
+  logger.info(`Static files mapped for "${urlRoot}" ${prettyPrintQuickLookup(quickLookup)}${catchAllFallbackPath ? ` (catch-all: ${path.relative(process.cwd(), catchAllFallbackPath)})` : ''}`)
   
   // Auto-refresh state tracking
   let refreshStats = {
@@ -244,11 +263,17 @@ export default async function createStaticFileService({
   let isPaused = false
 
   async function getLocalFile(url) {
+    const normalizedUrl = normalizePath(url)
+    let filePath = quickLookup[normalizedUrl]
 
-    const filePath = quickLookup[normalizePath(url)]
+    if (!filePath && catchAllFallbackPath) {
+      filePath = catchAllFallbackPath
+      logger.debug(`using catch-all fallback for url: "${url}"`)
+    }
 
     if (!filePath) {
       logger.debug(`file not found in lookup for url: "${url}"`)
+      throw new HttpError(404, 'Not found')
     }
 
     return await fsAsync.readFile(filePath)
@@ -268,7 +293,13 @@ export default async function createStaticFileService({
 
     if (!url) throw new HttpError(400, 'url is required')
 
-    const filePath = quickLookup[normalizePath(url)]
+    const normalizedUrl = normalizePath(url)
+    let filePath = quickLookup[normalizedUrl]
+
+    if (!filePath && catchAllFallbackPath) {
+      filePath = catchAllFallbackPath
+      logger.debug(`using catch-all fallback for url: "${url}"`)
+    }
 
     // TODO optional eager lookup of file path before resolver
     // eager lookup should also update quickLookup if it's not already present
@@ -506,7 +537,9 @@ export default async function createStaticFileService({
     
     try {
       const oldLookup = { ...quickLookup }
-      quickLookup = generateQuickLookupMap(fileMap, urlRoot, rootDir)
+      const result = generateQuickLookupMap(fileMap, urlRoot, rootDir)
+      for (const k of Object.keys(quickLookup)) delete quickLookup[k]
+      for (const k in result.quickLookup) quickLookup[k] = result.quickLookup[k]
       
       // Calculate changes
       const oldUrls = new Set(Object.keys(oldLookup))

@@ -319,14 +319,16 @@ export class PM3 {
     return loadState().processes[stateKey]
   }
 
-  async pollUntilNoNewServices(beforeSnapshot, { maxAttempts = 40, intervalMs = 250 } = {}) {
+  async pollUntilNoNewServices(beforeSnapshot, { maxAttempts = 80, intervalMs = 125, consecutiveChecksRequired = 3 } = {}) {
     let lastLength = 0
+    let consecutiveChecks = 0
     for (let i = 0; i < maxAttempts; i++) {
       await sleep(intervalMs)
       try {
         const afterSnapshot = await getServiceStateSnapshot(this.registryUrl)
         const services = detectNewServices(beforeSnapshot, afterSnapshot)
-        if ((lastLength > 0) && lastLength == Object.keys(services).length) return services
+        if ((lastLength > 0) && lastLength == Object.keys(services).length) consecutiveChecks++
+        if (consecutiveChecks >= consecutiveChecksRequired) return services
         lastLength = Object.keys(services).length
       } catch {
         // registry may have just started, or the process is still booting
