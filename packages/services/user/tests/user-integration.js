@@ -47,6 +47,12 @@ function testUsername(suffix) {
   return `${TEST_PREFIX}${suffix}@test.com`
 }
 
+async function ensureUserSchema(userServiceServer) {
+  if (userServiceServer?.createOrValidateUserTable) {
+    await userServiceServer.createOrValidateUserTable()
+  }
+}
+
 /**
  * Cleanup helper - remove test users
  */
@@ -150,7 +156,8 @@ export async function testUserService_SelfSignupFlow() {
     await registryServer(),
     await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     await createUserService(),
-    async () => {
+    async (_reg, _pg, userSvc) => {
+      await ensureUserSchema(userSvc)
       // Cleanup from previous runs
       await cleanupTestUsers(TEST_PREFIX)
 
@@ -226,28 +233,29 @@ export async function testUserService_AdminInviteFlow() {
     await registryServer(),
     await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     await createUserService(),
-    async () => {
+    async (_reg, _pg, userSvc) => {
+      await ensureUserSchema(userSvc)
       // Cleanup
       await cleanupTestUsers(TEST_PREFIX)
       
-      // 1. Admin creates user without password
-      const createResult = await callService('user-service', {
-        create: {
+      // 1. Admin invite (pending registration)
+      const inviteResult = await callService('user-service', {
+        invite: {
           username,
           isActive: true  // Pre-activate
         }
       })
       
-      await assert(createResult,
-        r => r.create.username === username,
-        r => r.create.isRegistered === false,
-        r => r.create.isVerified === false,
-        r => r.create.isActive === true,
-        r => r.create.token !== undefined,
-        r => typeof r.create.token === 'string'
+      await assert(inviteResult,
+        r => r.invite.username === username,
+        r => r.invite.isRegistered === false,
+        r => r.invite.isVerified === false,
+        r => r.invite.isActive === true,
+        r => r.invite.token !== undefined,
+        r => typeof r.invite.token === 'string'
       )
       
-      const token = createResult.create.token
+      const token = inviteResult.invite.token
       
       // 2. User registers with token
       const registerResult = await callService('user-service', {
@@ -289,21 +297,22 @@ export async function testUserService_VerifyAndRegister() {
     await registryServer(),
     await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     await createUserService(),
-    async () => {
+    async (_reg, _pg, userSvc) => {
+      await ensureUserSchema(userSvc)
       await cleanupTestUsers(TEST_PREFIX)
       
-      // 1. Admin creates user without password (invite flow)
-      const createResult = await callService('user-service', {
-        create: { username, isActive: false }
+      // 1. Admin invite
+      const inviteResult = await callService('user-service', {
+        invite: { username, isActive: false }
       })
       
-      await assert(createResult,
-        r => r.create.username === username,
-        r => r.create.isRegistered === false,
-        r => r.create.token !== undefined
+      await assert(inviteResult,
+        r => r.invite.username === username,
+        r => r.invite.isRegistered === false,
+        r => r.invite.token !== undefined
       )
       
-      const token = createResult.create.token
+      const token = inviteResult.invite.token
       
       // 2. User redeems token with password via verify
       const verifyResult = await callService('user-service', {
@@ -334,7 +343,8 @@ export async function testUserService_InvalidToken() {
     await registryServer(),
     await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     await createUserService(),
-    async () => {
+    async (_reg, _pg, userSvc) => {
+      await ensureUserSchema(userSvc)
       await assertErr(
         async () => callService('user-service', {
           register: {
@@ -358,17 +368,18 @@ export async function testUserService_TokenRegeneration() {
     await registryServer(),
     await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     await createUserService(),
-    async () => {
+    async (_reg, _pg, userSvc) => {
+      await ensureUserSchema(userSvc)
       // Cleanup
       await cleanupTestUsers(TEST_PREFIX)
       
-      // 1. Create user
-      const createResult = await callService('user-service', {
-        create: { username }
+      // 1. Invite user (pending)
+      const inviteResult = await callService('user-service', {
+        invite: { username }
       })
       
-      const userId = createResult.create.userId
-      const firstToken = createResult.create.token
+      const userId = inviteResult.invite.userId
+      const firstToken = inviteResult.invite.token
       
       // 2. Generate new token
       const regenResult = await callService('user-service', {
@@ -422,7 +433,8 @@ export async function testUserService_DuplicateUsername() {
     await registryServer(),
     await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     await createUserService(),
-    async () => {
+    async (_reg, _pg, userSvc) => {
+      await ensureUserSchema(userSvc)
       // Cleanup
       await cleanupTestUsers(TEST_PREFIX)
       
@@ -453,7 +465,8 @@ export async function testUserService_UsernameUpdate() {
     await registryServer(),
     await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     await createUserService(),
-    async () => {
+    async (_reg, _pg, userSvc) => {
+      await ensureUserSchema(userSvc)
       // Cleanup
       await cleanupTestUsers(TEST_PREFIX)
       
@@ -498,7 +511,8 @@ export async function testUserService_RemoveUser() {
     await registryServer(),
     await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     await createUserService(),
-    async () => {
+    async (_reg, _pg, userSvc) => {
+      await ensureUserSchema(userSvc)
       // Cleanup
       await cleanupTestUsers(TEST_PREFIX)
       

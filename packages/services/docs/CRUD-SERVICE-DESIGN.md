@@ -262,6 +262,7 @@ const userService = await createCrudService({
 ```javascript
 // All generated services expose consistent action patterns
 await callService('user-service', { create: { username, password } })
+// Pending invites: `invite: { username? }` (no password)
 await callService('user-service', { get: { userId } })
 await callService('user-service', { list: { isActive: true, limit: 10 } })
 await callService('user-service', { update: { userId, isActive: false } })
@@ -377,8 +378,8 @@ const orderSchema = {
 ```javascript
 await callService('user-service', {
   transaction: [
-    { create: { username: 'alice' } },
-    { create: { username: 'bob' } },
+    { invite: { username: 'alice' } },
+    { invite: { username: 'bob' } },
   ]
 })
 ```

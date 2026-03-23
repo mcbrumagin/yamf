@@ -124,24 +124,38 @@ export function testIsTokenExpired_StringDate() {
 export function testActionValidators_Create() {
   const validators = createActionValidators()
   
-  // Valid: with password
-  const result1 = validators.validateCreate({
+  const result = validators.validateCreate({
     username: 'test@example.com',
-    password: 'password123'
-  })
-  assert(result1,
-    r => r.username === 'test@example.com',
-    r => r.password === 'password123'
-  )
-  
-  // Valid: without password (admin create)
-  const result2 = validators.validateCreate({
-    username: 'admin@example.com',
+    password: 'password123',
     isActive: true
   })
-  assert(result2,
-    r => r.username === 'admin@example.com',
+  assert(result,
+    r => r.username === 'test@example.com',
+    r => r.password === 'password123',
     r => r.isActive === true
+  )
+}
+
+export function testActionValidators_Create_RequiresUsernameAndPassword() {
+  const validators = createActionValidators()
+  assertErr(
+    () => validators.validateCreate({ password: 'password123' }),
+    err => err instanceof ValidationError
+  )
+  assertErr(
+    () => validators.validateCreate({ username: 'a@b.com' }),
+    err => err instanceof ValidationError
+  )
+}
+
+export function testActionValidators_Invite() {
+  const validators = createActionValidators()
+  const ok = validators.validateInvite({ displayName: 'Guest', isActive: true })
+  assert(ok, r => r.displayName === 'Guest')
+
+  assertErr(
+    () => validators.validateInvite({ username: 'a@b.com', password: 'x' }),
+    err => err instanceof ValidationError
   )
 }
 
@@ -361,7 +375,7 @@ export async function testUserService_CreateWithPassword() {
   )
 }
 
-export async function testUserService_CreateWithoutPassword() {
+export async function testUserService_InvitePendingUser() {
   await terminateAfter(
     await registryServer(),
     await createMockPostgresService({
@@ -383,20 +397,20 @@ export async function testUserService_CreateWithoutPassword() {
         await createUserService(),
         async () => {
           const result = await callService('user-service', {
-            create: {
+            invite: {
               username: 'invited@example.com',
               isActive: true
             }
           })
           
           await assert(result,
-            r => r.create !== undefined,
-            r => r.create.username === 'invited@example.com',
-            r => r.create.isRegistered === false,
-            r => r.create.isActive === true,
-            r => r.create.token !== undefined,  // Token returned
-            r => typeof r.create.token === 'string',
-            r => r.create.token.length > 0
+            r => r.invite !== undefined,
+            r => r.invite.username === 'invited@example.com',
+            r => r.invite.isRegistered === false,
+            r => r.invite.isActive === true,
+            r => r.invite.token !== undefined,
+            r => typeof r.invite.token === 'string',
+            r => r.invite.token.length > 0
           )
         }
       )

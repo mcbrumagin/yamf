@@ -3,8 +3,8 @@
  * 
  * Comprehensive user management service with:
  * - Flexible username validation (email, pattern, or custom)
- * - Admin-created accounts with registration tokens
- * - Self-signup with password (requires verification)
+ * - Invite flow for pending registration (token); explicit invite action
+ * - Self-signup via create (username + password; requires verification)
  * - Token-based registration completion
  * - Email/identity verification
  * - Lifecycle date tracking
@@ -53,6 +53,55 @@ const DEFAULT_CONFIG = {
 // Table Setup
 // =============================================================================
 
+function geolocationEwkt(longitude, latitude) {
+  if (longitude == null || latitude == null) return null
+  return `SRID=4326;POINT(${longitude} ${latitude})`
+}
+
+/**
+ * Idempotent schema sync for existing databases (new installs get full CREATE TABLE).
+ * Geolocation is stored as TEXT (EWKT) so Postgres without PostGIS works; optional cast to GEOGRAPHY in DB migrations.
+ */
+async function syncUserTableSchema(sql) {
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS email TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS phone TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS display_name TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS bio TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS location TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS geolocation TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS avatar_path TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS invited_by INTEGER NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS hash TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS salt TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS is_registered BOOL DEFAULT FALSE`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS is_active BOOL DEFAULT FALSE`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS is_verified BOOL DEFAULT FALSE`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS role TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS permissions TEXT[] NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS registered_on TIMESTAMPTZ NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS verified_on TIMESTAMPTZ NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS username_updated_on TIMESTAMPTZ NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS user_role_updated_on TIMESTAMPTZ NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS token_hash TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS token_salt TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS token_expires TIMESTAMPTZ NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS auth_provider TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS external_id TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS mfa_enabled BOOL DEFAULT FALSE`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS mfa_type TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ADD COLUMN IF NOT EXISTS mfa_secret TEXT NULL`, {})
+  await sql(`ALTER TABLE yamf.user ALTER COLUMN username DROP NOT NULL`, {})
+
+  await sql(`
+    CREATE INDEX IF NOT EXISTS idx_user_expired_invite_cleanup
+    ON yamf.user (token_expires)
+    WHERE is_registered = FALSE
+      AND token_hash IS NOT NULL
+      AND token_expires IS NOT NULL
+  `, {})
+}
+
 async function createOrValidateUserTable(sql) {
   // await sql(`DROP TABLE IF EXISTS yamf.user`) // TODO REMOVE
   // Create table with all columns
@@ -60,9 +109,16 @@ async function createOrValidateUserTable(sql) {
     CREATE TABLE IF NOT EXISTS yamf.user (
       -- Core identity
       user_id SERIAL PRIMARY KEY,
-      username TEXT NOT NULL UNIQUE,
+      username TEXT NULL UNIQUE,
       email TEXT NULL UNIQUE,
       phone TEXT NULL UNIQUE,
+
+      display_name TEXT NULL,
+      bio TEXT NULL,
+      location TEXT NULL,
+      geolocation TEXT NULL,
+      avatar_path TEXT NULL,
+      invited_by INTEGER NULL REFERENCES yamf.user(user_id) ON DELETE SET NULL,
 
       -- Authentication
       hash TEXT NULL,
@@ -98,7 +154,9 @@ async function createOrValidateUserTable(sql) {
       mfa_type TEXT NULL,
       mfa_secret TEXT NULL
     )
-  `)
+  `, {})
+
+  await syncUserTableSchema(sql)
   
   logger.info('Created yamf.user table', createResult)
 }
@@ -107,16 +165,105 @@ async function createOrValidateUserTable(sql) {
 // Action Handlers
 // =============================================================================
 
+async function insertPendingInviteRow(sql, fields, config) {
+  const {
+    username = null,
+    role = null,
+    permissions = null,
+    isActive = false,
+    displayName = null,
+    bio = null,
+    location = null,
+    avatarPath = null,
+    invitedBy = null,
+    latitude = null,
+    longitude = null,
+  } = fields
+
+  const now = new Date().toISOString()
+  const tokenData = await generateRegistrationToken(config.registrationToken.length)
+  const tokenExpires = calculateTokenExpiry(config.registrationToken.defaultExpiry)?.toISOString() || null
+  const geolocationEwktParam = geolocationEwkt(longitude, latitude) ?? ''
+  const permissionsParam = permissions ?? []
+
+  let [user] = await sql(`
+    INSERT INTO yamf.user (
+      username, role, permissions,
+      display_name, bio, location, geolocation, avatar_path, invited_by,
+      hash, salt,
+      is_registered, is_active, is_verified,
+      created_on,
+      token_hash, token_salt, token_expires,
+      auth_provider, mfa_enabled
+    )
+    VALUES (
+      NULLIF(CAST(:username AS TEXT), ''),
+      NULLIF(CAST(:role AS TEXT), ''),
+      CAST(:permissions AS TEXT[]),
+      NULLIF(CAST(:displayName AS TEXT), ''),
+      NULLIF(CAST(:bio AS TEXT), ''),
+      NULLIF(CAST(:location AS TEXT), ''),
+      NULLIF(CAST(:geolocationEwkt AS TEXT), ''),
+      NULLIF(CAST(:avatarPath AS TEXT), ''),
+      CAST(:invitedBy AS INTEGER),
+      NULL, NULL,
+      FALSE, CAST(:isActive AS BOOLEAN), FALSE,
+      CAST(:createdOn AS TIMESTAMPTZ),
+      CAST(:tokenHash AS TEXT), CAST(:tokenSalt AS TEXT), CAST(:tokenExpires AS TIMESTAMPTZ),
+      'local', FALSE
+    )
+    RETURNING user_id, username, role, permissions, is_registered, is_active, is_verified, created_on,
+      display_name, bio, location, avatar_path, invited_by
+  `, {
+    username: username ?? '',
+    role: role ?? '',
+    permissions: permissionsParam,
+    displayName: displayName ?? '',
+    bio: bio ?? '',
+    location: location ?? '',
+    geolocationEwkt: geolocationEwktParam,
+    avatarPath: avatarPath ?? '',
+    invitedBy,
+    createdOn: now,
+    tokenHash: tokenData.hash,
+    tokenSalt: tokenData.salt,
+    tokenExpires,
+    isActive,
+  })
+
+  logger.debug('Inserted pending invite yamf.user:', user)
+  return { user, tokenPlain: tokenData.token }
+}
+
 /**
- * Create a new user
- * 
- * Two modes:
- * 1. With password: Self-signup, is_registered=true, is_verified=false
- * 2. Without password: Admin creates, generates registration token
- * 
- * @returns {Object} Created user info (and token if no password)
+ * Explicit invite-only action (no password). Pending row until register completes.
  */
-async function createUser(sql, create, validators, config) {
+async function inviteUser(sql, invite, validators, config) {
+  if (!invite) return null
+
+  try {
+    invite = validators.validateInvite(invite)
+    logger.info(`Invite user row: ${invite.username ?? '(username set at registration)'}`)
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      throw createValidationError('invite', err)
+    }
+    throw err
+  }
+
+  const { user, tokenPlain } = await insertPendingInviteRow(sql, invite, config)
+  const result = { ...user }
+  if (tokenPlain) result.token = tokenPlain
+  return result
+}
+
+/**
+ * Self-signup: new user with username and password (is_registered=true, is_verified=false).
+ * For invites (token, optional username), use {@link inviteUser}.
+ *
+ * @returns {Object} Created user info (no registration token)
+ */
+async function createUser(sql, create, validators, _config) {
   if (!create) return null
 
   // Validate input
@@ -130,76 +277,75 @@ async function createUser(sql, create, validators, config) {
     throw err
   }
 
-  const { username, password, role = null, permissions = null, isActive = false } = create
+  const {
+    username,
+    password,
+    role = null,
+    permissions = null,
+    isActive = false,
+    displayName = null,
+    bio = null,
+    location = null,
+    avatarPath = null,
+    invitedBy = null,
+    latitude = null,
+    longitude = null,
+  } = create
+
   const now = new Date().toISOString()
+  const credentials = await createArgonSaltAndHash(password)
+  const hash = credentials.hash
+  const salt = credentials.salt
+  const geolocationEwktParam = geolocationEwkt(longitude, latitude) ?? ''
+  const permissionsParam = permissions ?? []
 
-  let hash = null
-  let salt = null
-  let isRegistered = false
-  let tokenPlain = null
-  let tokenHash = null
-  let tokenSalt = null
-  let tokenExpires = null
-
-  if (password) {
-    // Self-signup with password
-    const credentials = await createArgonSaltAndHash(password)
-    hash = credentials.hash
-    salt = credentials.salt
-    isRegistered = true
-    // Not verified yet - needs email verification
-  } else {
-    // Admin-created without password - generate registration token
-    const tokenData = await generateRegistrationToken(config.registrationToken.length)
-    tokenPlain = tokenData.token  // Return to caller once
-    tokenHash = tokenData.hash
-    tokenSalt = tokenData.salt
-    tokenExpires = calculateTokenExpiry(config.registrationToken.defaultExpiry)?.toISOString() || null
-  }
-
-  // Insert user
   let [user] = await sql(`
     INSERT INTO yamf.user (
-      username, role, permissions, hash, salt, 
+      username, role, permissions,
+      display_name, bio, location, geolocation, avatar_path, invited_by,
+      hash, salt,
       is_registered, is_active, is_verified,
       created_on,
       token_hash, token_salt, token_expires,
       auth_provider, mfa_enabled
     )
     VALUES (
-      :username, :role, :permissions, :hash, :salt,
-      :isRegistered, :isActive, :isVerified,
-      :createdOn,
-      :tokenHash, :tokenSalt, :tokenExpires,
-      :authProvider, :mfaEnabled
+      NULLIF(CAST(:username AS TEXT), ''),
+      NULLIF(CAST(:role AS TEXT), ''),
+      CAST(:permissions AS TEXT[]),
+      NULLIF(CAST(:displayName AS TEXT), ''),
+      NULLIF(CAST(:bio AS TEXT), ''),
+      NULLIF(CAST(:location AS TEXT), ''),
+      NULLIF(CAST(:geolocationEwkt AS TEXT), ''),
+      NULLIF(CAST(:avatarPath AS TEXT), ''),
+      CAST(:invitedBy AS INTEGER),
+      CAST(:hash AS TEXT), CAST(:salt AS TEXT),
+      TRUE, CAST(:isActive AS BOOLEAN), FALSE,
+      CAST(:createdOn AS TIMESTAMPTZ),
+      NULL, NULL, NULL,
+      'local', FALSE
     )
-    RETURNING user_id, username, role, permissions, is_registered, is_active, is_verified, created_on
+    RETURNING user_id, username, role, permissions, is_registered, is_active, is_verified, created_on,
+      display_name, bio, location, avatar_path, invited_by
   `, {
-    username,
-    role,
-    permissions,
+    username: username ?? '',
+    role: role ?? '',
+    permissions: permissionsParam,
+    displayName: displayName ?? '',
+    bio: bio ?? '',
+    location: location ?? '',
+    geolocationEwkt: geolocationEwktParam,
+    avatarPath: avatarPath ?? '',
+    invitedBy,
     hash,
     salt,
-    isRegistered,
     isActive,
     isVerified: false,
     createdOn: now,
-    tokenHash,
-    tokenSalt,
-    tokenExpires,
-    authProvider: 'local',
-    mfaEnabled: false,
   })
 
-  logger.debug('Created yamf.user:', user)
-
-  // Return result (include token only if generated)
-  const result = { ...user }
-  if (tokenPlain) {
-    result.token = tokenPlain  // Shown once!
-  }
-  
-  return result
+  logger.debug('Created yamf.user (self-signup):', user)
+  return { ...user }
 }
 
 /**
@@ -222,12 +368,22 @@ async function registerWithToken(sql, payload, validators) {
     throw err
   }
 
-  const { token, password } = payload
+  const {
+    token,
+    password,
+    username: payloadUsername = null,
+    displayName = null,
+    bio = null,
+    location = null,
+    avatarPath = null,
+    latitude = null,
+    longitude = null,
+  } = payload
 
   // Find user by iterating through users with tokens
   // (We can't query by token directly since it's hashed)
   let [users] = await sql(`
-    SELECT user_id, username, 
+    SELECT user_id, username,
            token_hash,
            token_salt,
            token_expires,
@@ -265,6 +421,23 @@ async function registerWithToken(sql, payload, validators) {
     throw new HttpError(401, 'Invalid or expired token')
   }
 
+  const hadUsername = matchedUser.username != null && matchedUser.username !== ''
+  if (!hadUsername && (payloadUsername == null || payloadUsername === '')) {
+    throw new HttpError(400, 'username is required to complete registration for this invite')
+  }
+  if (
+    hadUsername &&
+    payloadUsername != null &&
+    payloadUsername !== '' &&
+    payloadUsername !== matchedUser.username
+  ) {
+    throw new HttpError(400, 'username cannot be changed during token registration')
+  }
+
+  const usernameFinal = hadUsername ? matchedUser.username : payloadUsername
+  const usernameUpdatedOn = !hadUsername ? new Date().toISOString() : null
+  const geolocationEwktParam = geolocationEwkt(longitude, latitude) ?? ''
+
   // Hash the new password
   const { hash, salt } = await createArgonSaltAndHash(password)
   const now = new Date().toISOString()
@@ -273,6 +446,13 @@ async function registerWithToken(sql, payload, validators) {
   let [updatedUser] = await sql(`
     UPDATE yamf.user
     SET 
+      username = CAST(:usernameFinal AS TEXT),
+      username_updated_on = COALESCE(CAST(:usernameUpdatedOn AS TIMESTAMPTZ), username_updated_on),
+      display_name = COALESCE(NULLIF(CAST(:displayName AS TEXT), ''), display_name),
+      bio = COALESCE(NULLIF(CAST(:bio AS TEXT), ''), bio),
+      location = COALESCE(NULLIF(CAST(:location AS TEXT), ''), location),
+      avatar_path = COALESCE(NULLIF(CAST(:avatarPath AS TEXT), ''), avatar_path),
+      geolocation = COALESCE(NULLIF(CAST(:geolocationEwkt AS TEXT), ''), geolocation),
       hash = :hash,
       salt = :salt,
       is_registered = TRUE,
@@ -282,9 +462,17 @@ async function registerWithToken(sql, payload, validators) {
       token_hash = NULL,
       token_salt = NULL,
       token_expires = NULL
-    WHERE user_id = :userId
-    RETURNING user_id, username, is_registered, is_active, is_verified, registered_on, verified_on
+    WHERE user_id = CAST(:userId AS INTEGER)
+    RETURNING user_id, username, is_registered, is_active, is_verified, registered_on, verified_on,
+      display_name, bio, location, avatar_path
   `, {
+    usernameFinal,
+    usernameUpdatedOn,
+    displayName: displayName ?? '',
+    bio: bio ?? '',
+    location: location ?? '',
+    avatarPath: avatarPath ?? '',
+    geolocationEwkt: geolocationEwktParam,
     hash,
     salt,
     registeredOn: now,
@@ -319,9 +507,15 @@ async function verifyWithToken(sql, verify, validators) {
 
   const { userId = null, username = null, password = null } = verify
 
-  let [existingUser] = await sql(`
-    SELECT user_id, username, hash, salt FROM yamf.user WHERE user_id = :userId OR username = :username
-  `, { userId, username })
+  const [existingUser] = userId != null
+    ? await sql(`
+    SELECT user_id, username, hash, salt FROM yamf.user
+    WHERE user_id = CAST(:userId AS INTEGER)
+  `, { userId })
+    : await sql(`
+    SELECT user_id, username, hash, salt FROM yamf.user
+    WHERE username = CAST(:username AS TEXT)
+  `, { username })
 
   if (!existingUser) {
     throw new HttpError(404, 'No user found')
@@ -337,24 +531,36 @@ async function verifyWithToken(sql, verify, validators) {
   const now = new Date().toISOString()
 
   // Update user - greater precedence than register, so also sets is_registered and registered_on
-  let [updatedUser] = await sql(`
+  const verifyUpdateData = {
+    verifiedOn: now,
+    hash: newCredentials?.hash || existingUser.hash,
+    salt: newCredentials?.salt || existingUser.salt,
+  }
+  const [updatedUser] = userId != null
+    ? await sql(`
     UPDATE yamf.user
     SET 
       is_verified = TRUE,
-      verified_on = :verifiedOn,
+      verified_on = CAST(:verifiedOn AS TIMESTAMPTZ),
       is_registered = TRUE,
-      registered_on = :verifiedOn,
-      hash = :hash,
-      salt = :salt
-    WHERE user_id = :userId OR username = :username
+      registered_on = CAST(:verifiedOn AS TIMESTAMPTZ),
+      hash = CAST(:hash AS TEXT),
+      salt = CAST(:salt AS TEXT)
+    WHERE user_id = CAST(:userId AS INTEGER)
     RETURNING user_id, username, is_registered, is_active, is_verified, verified_on, registered_on
-  `, {
-    verifiedOn: now,
-    userId,
-    username,
-    hash: newCredentials?.hash || existingUser.hash,
-    salt: newCredentials?.salt || existingUser.salt,
-  })
+  `, { ...verifyUpdateData, userId })
+    : await sql(`
+    UPDATE yamf.user
+    SET 
+      is_verified = TRUE,
+      verified_on = CAST(:verifiedOn AS TIMESTAMPTZ),
+      is_registered = TRUE,
+      registered_on = CAST(:verifiedOn AS TIMESTAMPTZ),
+      hash = CAST(:hash AS TEXT),
+      salt = CAST(:salt AS TEXT)
+    WHERE username = CAST(:username AS TEXT)
+    RETURNING user_id, username, is_registered, is_active, is_verified, verified_on, registered_on
+  `, { ...verifyUpdateData, username })
 
   logger.debug('Verified yamf.user:', updatedUser)
   return updatedUser
@@ -394,7 +600,7 @@ async function generateToken(sql, generateTokenData, validators, config) {
       token_hash = :tokenHash,
       token_salt = :tokenSalt,
       token_expires = :tokenExpires
-    WHERE user_id = :userId
+    WHERE user_id = CAST(:userId AS INTEGER)
     RETURNING user_id, username
   `, {
     tokenHash: tokenData.hash,
@@ -438,7 +644,7 @@ async function verifyPassword(sql, checkPassword, validators) {
 
   // Select user by username
   let [user] = await sql(`
-    SELECT user_id, username, hash, salt FROM yamf.user WHERE username = :username
+    SELECT user_id, username, hash, salt FROM yamf.user WHERE username = CAST(:username AS TEXT)
   `, { username })
   
   if (!user) {
@@ -471,17 +677,35 @@ async function getUser(sql, get, validators) {
   const { userId = null, username = null } = get
 
   // Select non-sensitive fields only
-  let [user] = await sql(`
+  const [user] = userId != null
+    ? await sql(`
     SELECT 
       user_id, username,
+      display_name, bio, location, avatar_path,
+      geolocation,
+      invited_by,
       role, permissions,
       is_registered, is_active, is_verified,
       created_on, registered_on, verified_on, username_updated_on,
       auth_provider, external_id,
       mfa_enabled, mfa_type
     FROM yamf.user 
-    WHERE user_id = :userId OR username = :username
-  `, { userId, username })
+    WHERE user_id = CAST(:userId AS INTEGER)
+  `, { userId })
+    : await sql(`
+    SELECT 
+      user_id, username,
+      display_name, bio, location, avatar_path,
+      geolocation,
+      invited_by,
+      role, permissions,
+      is_registered, is_active, is_verified,
+      created_on, registered_on, verified_on, username_updated_on,
+      auth_provider, external_id,
+      mfa_enabled, mfa_type
+    FROM yamf.user 
+    WHERE username = CAST(:username AS TEXT)
+  `, { username })
 
   logger.debug('Read yamf.user:', user, 'for', { userId, username })
   return user
@@ -504,8 +728,22 @@ async function updateUser(sql, update, validators) {
     throw err
   }
 
-  const { userId, username = null, role = null, permissions = null, isActive = null } = update
+  const {
+    userId,
+    username = null,
+    role = null,
+    permissions = null,
+    isActive = null,
+    displayName = null,
+    bio = null,
+    location = null,
+    avatarPath = null,
+    latitude = null,
+    longitude = null,
+  } = update
   const now = new Date().toISOString()
+  const geolocationEwktParam = geolocationEwkt(longitude, latitude) ?? ''
+  const permissionsParam = permissions ?? []
 
   // Track username change
   let usernameUpdatedOn = null
@@ -516,14 +754,32 @@ async function updateUser(sql, update, validators) {
   let [user] = await sql(`
     UPDATE yamf.user
     SET
-      username = COALESCE(:username, username),
-      username_updated_on = COALESCE(:usernameUpdatedOn, username_updated_on),
-      role = COALESCE(:role, role),
-      permissions = COALESCE(:permissions, permissions),
-      is_active = COALESCE(:isActive, is_active)
-    WHERE user_id = :userId
-    RETURNING user_id, username, role, permissions, is_registered, is_active, is_verified, username_updated_on
-  `, { userId, username, usernameUpdatedOn, role, permissions, isActive })
+      username = COALESCE(NULLIF(CAST(:username AS TEXT), ''), username),
+      username_updated_on = COALESCE(CAST(:usernameUpdatedOn AS TIMESTAMPTZ), username_updated_on),
+      role = COALESCE(NULLIF(CAST(:role AS TEXT), ''), role),
+      permissions = COALESCE(CAST(:permissions AS TEXT[]), permissions),
+      is_active = COALESCE(CAST(:isActive AS BOOLEAN), is_active),
+      display_name = COALESCE(NULLIF(CAST(:displayName AS TEXT), ''), display_name),
+      bio = COALESCE(NULLIF(CAST(:bio AS TEXT), ''), bio),
+      location = COALESCE(NULLIF(CAST(:location AS TEXT), ''), location),
+      avatar_path = COALESCE(NULLIF(CAST(:avatarPath AS TEXT), ''), avatar_path),
+      geolocation = COALESCE(NULLIF(CAST(:geolocationEwkt AS TEXT), ''), geolocation)
+    WHERE user_id = CAST(:userId AS INTEGER)
+    RETURNING user_id, username, role, permissions, is_registered, is_active, is_verified, username_updated_on,
+      display_name, bio, location, avatar_path
+  `, {
+    userId,
+    username: username ?? '',
+    usernameUpdatedOn,
+    role: role ?? '',
+    permissions,
+    isActive,
+    displayName: displayName ?? '',
+    bio: bio ?? '',
+    location: location ?? '',
+    avatarPath: avatarPath ?? '',
+    geolocationEwkt: geolocationEwktParam,
+  })
 
   logger.debug('Updated yamf.user:', user)
   return user
@@ -548,14 +804,55 @@ async function removeUser(sql, remove, validators) {
 
   const { userId = null, username = null } = remove
 
-  let result = await sql(`
+  const result = userId != null
+    ? await sql(`
     DELETE FROM yamf.user 
-    WHERE user_id = :userId OR username = :username
+    WHERE user_id = CAST(:userId AS INTEGER)
     RETURNING user_id, username
-  `, { userId, username })
+  `, { userId })
+    : await sql(`
+    DELETE FROM yamf.user 
+    WHERE username = CAST(:username AS TEXT)
+    RETURNING user_id, username
+  `, { username })
 
   logger.debug('Removed yamf.user:', result)
   return result[0] || null
+}
+
+/**
+ * Delete pending invite rows whose registration token has expired.
+ * Only targets unregistered users with a stored token and expiry in the past.
+ */
+async function cleanupExpiredInvites(sql, cleanupPayload, validators) {
+  if (cleanupPayload === undefined || cleanupPayload === null) return null
+
+  try {
+    validators.validateCleanupInvites(cleanupPayload)
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      throw createValidationError('cleanupInvites', err)
+    }
+    throw err
+  }
+
+  const deleted = await sql(`
+    DELETE FROM yamf.user
+    WHERE is_registered = FALSE
+      AND token_hash IS NOT NULL
+      AND token_expires IS NOT NULL
+      AND token_expires < NOW()
+    RETURNING user_id
+  `, {})
+
+  const rows = Array.isArray(deleted) ? deleted : []
+  const deletedUserIds = rows.map((r) => r.userId)
+  logger.info(`cleanupExpiredInvites: removed ${deletedUserIds.length} row(s)`)
+
+  return {
+    deletedCount: deletedUserIds.length,
+    deletedUserIds,
+  }
 }
 
 // =============================================================================
@@ -594,12 +891,38 @@ export default async function createUserService(options = {}) {
   // TODO role-based access control (or make private and require an extra public-user-auth service)
   const service = await createService(serviceName, async function userService(payload) {
     logger.debug('userService actions:', Object.keys(payload)) // just log keys so we don't log sensitive data
-    const { create, register, verifyAndRegister, verify, createToken, checkPassword, get, update, remove } = payload
+    const {
+      create,
+      invite,
+      register,
+      verifyAndRegister,
+      verify,
+      createToken,
+      checkPassword,
+      get,
+      update,
+      remove,
+      cleanupInvites,
+    } = payload
+
+    const cleanupInvitesRequested = Object.prototype.hasOwnProperty.call(payload, 'cleanupInvites')
 
     // Check at least one action is provided
-    const actions = [create, register, verifyAndRegister, verify, createToken, checkPassword, get, update, remove]
+    const actions = [
+      create,
+      invite,
+      register,
+      verifyAndRegister,
+      verify,
+      createToken,
+      checkPassword,
+      get,
+      update,
+      remove,
+      cleanupInvitesRequested,
+    ]
     if (!actions.some(Boolean)) {
-      throw new HttpError(400, 'Expected user action: create, register, verifyAndRegister, verify, createToken, get, update, or remove')
+      throw new HttpError(400, 'Expected user action: create, invite, register, verifyAndRegister, verify, createToken, get, update, remove, or cleanupInvites')
     }
 
     // Create SQL helper bound to this request context
@@ -608,13 +931,16 @@ export default async function createUserService(options = {}) {
     // Execute actions (register and verifyAndRegister use same handler - register kept for backward compat)
     const results = {
       register: register && await registerWithToken(sql, register, validators),
+      verifyAndRegister: verifyAndRegister && await registerWithToken(sql, verifyAndRegister, validators),
       verify: verify && await verifyWithToken(sql, verify, validators),
       checkPassword: checkPassword && await verifyPassword(sql, checkPassword, validators),
       createToken: createToken && await generateToken(sql, createToken, validators, config),
       get: get && await getUser(sql, get, validators),
       create: create && await createUser(sql, create, validators, config),
+      invite: invite && await inviteUser(sql, invite, validators, config),
       update: update && await updateUser(sql, update, validators),
       remove: remove && await removeUser(sql, remove, validators),
+      cleanupInvites: cleanupInvitesRequested && await cleanupExpiredInvites(sql, cleanupInvites ?? {}, validators),
     }
 
     // Remove null results
