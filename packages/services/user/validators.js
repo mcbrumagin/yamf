@@ -19,12 +19,22 @@ import { HttpError } from '@yamf/core'
 // =============================================================================
 
 
+const profileString = (maxLength) => is(is.optional, is.string({ maxLength }))
+
 const baseSchema = {
   // Core identity
   userId: is.int({ positive: true }),       // SERIAL PRIMARY KEY
   username: is.anyOf(is.email, is.regex(/^[a-zA-Z0-9_-]+$/, { minLength: 3 })),
   email: is(is.optional, is.email),
   phone: is(is.optional, is.phone),
+
+  displayName: profileString(200),
+  bio: profileString(4000),
+  location: profileString(500),
+  avatarPath: profileString(1024),
+  invitedBy: is(is.optional, is.int({ positive: true })),
+  latitude: is(is.optional, is.number),
+  longitude: is(is.optional, is.number),
   
   // Role & Permissions
   role: is(is.optional, is.string),
@@ -80,6 +90,15 @@ const validateUserIdOrUsername = is.refine(
   'At least one of userId or username is required'
 )
 
+function refineLatitudeLongitudeTogether(data) {
+  const hasLat = data.latitude !== undefined && data.latitude !== null
+  const hasLon = data.longitude !== undefined && data.longitude !== null
+  if (hasLat !== hasLon) {
+    return 'latitude and longitude must both be provided or both omitted'
+  }
+  return true
+}
+
 // =============================================================================
 // Action Validators Factory
 // =============================================================================
@@ -91,24 +110,96 @@ const validateUserIdOrUsername = is.refine(
  */
 export function createActionValidators() {
 
-  // Create (admin without password OR self-signup with password)
-  const validateCreate = createValidator({
+  // Create: self-signup only (username + password). Use invite for pending registration rows.
+  const _validateCreate = createValidator({
     username: baseSchema.username,
+    password: validatePassword,
     email: baseSchema.email,
     phone: baseSchema.phone,
     role: baseSchema.role,
     permissions: baseSchema.permissions,
-    password: is(is.optional, validatePassword),
     isActive: is(is.optional, baseSchema.isActive),
+    displayName: baseSchema.displayName,
+    bio: baseSchema.bio,
+    location: baseSchema.location,
+    avatarPath: baseSchema.avatarPath,
+    invitedBy: baseSchema.invitedBy,
+    latitude: baseSchema.latitude,
+    longitude: baseSchema.longitude,
   }, { name: 'CreateUser' })
 
+  const validateCreate = (data) => {
+    const parsed = _validateCreate(data)
+    const geo = refineLatitudeLongitudeTogether(parsed)
+    if (geo !== true) {
+      throw new ValidationError(
+        [{ path: 'latitude', constraint: 'together', message: geo }],
+        'CreateUser'
+      )
+    }
+    return parsed
+  }
+
+  // Invite: pending registration (optional username); never includes password
+  const _validateInvite = createValidator({
+    username: is(is.optional, baseSchema.username),
+    email: baseSchema.email,
+    phone: baseSchema.phone,
+    role: baseSchema.role,
+    permissions: baseSchema.permissions,
+    isActive: is(is.optional, baseSchema.isActive),
+    displayName: baseSchema.displayName,
+    bio: baseSchema.bio,
+    location: baseSchema.location,
+    avatarPath: baseSchema.avatarPath,
+    invitedBy: baseSchema.invitedBy,
+    latitude: baseSchema.latitude,
+    longitude: baseSchema.longitude,
+  }, { name: 'InviteUser' })
+
+  const validateInvite = (data) => {
+    if (data && data.password !== undefined && data.password !== null) {
+      throw new ValidationError(
+        [{ path: 'password', constraint: 'forbidden', message: 'use create with password for self-signup; invite must not include a password' }],
+        'InviteUser'
+      )
+    }
+    const parsed = _validateInvite(data)
+    const geo = refineLatitudeLongitudeTogether(parsed)
+    if (geo !== true) {
+      throw new ValidationError(
+        [{ path: 'latitude', constraint: 'together', message: geo }],
+        'InviteUser'
+      )
+    }
+    return parsed
+  }
+
   // Register with token (complete registration)
-  const validateRegister = createValidator({
+  const _validateRegister = createValidator({
     userId: is(is.optional, baseSchema.userId),
     username: is(is.optional, baseSchema.username),
     token: is.string({ minLength: 1 }),
     password: validatePassword,
+    displayName: baseSchema.displayName,
+    bio: baseSchema.bio,
+    location: baseSchema.location,
+    avatarPath: baseSchema.avatarPath,
+    latitude: baseSchema.latitude,
+    longitude: baseSchema.longitude,
   }, { name: 'RegisterUser' })
+
+  const validateRegister = (data) => {
+    const parsed = _validateRegister(data)
+    const geo = refineLatitudeLongitudeTogether(parsed)
+    if (geo !== true) {
+      throw new ValidationError(
+        [{ path: 'latitude', constraint: 'together', message: geo }],
+        'RegisterUser'
+      )
+    }
+    return parsed
+  }
 
   // Verify with token (complete registration)
   const validateVerify = createValidator({
@@ -126,15 +217,43 @@ export function createActionValidators() {
   )
 
   // Update: requires userId or username, optional other fields
-  const validateUpdate = createValidator({
+  const _validateUpdate = createValidator({
     ...validateUserIdOrUsername,
     email: baseSchema.email,
     phone: baseSchema.phone,
     role: baseSchema.role,
     permissions: baseSchema.permissions,
     isActive: is(is.optional, baseSchema.isActive),
+    displayName: baseSchema.displayName,
+    bio: baseSchema.bio,
+    location: baseSchema.location,
+    avatarPath: baseSchema.avatarPath,
+    latitude: baseSchema.latitude,
+    longitude: baseSchema.longitude,
     // Note: isRegistered and isVerified are managed by specific actions, not general update
   }, { name: 'UpdateUser' })
+
+  const validateUpdate = (data) => {
+    const parsed = _validateUpdate(data)
+    const geo = refineLatitudeLongitudeTogether(parsed)
+    if (geo !== true) {
+      throw new ValidationError(
+        [{ path: 'latitude', constraint: 'together', message: geo }],
+        'UpdateUser'
+      )
+    }
+    return parsed
+  }
+
+  const validateCleanupInvites = (data) => {
+    if (data != null && typeof data !== 'object') {
+      throw new ValidationError(
+        [{ path: '', constraint: 'type', message: 'Expected an object (or omit cleanupInvites payload)' }],
+        'CleanupInvites'
+      )
+    }
+    return data ?? {}
+  }
 
   // Remove: requires at least one identifier
   const validateRemove = createValidator(
@@ -156,6 +275,7 @@ export function createActionValidators() {
 
   return {
     validateCreate,
+    validateInvite,
     validateGet,
     validateUpdate,
     validateRemove,
@@ -163,6 +283,7 @@ export function createActionValidators() {
     validateVerify,
     validateGenerateToken,
     validateCheckPassword,
+    validateCleanupInvites,
     baseSchema,
   }
 }

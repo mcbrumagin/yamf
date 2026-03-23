@@ -59,7 +59,7 @@ For a **complete runnable example** that combines Postgres, User, and Auth (self
 
 | Step | Action | User Service Call |
 |------|--------|-------------------|
-| Admin creates | Admin creates account, sends invite | `create: { username }` (no password) → returns `token` |
+| Admin creates | Admin sends invite (pending row + token) | `invite: { username?, ... }` → returns `token` |
 | Send invite | Send token to user (email, etc.) | *Custom: your app sends the token* |
 | User registers | User submits token + password | `register: { token, password }` |
 | Login | User logs in | `checkPassword` / Auth service |
@@ -96,7 +96,7 @@ For a **complete runnable example** that combines Postgres, User, and Auth (self
 ## Features
 
 - **Self-signup** – User signs up with password → `is_registered=true`, `is_verified=false`, `is_active=false`.
-- **Admin-invite** – Admin creates user without password → registration token is generated and returned; user completes registration with `register: { token, password }` → `is_registered=true`, `is_verified=true`.
+- **Admin-invite** – `invite` creates a pending row (optional username) → registration token returned once; user completes with `register: { token, password }` → `is_registered=true`, `is_verified=true`.
 - **Verification** – `verify` action marks user verified (`is_verified=true`). Token-based verification links require custom implementation.
 - **Registration tokens** – Secure, hashed tokens for invite flows; `createToken` reissues a token for existing unregistered users.
 - **Lifecycle tracking** – `created_on`, `registered_on`, `verified_on`.
@@ -122,8 +122,9 @@ Call the service with one or more action keys (plus required sub-fields):
 
 | Action | Payload shape | Description |
 |--------|---------------|-------------|
-| **create** | `create: { username, password?, role?, permissions?, isActive? }` | With `password`: self-signup. Without: admin-invite; returns `registrationToken` (show once). |
-| **register** | `register: { token, password }` | Complete registration for an invited user using token. |
+| **create** | `create: { username, password, role?, permissions?, isActive?, … }` | Self-signup only (both required). |
+| **invite** | `invite: { username?, role?, permissions?, isActive?, profile fields? }` | Pending registration row; returns `token` (show once). No `password`. |
+| **register** | `register: { token, password, username?, … }` | Complete registration for an invited user using token. |
 | **verifyAndRegister** | `verifyAndRegister: { token, password }` | Same as register: verify token, set password, set both `is_verified` and `is_registered` true. Use for verify-then-register flows (e.g. email link). |
 | **verify** | `verify: { userId }` or `verify: { username }` | Mark user verified (e.g. after email/SMS verification). |
 | **createToken** | `createToken: { userId, expiresIn? }` | Issue a new registration token (e.g. resend invite). |

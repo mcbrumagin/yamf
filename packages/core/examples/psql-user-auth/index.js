@@ -132,17 +132,15 @@ async function main() {
     remove: { username: 'invited@test.com' }
   })
 
-  // Admin creates user WITHOUT password
-  // Results in: is_registered=false, is_verified=false, token returned
+  // Admin invite (pending row + registration token)
   let adminCreate = await callService('user-service', {
-    create: {
+    invite: {
       username: 'invited@test.com',
       isActive: true,  // Admin pre-activates the account
-      // No password = generates registration token
     }
   })
-  console.log('Admin created user:', adminCreate)
-  const inviteToken = adminCreate.create.token
+  console.log('Admin invite:', adminCreate)
+  const inviteToken = adminCreate.invite.token
   console.log('Registration token (send to user):', inviteToken)
 
   // Get the user to see initial state
@@ -212,14 +210,14 @@ async function main() {
   })
 
   let newUser = await callService('user-service', {
-    create: { username: 'resend@test.com' }
+    invite: { username: 'resend@test.com' }
   })
-  console.log('Created user for token resend:', newUser)
+  console.log('Invited user for token resend:', newUser)
 
   // Generate a new token (e.g., user lost the first one)
   let newTokenResult = await callService('user-service', {
     createToken: {
-      userId: newUser.create.userId,
+      userId: newUser.invite.userId,
       expiresIn: 24 * 60 * 60 * 1000,  // 24 hours
     }
   })
