@@ -14,7 +14,7 @@ import {
 
 import {
   subscribeToEventSource
-} from '@yamf/client'
+} from '@yamf/client/event-source'
 
 import {
   registryServer,

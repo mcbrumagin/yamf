@@ -11,6 +11,7 @@
  */
 import Element from './Element.js'
 import htmlTags from './html-tags.js'
+import { beginListenerGeneration, patchDOM } from './patch-dom.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -125,7 +126,9 @@ async function handleRouteChange(event, routeMap, options) {
 
   if (options.renderLocation != null) {
     let target = await waitForElement(options.renderLocation)
-    target.innerHTML = result + ''
+    beginListenerGeneration()
+    const html = result && typeof result.render === 'function' ? result.render() : (result + '')
+    patchDOM(target, html)
   }
 
   setTimeout(() => {
@@ -203,9 +206,10 @@ export function hashRouter(routeMap, renderLocation = null) {
     }
 
     if (renderLocation != null) {
-      result = result.render()
+      beginListenerGeneration()
+      const html = result && typeof result.render === 'function' ? result.render() : (result + '')
       let target = await waitForElement(renderLocation)
-      target.innerHTML = result + ''
+      patchDOM(target, html)
     }
   }
 

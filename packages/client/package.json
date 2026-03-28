@@ -12,7 +12,9 @@
     "./html-tags": "./src/html-tags.js",
     "./state": "./src/state.js",
     "./load-client": "./src/loadClient.js",
-    "./utils": "./src/utils.js"
+    "./utils": "./src/utils.js",
+    "./patch-dom": "./src/patch-dom.js",
+    "./event-source": "./src/event-source.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -29,11 +31,12 @@
     "test": "yamf test -d ."
   },
   "dependencies": {
-    "@yamf/shared": "workspace:*"
+    "@yamf/shared": "workspace:*",
+    "morphdom": "^2.7.8"
   },
   "devDependencies": {
-    "@yamf/test": "workspace:*",
-    "@yamf/cli": "workspace:*"
+    "@yamf/cli": "workspace:*",
+    "@yamf/test": "workspace:*"
   },
   "files": [
     "src",
