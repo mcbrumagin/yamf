@@ -60,6 +60,52 @@ export async function testAuthServiceWorks() {
 
 
 /**
+ * validateUserPassword must not return truthy for random probe credentials at startup
+ */
+export async function testCreateAuthServiceSanityCheckRejectsAlwaysTrueValidator() {
+  await assertErr(
+    async () => createAuthService({
+      validateUserPassword: async () => true
+    }),
+    err => err.message.includes('sanity check')
+  )
+}
+
+/**
+ * validateUserPassword must return strict boolean false (or throw), not undefined/null
+ */
+export async function testCreateAuthServiceSanityCheckRejectsNonBooleanReturn() {
+  await assertErr(
+    async () => createAuthService({
+      validateUserPassword: async () => undefined
+    }),
+    err => err.message.includes('sanity check')
+  )
+}
+
+/**
+ * Throwing from validateUserPassword for unknown credentials passes sanity check (rejection via throw)
+ */
+export async function testCreateAuthServiceSanityCheckAllowsThrowingValidator() {
+  await terminateAfter(
+    await registryServer(),
+    await createAuthService({
+      validateUserPassword: async () => {
+        throw new HttpError(401, 'Invalid credentials')
+      }
+    }),
+    async () => {
+      await assertErr(
+        async () => callService('auth-service', {
+          authenticate: { user: 'any', password: 'any' }
+        }),
+        err => err.status === 401
+      )
+    }
+  )
+}
+
+/**
  * Test that auth service basic functionality works
  */
 export async function testAuthServiceBadCredentials() {

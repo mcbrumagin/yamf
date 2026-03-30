@@ -7,10 +7,37 @@ import {
   HEADERS
 } from '@yamf/core'
 
+import { randomUUID } from 'node:crypto'
+
 import { createInMemoryCache } from '@yamf/services-cache'
 import { ed25519 } from '@yamf/core/crypto'
 
 const logger = new Logger({ logGroup: 'yamf-services' })
+
+/**
+ * Reject obviously broken validateUserPassword implementations (e.g. unconditional true).
+ * Uses a random UUID for both username and password to avoid colliding with real accounts.
+ * Expects strict boolean false (or a throw) for failed auth — not undefined, null, or other truthy/falsy values.
+ */
+async function assertValidateUserPasswordSanity(validateUserPassword) {
+  const probe = randomUUID()
+  try {
+    const result = await Promise.resolve(validateUserPassword(probe, probe))
+    if (result !== true && result !== false) {
+      throw new Error(
+        'validateUserPassword failed sanity check: must return strict boolean true or false, or throw; rejecting credentials must use false (not undefined, null, or other values)'
+      )
+    }
+    if (result === true) {
+      throw new Error(
+        'validateUserPassword failed sanity check: must not return true for random probe credentials (often indicates a mis-scoped or unconditional validator)'
+      )
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('sanity check')) throw err
+    // Any other throw counts as rejecting the probe — OK
+  }
+}
 
 
 /*
@@ -47,6 +74,8 @@ export default async function createAuthService({
     throw new Error('useSessions must be true or "refresh-only"')
   }
 
+  await assertValidateUserPasswordSanity(validateUserPassword)
+
   const keyPair = await ed25519.generateKeyPair()
 
   // should use an internal memory-only cache for security
@@ -79,9 +108,9 @@ export default async function createAuthService({
   const authenticate = async (payload, request, response) => {
     logger.debug(`authenticating user ${payload.user}`)
 
-    let isValid = await validateUserPassword(payload.user, payload.password)
-    
-    if (!isValid) {
+    const isValid = await validateUserPassword(payload.user, payload.password)
+
+    if (isValid !== true) {
       throw new HttpError(401, 'Invalid credentials')
     }
 

@@ -12,6 +12,28 @@ function isFormControl(el) {
   return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT'
 }
 
+/**
+ * Track elements currently under pointer interaction so morphdom skips them.
+ * Range inputs (and other controls) don't always become activeElement on click/drag,
+ * but replacing them mid-gesture kills the drag and resets value.
+ */
+const interactedElements = new WeakSet()
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target && isFormControl(e.target)) {
+      interactedElements.add(e.target)
+      const clear = () => {
+        interactedElements.delete(e.target)
+        window.removeEventListener('pointerup', clear, true)
+        window.removeEventListener('pointercancel', clear, true)
+      }
+      window.addEventListener('pointerup', clear, true)
+      window.addEventListener('pointercancel', clear, true)
+    }
+  }, true)
+}
+
 const LISTENER_RE = /yamf\.__listeners__\[(\d+)\]/g
 
 /**
@@ -178,8 +200,7 @@ export function patchDOM(container, htmlString, options = {}) {
   morphdom(container, temp, {
     childrenOnly: true,
     onBeforeElUpdated(fromEl, _toEl) {
-      if (fromEl === document.activeElement && isFormControl(fromEl)) {
-        // Keep the live node so focus/value/selection stay intact
+      if (isFormControl(fromEl) && (fromEl === document.activeElement || interactedElements.has(fromEl))) {
         return false
       }
       return true

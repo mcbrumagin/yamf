@@ -4,8 +4,8 @@ This document provides AI assistants with essential context for working on the Y
 
 ## Project Overview
 
-YAMF (Yet Another Microservice Framework) is a **zero-dependency** Node.js microservices framework. The codebase prioritizes:
-- Pure Node.js implementation (no external dependencies in core)
+YAMF (Yet Another Microservice Framework) keeps **`@yamf/core`** free of npm dependencies at runtime (zero third-party packages for the server stack). Optional packages (e.g. **`@yamf/client`**) add their own dependencies (e.g. **morphdom**). The codebase prioritizes:
+- Pure Node.js implementation for core server runtime (no external npm deps in `@yamf/core`)
 - Modular, composable architecture
 - Comprehensive testing with meaningful assertions
 - Clear separation between registry, gateway, and services

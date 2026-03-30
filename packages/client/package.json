@@ -1,6 +1,6 @@
 {
   "name": "@yamf/client",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Isomorphic HTML-as-JavaScript library with conditional exports for browser and server",
   "main": "src/index.js",
@@ -25,7 +25,7 @@
     "ssr",
     "client-side",
     "reactive",
-    "zero-dependency"
+    "morphdom"
   ],
   "scripts": {
     "test": "yamf test -d ."
