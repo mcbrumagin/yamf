@@ -33,6 +33,9 @@ importers:
       '@yamf/shared':
         specifier: workspace:*
         version: link:../shared
+      morphdom:
+        specifier: ^2.7.8
+        version: 2.7.8
     devDependencies:
       '@yamf/cli':
         specifier: workspace:*
@@ -120,22 +123,6 @@ importers:
       form-data:
         specifier: ^4.0.5
         version: 4.0.5
-
-  packages/services/nodeman:
-    dependencies:
-      '@yamf/core':
-        specifier: workspace:*
-        version: link:../../core
-      '@yamf/shared':
-        specifier: workspace:*
-        version: link:../../shared
-    devDependencies:
-      '@yamf/cli':
-        specifier: workspace:*
-        version: link:../../cli
-      '@yamf/test':
-        specifier: workspace:*
-        version: link:../../test
 
   packages/services/pm3:
     dependencies:
@@ -303,6 +290,9 @@ packages:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
 
+  morphdom@2.7.8:
+    resolution: {integrity: sha512-D/fR4xgGUyVRbdMGU6Nejea1RFzYxYtyurG4Fbv2Fi/daKlWKuXGLOdXtl+3eIwL110cI2hz1ZojGICjjFLgTg==}
+
   postgres@3.4.8:
     resolution: {integrity: sha512-d+JFcLM17njZaOLkv6SCev7uoLaBtfK86vMUXhW1Z4glPWh4jozno9APvW/XKFJ3CCxVoC7OL38BqRydtu5nGg==}
     engines: {node: '>=12'}
@@ -398,6 +388,8 @@ snapshots:
   mime-types@2.1.35:
     dependencies:
       mime-db: 1.52.0
+
+  morphdom@2.7.8: {}
 
   postgres@3.4.8: {}
 

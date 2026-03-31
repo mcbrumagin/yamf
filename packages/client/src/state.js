@@ -15,6 +15,8 @@
  *   state.set('count', 42) // automatically updates element
  */
 
+import { beginListenerGeneration, patchDOM, sweepOrphanedYamfListeners } from './patch-dom.js'
+
 export function createState(initialState = {}) {
   const state = { ...initialState }
   const watchers = new Set()
@@ -181,32 +183,6 @@ export function createState(initialState = {}) {
 }
 
 
-function preserveAndRestoreFocus(containerEl, applyFn) {
-  const active = document.activeElement
-  const isDescendant = active && containerEl.contains(active)
-  let saved = null
-  if (isDescendant && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
-    saved = {
-      id: active.id,
-      value: active.value,
-      selectionStart: active.selectionStart,
-      selectionEnd: active.selectionEnd,
-    }
-  }
-  applyFn()
-  if (saved?.id) {
-    const el = document.getElementById(saved.id)
-    if (el) {
-      el.value = saved.value
-      if (typeof el.selectionStart === 'number') {
-        el.selectionStart = saved.selectionStart
-        el.selectionEnd = saved.selectionEnd
-      }
-      el.focus()
-    }
-  }
-}
-
 /**
  * @param {Object} state - State object from createState()
  * @param {Function} renderFn - Function that returns @yamf/client elements
@@ -227,11 +203,10 @@ export function createReactiveComponent(state, renderFn, container) {
   const render = () => {
     if (!mounted) return
     try {
+      beginListenerGeneration()
       const element = renderFn(state.getAll())
       const html = element && element.render ? element.render() : (typeof element === 'string' ? element : '')
-      preserveAndRestoreFocus(containerEl, () => {
-        containerEl.innerHTML = html
-      })
+      patchDOM(containerEl, html)
     } catch (error) {
       console.error('Render error:', error)
     }
@@ -353,13 +328,14 @@ export function createFormState(initialValues = {}, validators = {}) {
  * Advanced render helper that integrates state management with @yamf/client elements
  * Provides automatic re-rendering, state binding, and performance optimizations
  */
-export function createRenderHelper(container, renderFn, options = {}) {
+export function createRenderHelper(container, initialRenderFn, options = {}) {
   const {
     debounceMs = 0,
     enableVirtualDOM = false,
     onError = err => { throw err },
   } = options
 
+  let currentRenderFn = initialRenderFn
   let currentElement = null
   let renderTimeout = null
   let isRendering = false
@@ -381,7 +357,8 @@ export function createRenderHelper(container, renderFn, options = {}) {
       
       try {
         isRendering = true
-        const newElement = renderFn(state?.getAll?.() || {})
+        beginListenerGeneration()
+        const newElement = currentRenderFn(state?.getAll?.() || {})
         
         if (newElement && newElement.render) {
           const newHTML = newElement.render()
@@ -390,14 +367,15 @@ export function createRenderHelper(container, renderFn, options = {}) {
           if (enableVirtualDOM && currentElement) {
             const currentHTML = currentElement.render()
             if (currentHTML === newHTML) {
-              return // No changes, skip render
+              sweepOrphanedYamfListeners()
+              return // No changes, skip render (drop listener slots allocated this pass)
             }
           }
           
-          containerEl.innerHTML = newHTML
+          patchDOM(containerEl, newHTML)
           currentElement = newElement
         } else if (typeof newElement === 'string') {
-          containerEl.innerHTML = newElement
+          patchDOM(containerEl, newElement)
         }
       } catch (error) {
         onError('Render error:', error)
@@ -413,9 +391,10 @@ export function createRenderHelper(container, renderFn, options = {}) {
      */
     render(state = null) {
       if (state && state.watch) {
-        // Bind to state changes
+        const prev = stateBindings.get('watch')
+        if (prev) prev()
         const unwatch = state.watch(() => debouncedRender(state))
-        stateBindings.set(renderFn, unwatch)
+        stateBindings.set('watch', unwatch)
       }
       
       // Initial render
@@ -427,14 +406,13 @@ export function createRenderHelper(container, renderFn, options = {}) {
     /**
      * Update the current render function
      */
-    update(renderFn, state = null) {
-      // Clean up previous state binding
-      if (stateBindings.has(renderFn)) {
-        stateBindings.get(renderFn)()
-        stateBindings.delete(renderFn)
+    update(nextRenderFn, state = null) {
+      for (const unwatch of stateBindings.values()) {
+        unwatch()
       }
-      
-      return this.render(renderFn, state)
+      stateBindings.clear()
+      currentRenderFn = nextRenderFn
+      return this.render(state)
     },
 
     /**
@@ -449,7 +427,10 @@ export function createRenderHelper(container, renderFn, options = {}) {
       }
       stateBindings.clear()
       
-      containerEl.innerHTML = ''
+      if (typeof document !== 'undefined') {
+        beginListenerGeneration()
+        patchDOM(containerEl, '')
+      }
       currentElement = null
     },
 
@@ -458,6 +439,32 @@ export function createRenderHelper(container, renderFn, options = {}) {
      */
     getCurrentElement() {
       return currentElement
+    }
+  }
+}
+
+/**
+ * Fast path: run updateFn per matching element. If it returns a string or Element
+ * with .render(), that HTML is patched into the element via morphdom. If it returns
+ * undefined, the callback is assumed to have mutated the DOM directly.
+ *
+ * @param {string} selector - passed to querySelectorAll
+ * @param {(element: globalThis.HTMLElement, ...args: any[]) => any} updateFn
+ * @returns {(...args: any[]) => void}
+ */
+export function createDirectUpdater(selector, updateFn) {
+  return (...args) => {
+    if (typeof document === 'undefined') return
+    const nodes = document.querySelectorAll(selector)
+    for (const el of nodes) {
+      beginListenerGeneration()
+      const out = updateFn(el, ...args)
+      if (out !== undefined && out !== null) {
+        const html = typeof out === 'object' && typeof out.render === 'function'
+          ? out.render()
+          : String(out)
+        patchDOM(el, html)
+      }
     }
   }
 }

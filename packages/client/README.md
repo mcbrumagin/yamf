@@ -23,6 +23,15 @@
 npm install @yamf/client
 ```
 
+## 📎 Dependencies
+
+`@yamf/client` is **not** part of the zero-dependency story for **`@yamf/core`**: the core server runtime intentionally ships with no npm packages. The client package adds:
+
+- **[morphdom](https://github.com/patrick-steele-idem/morphdom)** — minimal DOM diffing/patching for efficient browser updates
+- **[@yamf/shared](../shared/)** — shared validators and isomorphic helpers (workspace dependency in this monorepo)
+
+**morphdom** is required for browser DOM patching (e.g. `@yamf/client/patch-dom`); it is listed in this package’s `dependencies`.
+
 ## 🎯 Quick Start
 
 ### Basic HTML Generation

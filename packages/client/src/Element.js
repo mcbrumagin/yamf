@@ -6,6 +6,7 @@ import {
   isValidAttributeName,
   isEventAttribute 
 } from '@yamf/shared'
+import { getYamf } from './client-init.js'
 
 // List of boolean HTML attributes that should be rendered without values
 const booleanAttributes = new Set([
@@ -56,12 +57,12 @@ export default class Element {
   }
 
   addEventListener(eventName, handler) {
-    // TODO if !yamf, this is server side and needs to be rendered as an additional script
-    let lastHandlerName = Object.keys(yamf.__listeners__).slice(-1)[0]
-    let handlerName = lastHandlerName ? Number(lastHandlerName.replace(/\_/ig,'')) : 0
-    handlerName++
+    const yamf = getYamf()
+    const handlerName = String(yamf.__nextListenerId__++)
     this.__listeners__[handlerName] = eventName
     yamf.__listeners__[handlerName] = handler
+    const gen = yamf.__listenerGeneration__ ?? 0
+    yamf.__listenerMeta__[handlerName] = { generation: gen }
   }
 
   renderListeners() {
@@ -143,17 +144,6 @@ export default class Element {
       }
     }
     return attributes
-  }
-
-  render() {
-    let result = `<${this.tag}${this.renderAttributes()}${this.renderListeners()}>${
-      this.children.map(child => this.encodeChild(child)).join('')
-    }${this.isVoid ? '' : `</${this.tag}>`}`
-
-    // TODO this is a bad hack... need actual dom change event listener to call this
-    if (this.ready) setTimeout(this.ready, 20)
-
-    return result
   }
 
   fromString() {
@@ -287,10 +277,9 @@ export default class Element {
   }
 
   /**
-   * Enhanced render method that supports state-bound elements
+   * Serialize to HTML; applies bindState snapshots, then attributes, listeners, and children.
    */
   render() {
-    // If we have state bindings, ensure they're up to date
     for (const [stateKey, binding] of this.__stateBindings__) {
       const { state, targetProp, transform } = binding
       let value = state.get(stateKey)

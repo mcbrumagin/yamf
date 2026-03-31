@@ -6,8 +6,15 @@ import {
   createState, 
   createReactiveComponent, 
   createFormState, 
-  createRenderHelper 
+  createRenderHelper,
+  createDirectUpdater
 } from './state.js'
+
+import {
+  beginListenerGeneration,
+  patchDOM,
+  sweepOrphanedYamfListeners
+} from './patch-dom.js'
 
 import {
   initializeYamf,
@@ -22,9 +29,8 @@ import {
   hashRouter,
 } from './client-utils.js'
 
-import {
-  subscribeToEventSource
-} from './event-source.js'
+// event-source.js uses node:http — NOT importable in browsers.
+// Use `import { subscribeToEventSource } from '@yamf/client/event-source'` on the server instead.
 
 // Import and re-export XSS utilities from shared for client convenience
 import { 
@@ -45,14 +51,17 @@ export {
   createReactiveComponent,
   createFormState,
   createRenderHelper,
+  createDirectUpdater,
+  beginListenerGeneration,
+  patchDOM,
+  sweepOrphanedYamfListeners,
   initializeYamf,
   getYamf,
   waitForElement,
   isMobileBrowser,
   loadResource,
   router,
-  hashRouter,
-  subscribeToEventSource
+  hashRouter
 }
 
 // Default export for backward compatibility
@@ -64,6 +73,10 @@ export default {
   createReactiveComponent,
   createFormState,
   createRenderHelper,
+  createDirectUpdater,
+  beginListenerGeneration,
+  patchDOM,
+  sweepOrphanedYamfListeners,
   initializeYamf,
   getYamf,
   waitForElement,

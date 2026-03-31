@@ -1,6 +1,6 @@
 {
   "name": "@yamf/client",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Isomorphic HTML-as-JavaScript library with conditional exports for browser and server",
   "main": "src/index.js",
@@ -12,7 +12,9 @@
     "./html-tags": "./src/html-tags.js",
     "./state": "./src/state.js",
     "./load-client": "./src/loadClient.js",
-    "./utils": "./src/utils.js"
+    "./utils": "./src/utils.js",
+    "./patch-dom": "./src/patch-dom.js",
+    "./event-source": "./src/event-source.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -23,17 +25,18 @@
     "ssr",
     "client-side",
     "reactive",
-    "zero-dependency"
+    "morphdom"
   ],
   "scripts": {
     "test": "yamf test -d ."
   },
   "dependencies": {
-    "@yamf/shared": "workspace:*"
+    "@yamf/shared": "workspace:*",
+    "morphdom": "^2.7.8"
   },
   "devDependencies": {
-    "@yamf/test": "workspace:*",
-    "@yamf/cli": "workspace:*"
+    "@yamf/cli": "workspace:*",
+    "@yamf/test": "workspace:*"
   },
   "files": [
     "src",

@@ -1,6 +1,6 @@
 # YAMF - Yet Another Microservice Framework
 
-A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, API gateway, pub/sub messaging, and multi-language support.
+A lightweight microservices framework for Node.js with built-in service discovery, API gateway, pub/sub messaging, and multi-language support. **`@yamf/core`** has **zero npm dependencies** at runtime (pure Node.js built-ins). Optional packages such as **`@yamf/client`** add their own small dependency set (e.g. **morphdom** for DOM patching in the browser).
 
 [![Tests](https://img.shields.io/badge/tests-436%2F436%20passing-brightgreen)]()
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
@@ -30,7 +30,7 @@ console.log(result.message) // "Hello, World"
 
 ## ✨ Core Features
 
-- **Zero Dependencies** - Pure Node.js for core runtime, virtually immune to supply-chain attacks
+- **Zero Dependencies (`@yamf/core` runtime)** - The core server ships with no npm packages—only Node.js built-ins—so the registry, gateway, and RPC stack avoid third-party supply-chain risk. Other packages (e.g. `@yamf/client`) may declare dependencies as needed.
 - **Service Discovery** - Automatic registration and dynamic service lookup
 - **API Gateway** - Built-in reverse proxy with HTTP routing
 - **Pub/Sub Messaging** - Event-driven communication between services
@@ -46,7 +46,7 @@ YAMF is organized as a monorepo with independently versioned packages:
 ### Core Packages
 
 - **[@yamf/core](./packages/core/)** - Microservices framework with registry, gateway, RPC, and pub/sub
-- **[@yamf/client](./packages/client/)** - Isomorphic HTML-as-JavaScript library for building UIs
+- **[@yamf/client](./packages/client/)** - Isomorphic HTML-as-JavaScript library for building UIs (includes [morphdom](https://github.com/patrick-steele-idem/morphdom) for client-side DOM updates)
 - **[@yamf/shared](./packages/shared/)** - Shared utilities: validator, XSS helpers, case-mapping. See [Shared README](./packages/shared/README.md).
 
 ### Service Modules
@@ -172,7 +172,7 @@ See [deployment examples](./packages/core/examples/) for detailed guides.
 
 Contributions are welcome! This project is designed to be:
 - Simple and maintainable
-- Zero external dependencies (core)
+- Zero npm dependencies for `@yamf/core` server runtime (optional packages may add deps)
 - Well-tested and documented
 - Production-ready
 
@@ -184,4 +184,4 @@ MIT - see [LICENSE](LICENSE) file for details.
 
 Built with ❤️ by [Matthew C Brumagin](https://github.com/mcbrumagin)
 
-Zero external dependencies - pure Node.js implementation.
+**`@yamf/core`** uses no external npm packages at runtime (pure Node.js). UI work via **`@yamf/client`** pulls in **morphdom** (and `@yamf/shared`) as documented in the [client README](./packages/client/README.md).
