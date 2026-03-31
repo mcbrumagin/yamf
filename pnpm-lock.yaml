@@ -124,22 +124,6 @@ importers:
         specifier: ^4.0.5
         version: 4.0.5
 
-  packages/services/nodeman:
-    dependencies:
-      '@yamf/core':
-        specifier: workspace:*
-        version: link:../../core
-      '@yamf/shared':
-        specifier: workspace:*
-        version: link:../../shared
-    devDependencies:
-      '@yamf/cli':
-        specifier: workspace:*
-        version: link:../../cli
-      '@yamf/test':
-        specifier: workspace:*
-        version: link:../../test
-
   packages/services/pm3:
     dependencies:
       '@yamf/cli':
