@@ -1,6 +1,6 @@
 {
   "name": "@yamf/client",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "description": "Isomorphic HTML-as-JavaScript library with conditional exports for browser and server",
   "main": "src/index.js",

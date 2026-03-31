@@ -109,7 +109,8 @@ function isElementNode(container) {
  * Capture window + in-container scroll so morphdom does not leave lists/views at scroll 0.
  * Only elements with `id` and non-zero scroll are restored (by id after patch).
  * @param {HTMLElement} container
- * @returns {{ docTop: number, docLeft: number, byId: Array<{ id: string, scrollTop: number, scrollLeft: number }> }}
+ * @param {{ includeDocumentScroll?: boolean }} [opts]
+ * @returns {{ docTop: number|null, docLeft: number|null, byId: Array<{ id: string, scrollTop: number, scrollLeft: number }> }}
  */
 /** Known regions that scroll but may be outside a nested patch target (e.g. list column vs #trackList). */
 const EXTRA_SCROLL_IDS = [
@@ -119,7 +120,21 @@ const EXTRA_SCROLL_IDS = [
   'main-content',
 ]
 
-function captureScrollAnchor(container) {
+/**
+ * Nested reactive roots (e.g. #search-page-container) call patchDOM after the shell patches #main-content.
+ * If they snapshot document scroll, the outer morph has often already zeroed the viewport, so their
+ * scheduled restore sets scrollTop to 0 and wins over the shell's rAF — user jumps to top.
+ */
+function shouldIncludeDocumentScroll(container, explicit) {
+  if (explicit !== undefined) return explicit
+  if (!isElementNode(container)) return true
+  const id = container.id
+  if (!id || id === 'main-content') return true
+  return false
+}
+
+function captureScrollAnchor(container, opts = {}) {
+  const includeDocumentScroll = opts.includeDocumentScroll !== false
   const doc = document.scrollingElement || document.documentElement
   const byId = []
   const seen = new Set()
@@ -147,8 +162,8 @@ function captureScrollAnchor(container) {
     }
   }
   return {
-    docTop: doc ? doc.scrollTop : 0,
-    docLeft: doc ? doc.scrollLeft : 0,
+    docTop: includeDocumentScroll && doc ? doc.scrollTop : null,
+    docLeft: includeDocumentScroll && doc ? doc.scrollLeft : null,
     byId,
   }
 }
@@ -156,7 +171,7 @@ function captureScrollAnchor(container) {
 /** @param {ReturnType<typeof captureScrollAnchor>} anchor */
 function restoreScrollAnchor(anchor) {
   const doc = document.scrollingElement || document.documentElement
-  if (doc) {
+  if (doc && anchor.docTop != null && anchor.docLeft != null) {
     doc.scrollTop = anchor.docTop
     doc.scrollLeft = anchor.docLeft
   }
@@ -175,10 +190,10 @@ function restoreScrollAnchor(anchor) {
  *
  * @param {HTMLElement} container
  * @param {string} htmlString
- * @param {{ skipSweep?: boolean }} [options]
+ * @param {{ skipSweep?: boolean, includeDocumentScroll?: boolean }} [options]
  */
 export function patchDOM(container, htmlString, options = {}) {
-  const { skipSweep = false } = options
+  const { skipSweep = false, includeDocumentScroll: includeDocOpt } = options
   if (!container || typeof document === 'undefined') return
 
   const html = htmlString == null ? '' : String(htmlString)
@@ -195,7 +210,8 @@ export function patchDOM(container, htmlString, options = {}) {
   const temp = document.createElement('div')
   temp.innerHTML = html
 
-  const scrollAnchor = captureScrollAnchor(container)
+  const includeDocumentScroll = shouldIncludeDocumentScroll(container, includeDocOpt)
+  const scrollAnchor = captureScrollAnchor(container, { includeDocumentScroll })
 
   morphdom(container, temp, {
     childrenOnly: true,
