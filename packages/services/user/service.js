@@ -58,6 +58,53 @@ function geolocationEwkt(longitude, latitude) {
   return `SRID=4326;POINT(${longitude} ${latitude})`
 }
 
+function geolocationInsertExpr(config) {
+  if (config?.postgisGeography) {
+    return "CASE WHEN NULLIF(btrim(CAST(:geolocationEwkt AS TEXT)), '') IS NULL THEN NULL ELSE geography(ST_GeomFromEWKT(CAST(:geolocationEwkt AS TEXT))) END"
+  }
+  return "NULLIF(CAST(:geolocationEwkt AS TEXT), '')"
+}
+
+function geolocationUpdateExpr(config) {
+  if (config?.postgisGeography) {
+    return "CASE WHEN NULLIF(btrim(CAST(:geolocationEwkt AS TEXT)), '') IS NULL THEN geolocation ELSE geography(ST_GeomFromEWKT(CAST(:geolocationEwkt AS TEXT))) END"
+  }
+  return "COALESCE(NULLIF(CAST(:geolocationEwkt AS TEXT), ''), geolocation)"
+}
+
+const POSTGIS_GEO_RE = /42704|42804|42P01|cannot cast|already.*geography|invalid.*geography|must be owner|extension.*not/i
+
+/**
+ * @param {function} sql - postgres data service
+ */
+async function ensurePostgisUserGeographyColumn(sql) {
+  try {
+    await sql(`CREATE EXTENSION IF NOT EXISTS postgis`, {})
+  } catch (err) {
+    const m = err?.message || String(err)
+    throw new Error(
+      'PostGIS must be installed at the Postgres server or OS level first (e.g. postgis package or a PostGIS-enabled image). ' +
+        `Create extension failed: ${m} Restart the user service after PostGIS is available.`
+    )
+  }
+  try {
+    await sql(
+      `
+      ALTER TABLE yamf.user
+      ALTER COLUMN geolocation TYPE geography(Point, 4326)
+      USING (CASE
+        WHEN geolocation IS NULL OR btrim(geolocation::text) = '' THEN NULL
+        ELSE geography(ST_GeomFromEWKT(geolocation::text))
+      END)
+    `,
+      {}
+    )
+  } catch (err) {
+    if (POSTGIS_GEO_RE.test(err?.message || String(err))) return
+    throw err
+  }
+}
+
 /**
  * Idempotent schema sync for existing databases (new installs get full CREATE TABLE).
  * Geolocation is stored as TEXT (EWKT) so Postgres without PostGIS works; optional cast to GEOGRAPHY in DB migrations.
@@ -102,7 +149,7 @@ async function syncUserTableSchema(sql) {
   `, {})
 }
 
-async function createOrValidateUserTable(sql) {
+async function createOrValidateUserTable(sql, config = null) {
   // await sql(`DROP TABLE IF EXISTS yamf.user`) // TODO REMOVE
   // Create table with all columns
   let createResult = await sql(`
@@ -157,7 +204,11 @@ async function createOrValidateUserTable(sql) {
   `, {})
 
   await syncUserTableSchema(sql)
-  
+
+  if (config?.postgisGeography) {
+    await ensurePostgisUserGeographyColumn(sql)
+  }
+
   logger.info('Created yamf.user table', createResult)
 }
 
@@ -178,13 +229,19 @@ async function insertPendingInviteRow(sql, fields, config) {
     invitedBy = null,
     latitude = null,
     longitude = null,
+    expiresIn = undefined,
   } = fields
 
   const now = new Date().toISOString()
   const tokenData = await generateRegistrationToken(config.registrationToken.length)
-  const tokenExpires = calculateTokenExpiry(config.registrationToken.defaultExpiry)?.toISOString() || null
+  const fromConfig = config.registrationToken?.defaultExpiry
+  const chosenMs = expiresIn !== undefined && expiresIn !== null ? expiresIn : fromConfig
+  const expiryMs =
+    chosenMs != null && Number.isFinite(Number(chosenMs)) ? Number(chosenMs) : 7 * 24 * 60 * 60 * 1000
+  const tokenExpires = calculateTokenExpiry(expiryMs)?.toISOString() || null
   const geolocationEwktParam = geolocationEwkt(longitude, latitude) ?? ''
   const permissionsParam = permissions ?? []
+  const geoVal = geolocationInsertExpr(config)
 
   let [user] = await sql(`
     INSERT INTO yamf.user (
@@ -203,7 +260,7 @@ async function insertPendingInviteRow(sql, fields, config) {
       NULLIF(CAST(:displayName AS TEXT), ''),
       NULLIF(CAST(:bio AS TEXT), ''),
       NULLIF(CAST(:location AS TEXT), ''),
-      NULLIF(CAST(:geolocationEwkt AS TEXT), ''),
+      ${geoVal},
       NULLIF(CAST(:avatarPath AS TEXT), ''),
       CAST(:invitedBy AS INTEGER),
       NULL, NULL,
@@ -298,6 +355,7 @@ async function createUser(sql, create, validators, _config) {
   const salt = credentials.salt
   const geolocationEwktParam = geolocationEwkt(longitude, latitude) ?? ''
   const permissionsParam = permissions ?? []
+  const geoVal = geolocationInsertExpr(_config)
 
   let [user] = await sql(`
     INSERT INTO yamf.user (
@@ -316,7 +374,7 @@ async function createUser(sql, create, validators, _config) {
       NULLIF(CAST(:displayName AS TEXT), ''),
       NULLIF(CAST(:bio AS TEXT), ''),
       NULLIF(CAST(:location AS TEXT), ''),
-      NULLIF(CAST(:geolocationEwkt AS TEXT), ''),
+      ${geoVal},
       NULLIF(CAST(:avatarPath AS TEXT), ''),
       CAST(:invitedBy AS INTEGER),
       CAST(:hash AS TEXT), CAST(:salt AS TEXT),
@@ -355,7 +413,7 @@ async function createUser(sql, create, validators, _config) {
  * @param {Object} payload - { token, password }
  * @returns {Object} Updated user info
  */
-async function registerWithToken(sql, payload, validators) {
+async function registerWithToken(sql, payload, validators, config) {
   if (!payload) return null
 
   try {
@@ -382,7 +440,7 @@ async function registerWithToken(sql, payload, validators) {
 
   // Find user by iterating through users with tokens
   // (We can't query by token directly since it's hashed)
-  let [users] = await sql(`
+  let users = await sql(`
     SELECT user_id, username,
            token_hash,
            token_salt,
@@ -392,23 +450,21 @@ async function registerWithToken(sql, payload, validators) {
     WHERE token_hash IS NOT NULL
   `, {})
 
-  // Ensure users is an array
   if (!Array.isArray(users)) {
-    users = users ? [users] : []
+    users = users != null ? [users] : []
   }
 
   let matchedUser = null
   for (const user of users) {
-    if (user.isRegistered) continue  // Skip already registered users
+    const alreadyRegistered = user.isRegistered ?? user.is_registered
+    if (alreadyRegistered === true) continue
 
-    // Check if token has expired
-    if (isTokenExpired(user.tokenExpires)) continue
+    if (isTokenExpired(user.tokenExpires ?? user.token_expires)) continue
 
-    // Verify token
     const isValid = await verifyRegistrationToken(
       token,
-      user.tokenHash,
-      user.tokenSalt
+      user.tokenHash ?? user.token_hash,
+      user.tokenSalt ?? user.token_salt
     )
 
     if (isValid) {
@@ -437,6 +493,8 @@ async function registerWithToken(sql, payload, validators) {
   const usernameFinal = hadUsername ? matchedUser.username : payloadUsername
   const usernameUpdatedOn = !hadUsername ? new Date().toISOString() : null
   const geolocationEwktParam = geolocationEwkt(longitude, latitude) ?? ''
+  const userId = matchedUser.userId ?? matchedUser.user_id
+  const geoSet = geolocationUpdateExpr(config)
 
   // Hash the new password
   const { hash, salt } = await createArgonSaltAndHash(password)
@@ -452,7 +510,7 @@ async function registerWithToken(sql, payload, validators) {
       bio = COALESCE(NULLIF(CAST(:bio AS TEXT), ''), bio),
       location = COALESCE(NULLIF(CAST(:location AS TEXT), ''), location),
       avatar_path = COALESCE(NULLIF(CAST(:avatarPath AS TEXT), ''), avatar_path),
-      geolocation = COALESCE(NULLIF(CAST(:geolocationEwkt AS TEXT), ''), geolocation),
+      geolocation = ${geoSet},
       hash = :hash,
       salt = :salt,
       is_registered = TRUE,
@@ -477,7 +535,7 @@ async function registerWithToken(sql, payload, validators) {
     salt,
     registeredOn: now,
     verifiedOn: now,
-    userId: matchedUser.userId,
+    userId,
   })
 
   logger.debug('Verified and registered yamf.user with token:', updatedUser)
@@ -714,7 +772,7 @@ async function getUser(sql, get, validators) {
 /**
  * Update a user
  */
-async function updateUser(sql, update, validators) {
+async function updateUser(sql, update, validators, config) {
   if (!update) return null
 
   // Validate input
@@ -744,6 +802,7 @@ async function updateUser(sql, update, validators) {
   const now = new Date().toISOString()
   const geolocationEwktParam = geolocationEwkt(longitude, latitude) ?? ''
   const permissionsParam = permissions ?? []
+  const geoSet = geolocationUpdateExpr(config)
 
   // Track username change
   let usernameUpdatedOn = null
@@ -763,7 +822,7 @@ async function updateUser(sql, update, validators) {
       bio = COALESCE(NULLIF(CAST(:bio AS TEXT), ''), bio),
       location = COALESCE(NULLIF(CAST(:location AS TEXT), ''), location),
       avatar_path = COALESCE(NULLIF(CAST(:avatarPath AS TEXT), ''), avatar_path),
-      geolocation = COALESCE(NULLIF(CAST(:geolocationEwkt AS TEXT), ''), geolocation)
+      geolocation = ${geoSet}
     WHERE user_id = CAST(:userId AS INTEGER)
     RETURNING user_id, username, role, permissions, is_registered, is_active, is_verified, username_updated_on,
       display_name, bio, location, avatar_path
@@ -870,11 +929,14 @@ export default async function createUserService(options = {}) {
   const config = {
     ...DEFAULT_CONFIG,
     ...options,
-
+    postgisGeography: options.postgisGeography === true,
     registrationToken: {
       defaultExpiry: 48 * 60 * 60 * 1000,  // 48 hours in ms
       length: 32,                           // bytes
-    }
+      ...(options.registrationToken && typeof options.registrationToken === 'object'
+        ? options.registrationToken
+        : {}),
+    },
   }
 
   const { serviceName, dataService } = config
@@ -930,15 +992,15 @@ export default async function createUserService(options = {}) {
 
     // Execute actions (register and verifyAndRegister use same handler - register kept for backward compat)
     const results = {
-      register: register && await registerWithToken(sql, register, validators),
-      verifyAndRegister: verifyAndRegister && await registerWithToken(sql, verifyAndRegister, validators),
+      register: register && await registerWithToken(sql, register, validators, config),
+      verifyAndRegister: verifyAndRegister && await registerWithToken(sql, verifyAndRegister, validators, config),
       verify: verify && await verifyWithToken(sql, verify, validators),
       checkPassword: checkPassword && await verifyPassword(sql, checkPassword, validators),
       createToken: createToken && await generateToken(sql, createToken, validators, config),
       get: get && await getUser(sql, get, validators),
       create: create && await createUser(sql, create, validators, config),
       invite: invite && await inviteUser(sql, invite, validators, config),
-      update: update && await updateUser(sql, update, validators),
+      update: update && await updateUser(sql, update, validators, config),
       remove: remove && await removeUser(sql, remove, validators),
       cleanupInvites: cleanupInvitesRequested && await cleanupExpiredInvites(sql, cleanupInvites ?? {}, validators),
     }
@@ -952,7 +1014,7 @@ export default async function createUserService(options = {}) {
   })
 
   // Switch the db config to an admin user and call this to create the user table initially
-  service.createOrValidateUserTable = async () => await createOrValidateUserTable(sql)
+  service.createOrValidateUserTable = async () => await createOrValidateUserTable(sql, config)
 
   return service
 }

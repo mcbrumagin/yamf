@@ -5,7 +5,7 @@
  * Processes are tracked by PID, validated for liveness on read.
  */
 
-import { httpRequest, HEADERS, COMMANDS, Logger } from '@yamf/core'
+import { httpRequest, HEADERS, COMMANDS, Logger, envConfig } from '@yamf/core'
 import { writeFileSync, readFileSync, mkdirSync, renameSync, existsSync } from 'node:fs'
 import { join, resolve as pathResolve, basename } from 'node:path'
 import { spawnDetached } from './spawn.js'
@@ -319,17 +319,34 @@ export class PM3 {
     return loadState().processes[stateKey]
   }
 
-  async pollUntilNoNewServices(beforeSnapshot, { maxAttempts = 80, intervalMs = 125, consecutiveChecksRequired = 3 } = {}) {
-    let lastLength = 0
+  pollDefaults() {
+    return {
+      maxAttempts: Number(envConfig.get('YAMF_PM3_POLL_MAX_ATTEMPTS', 150)),
+      intervalMs: Number(envConfig.get('YAMF_PM3_POLL_INTERVAL_MS', 200)),
+      consecutiveChecksRequired: Number(envConfig.get('YAMF_PM3_POLL_STABLE_CHECKS', 3))
+    }
+  }
+
+  async pollUntilNoNewServices(beforeSnapshot, overrides = {}) {
+    const {
+      maxAttempts,
+      intervalMs,
+      consecutiveChecksRequired
+    } = { ...this.pollDefaults(), ...overrides }
+    let lastN = -1
     let consecutiveChecks = 0
     for (let i = 0; i < maxAttempts; i++) {
       await sleep(intervalMs)
       try {
         const afterSnapshot = await getServiceStateSnapshot(this.registryUrl)
         const services = detectNewServices(beforeSnapshot, afterSnapshot)
-        if ((lastLength > 0) && lastLength == Object.keys(services).length) consecutiveChecks++
-        if (consecutiveChecks >= consecutiveChecksRequired) return services
-        lastLength = Object.keys(services).length
+        const n = Object.keys(services).length
+        if (n === lastN) consecutiveChecks++
+        else {
+          consecutiveChecks = 0
+        }
+        lastN = n
+        if (n > 0 && consecutiveChecks >= consecutiveChecksRequired) return services
       } catch {
         // registry may have just started, or the process is still booting
       }
@@ -356,9 +373,11 @@ export class PM3 {
       logger.warn(`Process ${pid} already dead`)
     }
 
+    const termGrace = Number(envConfig.get('YAMF_PM3_SIGTERM_RETRIES', 20))
+    const termSleep = Number(envConfig.get('YAMF_PM3_SIGTERM_MS', 250))
     let dead = false
-    for (let i = 0; i < 10; i++) {
-      await sleep(200)
+    for (let i = 0; i < termGrace; i++) {
+      await sleep(termSleep)
       if (!isProcessAlive(pid)) { dead = true; break }
     }
 
@@ -430,12 +449,15 @@ export class PM3 {
     logger.warn('Registry restart detected — all services must be restarted to replenish registry state')
 
     const registryEntry = state.processes[registryKeys[0]]
+    if (!registryEntry) {
+      throw new Error('Registry process entry not found in state')
+    }
 
     const dependentEntries = []
     for (const key of Object.keys(state.processes)) {
       if (registryKeys.includes(key)) continue
       const entry = state.processes[key]
-      dependentEntries.push({ key, ...entry })
+      if (entry) dependentEntries.push({ key, ...entry })
     }
 
     for (const dep of dependentEntries) {
@@ -452,24 +474,36 @@ export class PM3 {
 
     await sleep(500)
 
-    logger.info('Restarting registry...')
-    await this.start(registryEntry.filepath, { internal: registryEntry.internal || false, ...options })
+    const failed = []
+    let registryResult = null
+    try {
+      logger.info('Restarting registry...')
+      registryResult = await this.start(registryEntry.filepath, { internal: registryEntry.internal || false, ...options })
+    } catch (err) {
+      failed.push({ type: 'registry', filepath: registryEntry.filepath, error: err })
+      logger.error(`Failed to restart registry: ${err.message}`)
+    }
     await sleep(500)
 
-    const results = []
+    const serviceResults = []
     for (const dep of dependentEntries) {
       if (dep.status === 'stopped' && !dep.pid) continue
       logger.info(`Restarting ${dep.filepath}...`)
       try {
         const result = await this.start(dep.filepath, { internal: dep.internal || false, ...options })
-        results.push(result)
+        serviceResults.push(result)
       } catch (err) {
+        failed.push({ type: 'service', filepath: dep.filepath, error: err })
         logger.error(`Failed to restart ${dep.filepath}: ${err.message}`)
       }
     }
 
-    logger.info(`Registry and ${results.length} service(s) restarted`)
-    return results
+    const nServices = serviceResults.length
+    logger.info(
+      `Registry ${registryResult ? 'restarted' : 'failed to restart'}; ${nServices} of ${dependentEntries.length} dependent process(es) restarted` +
+        (failed.length ? ` (${failed.length} error(s))` : '')
+    )
+    return { registry: registryResult, services: serviceResults, failed, dependentCount: dependentEntries.length }
   }
 
   async list({ all = false } = {}) {

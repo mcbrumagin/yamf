@@ -40,12 +40,20 @@ export async function runRestartCommand(args) {
 
   if (options.all) {
     const entries = await pm3.list({ all: true })
-    for (const entry of entries) {
-      if (entry.status === 'running') {
-        try { await pm3.restart(entry.filepath) } catch { /* best effort */ }
+    const toRestart = entries.filter((e) => e.status === 'running')
+    let success = 0
+    let failed = 0
+    for (const entry of toRestart) {
+      try {
+        await pm3.restart(entry.filepath)
+        success++
+      } catch {
+        failed++
       }
     }
-    logger.info('All processes restarted.')
+    logger.info(
+      `Restarted ${success} of ${toRestart.length} process(es)${failed ? `, ${failed} failed` : ''}.`
+    )
     return
   }
 

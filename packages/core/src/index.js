@@ -16,6 +16,7 @@ export { default as registryServer } from './registry/registry-server.js'
 export * from './http-primitives/index.js'
 
 export { default as Logger, overrideConsoleGlobally } from './utils/logger.js'
+export { loadOrCreateEd25519KeyPair } from './utils/load-or-create-ed25519-keypair.js'
 
 export * from './shared/yamf-headers.js'
 

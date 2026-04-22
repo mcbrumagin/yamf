@@ -83,6 +83,13 @@ export async function testCreateAuthServiceSanityCheckRejectsNonBooleanReturn() 
   )
 }
 
+export async function testCreateAuthServiceRejectsInvalidMaxSessions() {
+  await assertErr(
+    async () => createAuthService({ maxSessionsPerUser: 0 }),
+    err => err.message.includes('maxSessionsPerUser')
+  )
+}
+
 /**
  * Throwing from validateUserPassword for unknown credentials passes sanity check (rejection via throw)
  */
@@ -396,7 +403,10 @@ export async function testAuthRefreshCommand() {
 
       const loginResult = await response.json()
 
-      const refreshToken = response.headers.get('Set-Cookie').split('=')[1].split(';')[0]
+      const setCookie = response.headers.get('Set-Cookie') || ''
+      const cookieMatch = setCookie.match(/refresh-token=([^;]+)/)
+      if (!cookieMatch) throw new Error('Missing refresh-token in Set-Cookie: ' + setCookie)
+      const refreshToken = cookieMatch[1]
       const refreshResult = await httpRequest(registryHost, {
         body: {},
         headers: {

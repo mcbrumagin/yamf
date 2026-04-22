@@ -155,6 +155,7 @@ export function createActionValidators() {
     invitedBy: baseSchema.invitedBy,
     latitude: baseSchema.latitude,
     longitude: baseSchema.longitude,
+    expiresIn: is(is.optional, is.int({ positive: true })),
   }, { name: 'InviteUser' })
 
   const validateInvite = (data) => {

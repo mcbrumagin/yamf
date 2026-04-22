@@ -117,6 +117,28 @@ export function testIsTokenExpired_StringDate() {
   assert(isTokenExpired(pastString), r => r === true)
 }
 
+export function testIsTokenExpiredHandlesVariedShapes() {
+  return assert(
+    isTokenExpired(null),
+    (r) => r === false
+  ) && assert(
+    isTokenExpired(''),
+    (r) => r === false
+  ) && assert(
+    isTokenExpired(1_600_000_000),
+    (r) => r === true
+  ) && assert(
+    isTokenExpired(String(Date.now() + 60_000)),
+    (r) => r === false
+  ) && assert(
+    isTokenExpired(170n),
+    (r) => r === true
+  ) && assert(
+    isTokenExpired({}),
+    (r) => r === false
+  )
+}
+
 // =============================================================================
 // Action Validators Tests
 // =============================================================================

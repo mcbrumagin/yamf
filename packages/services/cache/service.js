@@ -270,7 +270,8 @@ function bindCacheHelpers(cacheSystem, cacheService) {
   cacheSystem.setex = (key, value, expire) => cacheService({ setex: { [key]: value }, expire })
   cacheSystem.ex = (key, expire) => cacheService({ ex: { [key]: expire } })
   cacheSystem.getex = (key) => cacheService({ getex: key })
-  cacheSystem.del = (key) => cacheService({ del: { [key]: true } })
+  // del must be key string | string[] per cacheService (not `{ [key]: true }` — that breaks @yamf/services-auth logout)
+  cacheSystem.del = (key) => cacheService({ del: key })
   cacheSystem.clear = () => cacheService({ clear: true })
   cacheSystem.settings = (settings) => cacheService({ settings })
 }

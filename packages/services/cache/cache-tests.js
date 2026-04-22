@@ -546,6 +546,33 @@ function testCacheMemoryOnly() {
 }
 
 /**
+ * Bound helpers (createInMemoryCache) pass del as key / key[] to the payload — not `{ [k]: true }`.
+ */
+export function testBoundDelPassesRawKey() {
+  const c = createInMemoryCache()
+  c.set('foo', 1)
+  c.del('foo')
+  return assert(
+    c.get('foo'),
+    (v) => v === null
+  )
+}
+
+export function testBoundDelArray() {
+  const c = createInMemoryCache()
+  c.set('a', 1)
+  c.set('b', 2)
+  c.set('c', 3)
+  c.del(['a', 'b'])
+  return assert(
+    [c.get('a'), c.get('b'), c.get('c')],
+    (arr) => arr[0] === null,
+    (arr) => arr[1] === null,
+    (arr) => arr[2] === 3
+  )
+}
+
+/**
  * Test cache with expireTime set to 'None'
  * Items should never expire automatically
  */
