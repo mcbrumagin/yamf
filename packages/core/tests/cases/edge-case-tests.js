@@ -23,8 +23,8 @@ const logger = new Logger()
  */
 export async function testNullPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('nullService', (payload) => {
+    () => registryServer(),
+    () => createService('nullService', (payload) => {
       return { received: payload, isNull: payload === null }
     }),
     async () => {
@@ -43,8 +43,8 @@ export async function testNullPayload() {
  */
 export async function testUndefinedPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('undefinedService', (payload) => {
+    () => registryServer(),
+    () => createService('undefinedService', (payload) => {
       return { received: payload, isUndefined: payload === undefined }
     }),
     async () => {
@@ -63,8 +63,8 @@ export async function testUndefinedPayload() {
  */
 export async function testEmptyStringPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('emptyStringService', (payload) => {
+    () => registryServer(),
+    () => createService('emptyStringService', (payload) => {
       return { received: payload, length: payload?.length ?? -1 }
     }),
     async () => {
@@ -83,8 +83,8 @@ export async function testEmptyStringPayload() {
  */
 export async function testZeroPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('zeroService', (payload) => {
+    () => registryServer(),
+    () => createService('zeroService', (payload) => {
       return { received: payload, isZero: payload === 0 }
     }),
     async () => {
@@ -103,8 +103,8 @@ export async function testZeroPayload() {
  */
 export async function testFalsePayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('falseService', (payload) => {
+    () => registryServer(),
+    () => createService('falseService', (payload) => {
       return { received: payload, isFalse: payload === false }
     }),
     async () => {
@@ -123,8 +123,8 @@ export async function testFalsePayload() {
  */
 export async function testEmptyObjectPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('emptyObjectService', (payload) => {
+    () => registryServer(),
+    () => createService('emptyObjectService', (payload) => {
       return { 
         received: payload, 
         isEmpty: Object.keys(payload || {}).length === 0 
@@ -146,8 +146,8 @@ export async function testEmptyObjectPayload() {
  */
 export async function testEmptyArrayPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('emptyArrayService', (payload) => {
+    () => registryServer(),
+    () => createService('emptyArrayService', (payload) => {
       return { 
         received: payload, 
         isArray: Array.isArray(payload),
@@ -175,8 +175,8 @@ export async function testEmptyArrayPayload() {
  */
 export async function testLargePayload1MB() {
   await terminateAfter(
-    await registryServer(),
-    await createService('largePayloadService', (payload) => {
+    () => registryServer(),
+    () => createService('largePayloadService', (payload) => {
       return { 
         size: payload.data?.length ?? 0,
         checksum: payload.data?.substring(0, 10)
@@ -199,8 +199,8 @@ export async function testLargePayload1MB() {
  */
 export async function testLargeBinaryPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/large-binary', (payload) => {
+    () => registryServer(),
+    () => createRoute('/large-binary', (payload) => {
       if (Buffer.isBuffer(payload)) {
         return Buffer.from([payload.length & 0xFF, (payload.length >> 8) & 0xFF])
       }
@@ -238,8 +238,8 @@ export async function testLongServiceName() {
   const longName = 'service' + 'A'.repeat(100)
   
   await terminateAfter(
-    await registryServer(),
-    await createService(longName, () => 'success'),
+    () => registryServer(),
+    () => createService(longName, () => 'success'),
     async () => {
       const result = await callService(longName, {})
       
@@ -255,8 +255,8 @@ export async function testLongRoutePath() {
   const longPath = '/api/' + 'segment/'.repeat(20) + 'endpoint'
   
   await terminateAfter(
-    await registryServer(),
-    await createRoute(longPath, () => ({ path: 'long' })),
+    () => registryServer(),
+    () => createRoute(longPath, () => ({ path: 'long' })),
     async () => {
       const response = await fetch(`${process.env.YAMF_REGISTRY_URL}${longPath}`)
       const result = await response.json()
@@ -275,8 +275,8 @@ export async function testLongRoutePath() {
  */
 export async function testRapidSequentialCalls() {
   await terminateAfter(
-    await registryServer(),
-    await createService('counterService', (() => {
+    () => registryServer(),
+    () => createService('counterService', (() => {
       let count = 0
       return () => ({ count: ++count })
     })()),
@@ -300,8 +300,8 @@ export async function testRapidSequentialCalls() {
  */
 export async function testConcurrentServiceCalls() {
   await terminateAfter(
-    await registryServer(),
-    await createService('echoService', (payload) => payload),
+    () => registryServer(),
+    () => createService('echoService', (payload) => payload),
     async () => {
       const promises = []
       for (let i = 0; i < 50; i++) {
@@ -323,7 +323,7 @@ export async function testConcurrentServiceCalls() {
  */
 export async function testConcurrentServiceRegistrations() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       const promises = []
       for (let i = 0; i < 10; i++) {
@@ -359,7 +359,7 @@ export async function testConcurrentServiceRegistrations() {
  */
 export async function testConcurrentRouteRegistrations() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       const promises = []
       for (let i = 0; i < 10; i++) {
@@ -400,8 +400,8 @@ export async function testConcurrentRouteRegistrations() {
  */
 export async function testUnicodePayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('unicodeService', (payload) => payload),
+    () => registryServer(),
+    () => createService('unicodeService', (payload) => payload),
     async () => {
       const unicodeData = {
         emoji: '🚀💡🎉',
@@ -427,8 +427,8 @@ export async function testUnicodePayload() {
  */
 export async function testDeeplyNestedPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('deepService', (payload) => payload),
+    () => registryServer(),
+    () => createService('deepService', (payload) => payload),
     async () => {
       let nested = { value: 'bottom' }
       for (let i = 0; i < 20; i++) {

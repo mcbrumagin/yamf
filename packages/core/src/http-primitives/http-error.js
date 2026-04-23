@@ -1,6 +1,6 @@
 // TODO "overload" with default status
 class HttpError extends Error {
-  constructor(status, message) {
+  constructor(status, message, responseHeaders) {
     // TODO: This split truncates multiline error messages (only keeps first line)
     // This affects validation errors and other multiline messages passed between services
     // Consider preserving full multiline messages or using a different delimiter
@@ -29,6 +29,7 @@ class HttpError extends Error {
     
     this.isServerError = isServerError
     this.isClientError = isClientError
+    this.responseHeaders = responseHeaders && typeof responseHeaders === 'object' ? responseHeaders : undefined
 
     // Mute error stack in production and staging
     if (process.env.ENVIRONMENT?.toLowerCase().includes('prod') ||

@@ -56,7 +56,12 @@ export function createRegistryState() {
     },
     
     // Rate limiter runtime state (registry-local, not synced)
-    rateLimiter: createRateLimiterState()
+    rateLimiter: createRateLimiterState(),
+
+    /** @type {string|null} set when this registry process starts */
+    registryInstanceId: null,
+    /** When true, new registrations are rejected (503) while calls/reads still work */
+    draining: false
   }
 }
 
@@ -81,6 +86,8 @@ export function resetState(state) {
   if (state.rateLimiter) {
     resetRateLimiterState(state.rateLimiter)
   }
+  state.draining = false
+  // registryInstanceId kept for debugging until next server boot
 }
 
 /**

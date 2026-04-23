@@ -29,10 +29,10 @@ const logger = new Logger()
  */
 export async function testRoundRobinTwoInstances() {
   await terminateAfter(
-    await registryServer(),
-    await createService('balancedService', () => ({ instance: 1 })),
-    unregisterLocalService('balancedService'), // force unregister to simulate a different node
-    await createService('balancedService', () => ({ instance: 2 })),
+    () => registryServer(),
+    () => createService('balancedService', () => ({ instance: 1 })),
+    () => unregisterLocalService('balancedService'), () => // force unregister to simulate a different node
+    createService('balancedService', () => ({ instance: 2 })),
     async () => {
       const results = []
       for (let i = 0; i < 10; i++) {
@@ -56,12 +56,12 @@ export async function testRoundRobinTwoInstances() {
  */
 export async function testRoundRobinThreeInstances() {
   await terminateAfter(
-    await registryServer(),
-    await createService('tripleService', () => ({ instance: 'A' })),
-    unregisterLocalService('tripleService'), // force unregister to simulate a different node
-    await createService('tripleService', () => ({ instance: 'B' })),
-    unregisterLocalService('tripleService'), // force unregister to simulate a different node
-    await createService('tripleService', () => ({ instance: 'C' })),
+    () => registryServer(),
+    () => createService('tripleService', () => ({ instance: 'A' })),
+    () => unregisterLocalService('tripleService'), () => // force unregister to simulate a different node
+    createService('tripleService', () => ({ instance: 'B' })),
+    () => unregisterLocalService('tripleService'), () => // force unregister to simulate a different node
+    createService('tripleService', () => ({ instance: 'C' })),
     async () => {
       const results = []
       for (let i = 0; i < 15; i++) {
@@ -87,10 +87,10 @@ export async function testRoundRobinThreeInstances() {
  */
 export async function testLoadBalancingSequence() {
   await terminateAfter(
-    await registryServer(),
-    await createService('sequenceService', () => ({ id: 'first' })),
-    unregisterLocalService('sequenceService'), // force unregister to simulate a different node
-    await createService('sequenceService', () => ({ id: 'second' })),
+    () => registryServer(),
+    () => createService('sequenceService', () => ({ id: 'first' })),
+    () => unregisterLocalService('sequenceService'), () => // force unregister to simulate a different node
+    createService('sequenceService', () => ({ id: 'second' })),
     async () => {
       const results = []
       for (let i = 0; i < 6; i++) {
@@ -123,9 +123,9 @@ export async function testLoadBalancingSequence() {
  */
 export async function testAddInstanceDynamically() {
   await terminateAfter(
-    await registryServer(),
-    // Initially only 1 instance
-    await createService('dynamicService', () => ({ instance: 1 })),
+    () => registryServer(),
+    () => // Initially only 1 instance
+    createService('dynamicService', () => ({ instance: 1 })),
     async () => {
       let service2
       try {
@@ -162,7 +162,7 @@ export async function testAddInstanceDynamically() {
  */
 export async function testRemoveInstanceDynamically() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       const service1 = await createService('shrinkingService', () => ({ instance: 1 }))
       unregisterLocalService('shrinkingService') // force unregister to simulate a different node
@@ -208,8 +208,8 @@ export async function testRemoveInstanceDynamically() {
  */
 export async function testSingleInstanceNoBalancing() {
   await terminateAfter(
-    await registryServer(),
-    await createService('soloService', () => ({ solo: true, timestamp: Date.now() })),
+    () => registryServer(),
+    () => createService('soloService', () => ({ solo: true, timestamp: Date.now() })),
     async () => {
       const results = []
       for (let i = 0; i < 5; i++) {
@@ -236,16 +236,16 @@ export async function testLoadBalancingWithFailingInstance() {
   let callCount2 = 0
   
   await terminateAfter(
-    await registryServer(),
-    await createService('partialFailService', () => {
+    () => registryServer(),
+    () => createService('partialFailService', () => {
       callCount1++
       if (callCount1 % 2 === 0) {
         throw new Error('Instance 1 error')
       }
       return { instance: 1, call: callCount1 }
     }),
-    unregisterLocalService('partialFailService'), // force unregister to simulate a different node
-    await createService('partialFailService', () => {
+    () => unregisterLocalService('partialFailService'), () => // force unregister to simulate a different node
+    createService('partialFailService', () => {
       callCount2++
       return { instance: 2, call: callCount2 }
     }),
@@ -276,13 +276,13 @@ export async function testLoadBalancingWithFailingInstance() {
  */
 export async function testLoadBalancingWithSlowInstance() {
   await terminateAfter(
-    await registryServer(),
-    await createService('slowService', async () => {
+    () => registryServer(),
+    () => createService('slowService', async () => {
       await new Promise(resolve => setTimeout(resolve, 200))
       return { instance: 'slow', duration: 200 }
     }),
-    unregisterLocalService('slowService'), // force unregister to simulate a different node
-    await createService('slowService', () => {
+    () => unregisterLocalService('slowService'), () => // force unregister to simulate a different node
+    createService('slowService', () => {
       return { instance: 'fast', duration: 0 }
     }),
     async () => {
@@ -321,10 +321,10 @@ export async function testLoadBalancingWithSlowInstance() {
  */
 export async function testLoadBalancingPayloadPreservation() {
   await terminateAfter(
-    await registryServer(),
-    await createService('payloadService', (payload) => ({ instance: 1, received: payload })),
-    unregisterLocalService('payloadService'), // force unregister to simulate a different node
-    await createService('payloadService', (payload) => ({ instance: 2, received: payload })),
+    () => registryServer(),
+    () => createService('payloadService', (payload) => ({ instance: 1, received: payload })),
+    () => unregisterLocalService('payloadService'), () => // force unregister to simulate a different node
+    createService('payloadService', (payload) => ({ instance: 2, received: payload })),
     async () => {
       const testPayloads = [
         { id: 1, data: 'first' },
@@ -353,15 +353,15 @@ export async function testLoadBalancingPayloadPreservation() {
  */
 export async function testLoadBalancingBinaryPayloads() {
   await terminateAfter(
-    await registryServer(),
-    await createService('binaryService', (payload) => {
+    () => registryServer(),
+    () => createService('binaryService', (payload) => {
       return Buffer.concat([
         Buffer.from([1]), // Instance marker
         Buffer.isBuffer(payload) ? payload : Buffer.from([])
       ])
     }),
-    unregisterLocalService('binaryService'), // force unregister to simulate a different node
-    await createService('binaryService', (payload) => {
+    () => unregisterLocalService('binaryService'), () => // force unregister to simulate a different node
+    createService('binaryService', (payload) => {
       return Buffer.concat([
         Buffer.from([2]), // Instance marker
         Buffer.isBuffer(payload) ? payload : Buffer.from([])
@@ -394,12 +394,12 @@ export async function testLoadBalancingBinaryPayloads() {
  */
 export async function testHighConcurrentLoad() {
   await terminateAfter(
-    await registryServer(),
-    await createService('highLoadService', () => ({ instance: 1 })),
-    unregisterLocalService('highLoadService'), // force unregister to simulate a different node
-    await createService('highLoadService', () => ({ instance: 2 })),
-    unregisterLocalService('highLoadService'), // force unregister to simulate a different node
-    await createService('highLoadService', () => ({ instance: 3 })),
+    () => registryServer(),
+    () => createService('highLoadService', () => ({ instance: 1 })),
+    () => unregisterLocalService('highLoadService'), () => // force unregister to simulate a different node
+    createService('highLoadService', () => ({ instance: 2 })),
+    () => unregisterLocalService('highLoadService'), () => // force unregister to simulate a different node
+    createService('highLoadService', () => ({ instance: 3 })),
     async () => {
       const promises = []
       for (let i = 0; i < 90; i++) {
@@ -427,10 +427,10 @@ export async function testHighConcurrentLoad() {
  */
 export async function testLoadBalancingDistributionOverTime() {
   await terminateAfter(
-    await registryServer(),
-    await createService('distributionService', () => ({ instance: 'A' })),
-    unregisterLocalService('distributionService'), // force unregister to simulate a different node
-    await createService('distributionService', () => ({ instance: 'B' })),
+    () => registryServer(),
+    () => createService('distributionService', () => ({ instance: 'A' })),
+    () => unregisterLocalService('distributionService'), () => // force unregister to simulate a different node
+    createService('distributionService', () => ({ instance: 'B' })),
     async () => {
       // Make calls in batches with delays
       const batch1 = []
@@ -467,8 +467,8 @@ export async function testLoadBalancingDistributionOverTime() {
 export async function testNoLoadBalancingWhenCreatingMultipleRoutesSameService() {
   let serviceFn = function routeService() { return { instance: 1 } }
   await terminateAfter(
-    await registryServer(),
-    await createRoutes({
+    () => registryServer(),
+    () => createRoutes({
       '/route1': serviceFn,
       '/route2': serviceFn,
     }), async () => {

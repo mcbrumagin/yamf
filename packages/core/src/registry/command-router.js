@@ -34,6 +34,53 @@ import { serializeConfig } from '../rate-limiter/rate-limiter-config.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
 
+function assertNotDrainingForNewRegistrations(state) {
+  if (!state.draining) return
+  const drainMs = Number(envConfig.get('YAMF_DRAIN_MS', 3000))
+  const retryAfter = String(Math.ceil(drainMs / 1000) + 1)
+  throw new HttpError(503, 'Registry is draining; retry registration', { 'Retry-After': retryAfter })
+}
+
+/**
+ * Instruct this registry to reject new setup/register; used by a rolling replacement instance.
+ * Response includes {@link HEADERS#REGISTRY_INSTANCE_ID} for the drained peer.
+ */
+async function handleRegistryDrainRequest(state, request, response) {
+  const drainerId = request.headers[HEADERS.REGISTRY_INSTANCE_ID] || request.headers['yamf-registry-instance-id']
+  if (!drainerId) {
+    if (!response.writableEnded) {
+      response.writeHead(400, { 'content-type': 'text/plain' })
+      response.end('REGISTRY_DRAIN requires yamf-registry-instance-id')
+    }
+    return false
+  }
+  if (!state.registryInstanceId) {
+    if (!response.writableEnded) {
+      response.writeHead(500, { 'content-type': 'text/plain' })
+      response.end('REGISTRY instance id not assigned')
+    }
+    return false
+  }
+  if (drainerId === state.registryInstanceId) {
+    if (!response.writableEnded) {
+      response.writeHead(400, { 'content-type': 'text/plain' })
+      response.end('Cannot drain: instance id matches this registry')
+    }
+    return false
+  }
+  state.draining = true
+  logger.info(`Registry entering drain mode (drainer instance ${drainerId})`)
+  if (!response.writableEnded) {
+    const body = JSON.stringify({ draining: true, instanceId: state.registryInstanceId })
+    response.writeHead(200, {
+      'content-type': 'application/json',
+      [HEADERS.REGISTRY_INSTANCE_ID]: state.registryInstanceId
+    })
+    response.end(body)
+  }
+  return false
+}
+
 /**
  * Commands that require registry token validation
  */
@@ -52,8 +99,8 @@ const PROTECTED_COMMANDS = new Set([
 /**
  * Health check command
  */
-function handleHealthCheck() {
-  return { status: 'ready', timestamp: Date.now() }
+function handleHealthCheck(state) {
+  return { status: 'ready', timestamp: Date.now(), draining: !!state?.draining }
 }
 
 /**
@@ -102,6 +149,7 @@ function handleRegistryPull(state) {
  * Setup command - allocate port for new service
  */
 function handleSetup(state, payload, headers, defaultStartPort) {
+  assertNotDrainingForNewRegistrations(state)
   const { serviceName, serviceHome, rateLimitRequired } = parseCommandHeaders(headers)
   if (!serviceName) {
     throw new HttpError(400, 'SERVICE_SETUP requires yamf-service-name header')
@@ -143,6 +191,7 @@ async function handleRegister(state, payload, headers = {}) {
   
   // Header-based registration
   if (command === COMMANDS.SERVICE_REGISTER) {
+    assertNotDrainingForNewRegistrations(state)
     if (!serviceName) {
       throw new HttpError(400, 'SERVICE_REGISTER requires yamf-service-name header')
     }
@@ -314,13 +363,18 @@ async function routeCommandByHeaders(state, payload, request, response, options)
   
   logger.debug('command:', command)
 
+  if (command === COMMANDS.REGISTRY_DRAIN) {
+    validateRegistryToken(request)
+    return await handleRegistryDrainRequest(state, request, response)
+  }
+
   if (PROTECTED_COMMANDS.has(command)) {
     validateRegistryToken(request)
   }
   
   switch (command) {
     case COMMANDS.HEALTH:
-      return handleHealthCheck()
+      return handleHealthCheck(state)
     
     case COMMANDS.REGISTRY_PULL:
       return handleRegistryPull(state)

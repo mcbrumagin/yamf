@@ -28,7 +28,7 @@ const getRegistryToken = () => process.env.YAMF_REGISTRY_TOKEN
  */
 export async function testHealthCheckWithHeaders() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       const result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
@@ -49,7 +49,7 @@ export async function testHealthCheckWithHeaders() {
  */
 export async function testServiceSetupWithHeaders() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       const location = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: {
@@ -75,8 +75,8 @@ export async function testServiceSetupWithHeaders() {
  */
 export async function testServiceLookupWithHeaders() {
   await terminateAfter(
-    await registryServer(),
-    await createService('lookup-test', () => 'result'),
+    () => registryServer(),
+    () => createService('lookup-test', () => 'result'),
     async () => {
       const lookupResult = await httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: {
@@ -102,8 +102,8 @@ export async function testServiceLookupWithHeaders() {
  */
 export async function testServiceCallWithHeadersJson() {
   await terminateAfter(
-    await registryServer(),
-    await createService('echo', payload => payload),
+    () => registryServer(),
+    () => createService('echo', payload => payload),
     async () => {
       const result = await httpRequest(
         process.env.YAMF_REGISTRY_URL, {
@@ -130,8 +130,8 @@ export async function testServiceCallWithHeadersJson() {
  */
 export async function testServiceCallWithHeadersBinary() {
   await terminateAfter(
-    await registryServer(),
-    await createService('binaryEcho', payload => payload),
+    () => registryServer(),
+    () => createService('binaryEcho', payload => payload),
     async () => {
       const buffer = Buffer.from('binary test data')
       const result = await httpRequest(
@@ -164,7 +164,7 @@ export async function testServiceCallWithHeadersBinary() {
  */
 export async function testInvalidCommandHeader() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => assertErr(async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
         headers: { [HEADERS.COMMAND]: 'invalid-command-xyz' }
       }),
@@ -178,8 +178,8 @@ export async function testInvalidCommandHeader() {
  */
 export async function testMissingServiceNameForCall() {
   await terminateAfter(
-    await registryServer(),
-    await createService('test', () => 'result'),
+    () => registryServer(),
+    () => createService('test', () => 'result'),
     async () => assertErr(
       async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
         body: { data: 'test' },
@@ -199,7 +199,7 @@ export async function testMissingServiceNameForCall() {
  */
 export async function testMissingServiceNameForSetup() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => assertErr(async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
@@ -219,7 +219,7 @@ export async function testMissingServiceNameForSetup() {
  */
 export async function testMissingServiceLocationForRegister() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => assertErr(async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
@@ -239,7 +239,7 @@ export async function testMissingServiceLocationForRegister() {
  */
 export async function testCallNonExistentServiceWithHeaders() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     () => assertErr(async () => httpRequest(process.env.YAMF_REGISTRY_URL, {
         body: {},
         headers: {
@@ -262,11 +262,11 @@ export async function testCallNonExistentServiceWithHeaders() {
  */
 export async function testCommandHeaderPriorityOverRoutes() {
   await terminateAfter(
-    registryServer(),
-    createRoute('/priority-test', async function rightService() {
+    () => registryServer(),
+    () => createRoute('/priority-test', async function rightService() {
       return 'WRONG'
     }),
-    createService('headerCommandTest', (payload, request, response) => {
+    () => createService('headerCommandTest', (payload, request, response) => {
       return `CORRECT: ${request.url}`
     }),
     async () => assert(await httpRequest(
@@ -291,8 +291,8 @@ export async function testCommandHeaderPriorityOverRoutes() {
  */
 export async function testRoutesWithoutCommandHeaders() {
   await terminateAfter(
-    registryServer(),
-    createRoute('/no-headers', () => 'Success without headers'),
+    () => registryServer(),
+    () => createRoute('/no-headers', () => 'Success without headers'),
     () => assert(
       async () => fetch(`${process.env.YAMF_REGISTRY_URL}/no-headers`),
       // Plain fetch, no custom headers
@@ -307,8 +307,8 @@ export async function testRoutesWithoutCommandHeaders() {
  */
 export async function testCommandHeadersForNonRouteUrls() {
   await terminateAfter(
-    await registryServer(),
-    await createService('regularService', payload => `Got: ${payload.value}`),
+    () => registryServer(),
+    () => createService('regularService', payload => `Got: ${payload.value}`),
     async () => {
       // URL doesn't match a route, so command headers should work
       const result = await httpRequest(
@@ -337,8 +337,8 @@ export async function testCommandHeadersForNonRouteUrls() {
  */
 export async function testContentTypePreservation() {
   await terminateAfter(
-    await registryServer(),
-    await createService('typeEcho', payload => payload),
+    () => registryServer(),
+    () => createService('typeEcho', payload => payload),
     async () => {
       // Test 1: JSON
       const jsonResult = await httpRequest(
@@ -384,10 +384,10 @@ export async function testContentTypePreservation() {
  */
 export async function testPrimitiveTypePreservation() {
   await terminateAfter(
-    await registryServer(),
-    await createService('numberReturner', () => 42),
-    await createService('booleanReturner', () => true),
-    await createService('nullReturner', () => null),
+    () => registryServer(),
+    () => createService('numberReturner', () => 42),
+    () => createService('booleanReturner', () => true),
+    () => createService('nullReturner', () => null),
     async () => {
       const number = await httpRequest(
         process.env.YAMF_REGISTRY_URL, {
@@ -443,8 +443,8 @@ export async function testPrimitiveTypePreservation() {
  */
 export async function testPubSubSubscribeWithHeaders() {
   await terminateAfter(
-    await registryServer(),
-    await createService('subscriber', message => message),
+    () => registryServer(),
+    () => createService('subscriber', message => message),
     async (registry, service) => {
       const result = await httpRequest(
         process.env.YAMF_REGISTRY_URL, {
@@ -468,8 +468,8 @@ export async function testPubSubSubscribeWithHeaders() {
  */
 export async function testPubSubPublishWithHeaders() {
   await terminateAfter(
-    await registryServer(),
-    await createService('subscriber', message => ({ received: message })),
+    () => registryServer(),
+    () => createService('subscriber', message => ({ received: message })),
     async (registry, service) => {
       await httpRequest(
         process.env.YAMF_REGISTRY_URL, {
@@ -514,8 +514,8 @@ export async function testPubSubPublishWithHeaders() {
  */
 export async function testHeaderSizeLimit() {
   await terminateAfter(
-    await registryServer(),
-    await createService('headerTest', () => 'ok'),
+    () => registryServer(),
+    () => createService('headerTest', () => 'ok'),
     async () => {
       // Create a very large header value (>4KB)
       const largeValue = 'x'.repeat(5000)

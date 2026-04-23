@@ -357,8 +357,8 @@ async function createMockPostgresService(mockResponses = {}) {
 
 export async function testUserService_CreateWithPassword() {
   await terminateAfter(
-    await registryServer(),
-    await createMockPostgresService({
+    () => registryServer(),
+    () => createMockPostgresService({
       'CREATE TABLE': [],
       'ALTER TABLE': [],
       'INSERT INTO yamf.user': (data) => [{
@@ -375,7 +375,7 @@ export async function testUserService_CreateWithPassword() {
       const { default: createUserService } = await import('../service.js')
       
       await terminateAfter(
-        await createUserService(),
+        () => createUserService(),
         async () => {
           const result = await callService('user-service', {
             create: {
@@ -399,8 +399,8 @@ export async function testUserService_CreateWithPassword() {
 
 export async function testUserService_InvitePendingUser() {
   await terminateAfter(
-    await registryServer(),
-    await createMockPostgresService({
+    () => registryServer(),
+    () => createMockPostgresService({
       'CREATE TABLE': [],
       'ALTER TABLE': [],
       'INSERT INTO yamf.user': (data) => [{
@@ -416,7 +416,7 @@ export async function testUserService_InvitePendingUser() {
       const { default: createUserService } = await import('../service.js')
       
       await terminateAfter(
-        await createUserService(),
+        () => createUserService(),
         async () => {
           const result = await callService('user-service', {
             invite: {
@@ -442,8 +442,8 @@ export async function testUserService_InvitePendingUser() {
 
 export async function testUserService_GetUser() {
   await terminateAfter(
-    await registryServer(),
-    await createMockPostgresService({
+    () => registryServer(),
+    () => createMockPostgresService({
       'CREATE TABLE': [],
       'ALTER TABLE': [],
       'SELECT': () => [{
@@ -459,7 +459,7 @@ export async function testUserService_GetUser() {
       const { default: createUserService } = await import('../service.js')
       
       await terminateAfter(
-        await createUserService(),
+        () => createUserService(),
         async () => {
           const result = await callService('user-service', {
             get: { userId: 1 }
@@ -478,8 +478,8 @@ export async function testUserService_GetUser() {
 
 export async function testUserService_UpdateUser() {
   await terminateAfter(
-    await registryServer(),
-    await createMockPostgresService({
+    () => registryServer(),
+    () => createMockPostgresService({
       'CREATE TABLE': [],
       'ALTER TABLE': [],
       'UPDATE yamf.user': (data) => [{
@@ -495,7 +495,7 @@ export async function testUserService_UpdateUser() {
       const { default: createUserService } = await import('../service.js')
       
       await terminateAfter(
-        await createUserService(),
+        () => createUserService(),
         async () => {
           const result = await callService('user-service', {
             update: { userId: 1, isActive: false }
@@ -514,8 +514,8 @@ export async function testUserService_UpdateUser() {
 
 export async function testUserService_VerifyUser() {
   await terminateAfter(
-    await registryServer(),
-    await createMockPostgresService({
+    () => registryServer(),
+    () => createMockPostgresService({
       'CREATE TABLE': [],
       'ALTER TABLE': [],
       'UPDATE yamf.user': (data) => [{
@@ -537,7 +537,7 @@ export async function testUserService_VerifyUser() {
       const { default: createUserService } = await import('../service.js')
       
       await terminateAfter(
-        await createUserService(),
+        () => createUserService(),
         async () => {
           const result = await callService('user-service', {
             verify: { userId: 1 }
@@ -556,8 +556,8 @@ export async function testUserService_VerifyUser() {
 
 export async function testUserService_ValidationError() {
   await terminateAfter(
-    await registryServer(),
-    await createMockPostgresService({
+    () => registryServer(),
+    () => createMockPostgresService({
       'CREATE TABLE': [],
       'ALTER TABLE': []
     }),
@@ -565,7 +565,7 @@ export async function testUserService_ValidationError() {
       const { default: createUserService } = await import('../service.js')
       
       await terminateAfter(
-        await createUserService(),
+        () => createUserService(),
         async () => {
           await assertErr(
             async () => callService('user-service', {

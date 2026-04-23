@@ -40,7 +40,11 @@ export const HEADERS = {
 
   // Service type and timeout (for SSE, future WebSocket, etc.)
   SERVICE_TYPE: 'yamf-service-type',   // 'standard', 'sse', etc.
-  TIMEOUT: 'yamf-timeout'             // Per-service timeout in ms (0 = no timeout)
+  TIMEOUT: 'yamf-timeout',            // Per-service timeout in ms (0 = no timeout)
+
+  // Rolling registry
+  REGISTRY_INSTANCE_ID: 'yamf-registry-instance-id',
+  SHUTDOWN_REASON: 'yamf-shutdown-reason'
 }
 
 /**
@@ -73,7 +77,11 @@ export const COMMANDS = {
   AUTH_LOGOUT: 'auth-logout',
 
   // Service
-  CACHE_UPDATE: 'cache-update'
+  CACHE_UPDATE: 'cache-update',
+  SERVICE_SHUTDOWN: 'service-shutdown',
+
+  // Registry rolling handoff
+  REGISTRY_DRAIN: 'registry-drain'
 }
 
 /**
@@ -237,6 +245,19 @@ export function buildCacheUpdateHeaders(pubsubChannel, serviceName, location, re
     [HEADERS.SERVICE_LOCATION]: location,
     ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
     ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) })
+  }
+}
+
+/**
+ * Build headers for registry-issued graceful shutdown to a service HTTP endpoint
+ */
+export function buildShutdownHeaders(serviceName, location, registryToken, reason = 'registry-broadcast') {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.SERVICE_SHUTDOWN,
+    [HEADERS.SERVICE_NAME]: serviceName,
+    [HEADERS.SERVICE_LOCATION]: location,
+    [HEADERS.SHUTDOWN_REASON]: String(reason),
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
   }
 }
 

@@ -56,8 +56,8 @@ export async function testBasicStaticFileServiceWorkingDir() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         fileMap: 'package.json'
       }),
       async () => {
@@ -79,8 +79,8 @@ export async function testBasicStaticFileServiceExternalTempDir() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: 'index.html',
@@ -105,8 +105,8 @@ export async function testStaticFileWithMultipleRoutes() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: {
@@ -135,8 +135,8 @@ export async function testStaticFileWithWildcardMapping() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: {
@@ -165,8 +165,8 @@ export async function testStaticFileCatchAllFallback() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: {
@@ -200,8 +200,8 @@ export async function testStaticFileNotFound() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: 'index.html',
@@ -223,7 +223,7 @@ export async function testStaticFileWithCustomResolver() {
   
   try {
     await terminateAfter(
-      registryServer(),
+      () => registryServer(),
       createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
@@ -242,7 +242,7 @@ export async function testStaticFileWithCustomResolver() {
 
 export async function testStaticFileInvalidRootDir() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => assertErr(async () => createStaticFileService({
         rootDir: '/nonexistent/directory/path',
         fileMap: 'index.html',
@@ -258,8 +258,8 @@ export async function testStaticFileUrlSanitization() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: 'index.html',
@@ -286,8 +286,8 @@ export async function testStaticFileWithDefaultRequestUrl() {
   const tempDir = await createTempTestFiles()
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: 'index.html',
@@ -312,8 +312,8 @@ export async function testStaticFileResponseHeaders() {
   const tempDir = await createTempTestFiles()
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: 'index.html',
@@ -344,8 +344,8 @@ export async function testStaticFileDirectoryTreePopulation() {
   const tempDir = await createTempTestFiles()
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: {
@@ -374,8 +374,8 @@ export async function testStaticFileRangeHeaderAdvertisement() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: { '/audio.mp3': 'test.mp3' },
@@ -414,8 +414,8 @@ export async function testStaticFileRangeRequest() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: { '/audio.mp3': 'test.mp3' },
@@ -463,8 +463,8 @@ export async function testStaticFileInvalidRangeRequest() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: { '/audio.mp3': 'test.mp3' },
@@ -502,8 +502,8 @@ export async function testStaticFileRangeWithIfRange() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: { '/audio.mp3': 'test.mp3' },
@@ -567,8 +567,8 @@ export async function testStaticFileOpenEndedRangeRequest() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createStaticFileService({
+      () => registryServer(),
+      () => createStaticFileService({
         rootDir: tempDir,
         urlRoot: '/',
         fileMap: { '/audio.mp3': 'test.mp3' },

@@ -12,6 +12,7 @@ import { createGatewayState, resetState } from './gateway-state.js'
 import { routeCommand } from './command-router.js'
 import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
 import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 
 const logger = new Logger({ logGroup: 'yamf-gateway' })
 
@@ -165,7 +166,8 @@ export default async function createGatewayServer(port, options = {}) {
       const status = err.status || 500
       
       if (!response.writableEnded) {
-        response.writeHead(status, { 'content-type': 'text/plain' })
+        const extra = err.responseHeaders && typeof err.responseHeaders === 'object' ? err.responseHeaders : {}
+        response.writeHead(status, { 'content-type': 'text/plain', ...extra })
         response.end(err.stack || err.message)
       }
     }
@@ -173,15 +175,17 @@ export default async function createGatewayServer(port, options = {}) {
   
   // Override terminate to clean up state and handlers
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runGatewayShutdown = async () => {
     logger.info('Gateway shutting down')
-    
-    // Remove global error handlers
     process.off('unhandledRejection', unhandledRejectionHandler)
     process.off('uncaughtException', uncaughtExceptionHandler)
-    
     resetState(state)
     await httpServerTerminate()
+  }
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runGatewayShutdown, { priority: 0 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runGatewayShutdown()
   }
   
   server.isGateway = true

@@ -16,6 +16,7 @@ import envConfig from '../shared/env-config.js'
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
 import { buildEnhancedContext, updateContext, bindServiceFunction } from '../service/service-context.js'
 import { createCacheAwareHandler } from '../service/cache-handler.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 import { validateServiceName } from '../service/service-validator.js'
 import { createServiceBatch } from '../service/service-batch.js'
 import { buildContract } from '../service/service-contract.js'
@@ -42,7 +43,7 @@ const logger = new Logger({ logGroup: 'yamf-api' })
  */
 const DEFAULT_CONFIG = {
   tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
-  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 20),
+  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 100),
   muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false),
   sharedCache: null, // Optional pre-created cache for batch operations
   streamPayload: false, // If true, don't buffer request body - pass raw stream to handler
@@ -143,7 +144,8 @@ export default async function createService(name, serviceFn, options = {}) {
   // Register in local state for direct calls (with HTTP server)
   registerLocalService(name, boundServiceFn, config.accessControl)
 
-  const handler = createCacheAwareHandler(boundServiceFn, cache, context)
+  const shutdownTerminateRef = { terminate: null }
+  const handler = createCacheAwareHandler(boundServiceFn, cache, context, { shutdownTerminateRef })
 
   // override handler name
   Object.defineProperty(handler, 'name', { value: name, writable: false })
@@ -252,17 +254,24 @@ export default async function createService(name, serviceFn, options = {}) {
 
   // override terminate to gracefully unregister
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runServiceShutdown = async () => {
     unregisterLocalService(name)
     removeFromCache(cache, { service: name, location })
-    await unregisterServiceFromRegistry(name, location)
+    try {
+      await unregisterServiceFromRegistry(name, location)
+    } catch (err) {
+      if (err.code !== 'ECONNREFUSED' && err.code !== 'ECONNRESET' && err.code !== 'ENOTFOUND') {
+        throw err
+      }
+    }
     await httpServerTerminate()
   }
-
-  process.once('SIGTERM', async () => {
-    logger.debug('SIGTERM received for service', name)
-    await server.terminate()
-  })
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runServiceShutdown, { priority: 10 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runServiceShutdown()
+  }
+  shutdownTerminateRef.terminate = () => server.terminate()
 
   return server
 }

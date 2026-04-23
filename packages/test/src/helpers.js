@@ -4,36 +4,81 @@ const logger = new Logger()
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-export async function terminateAfter(...args /* ...serverFns, testFn */) {
-  args.unshift(args.pop()) // rearrange for spread
-  let [testFn, ...serverFns] = args
-  if (typeof testFn !== 'function') throw new Error('terminateAfter last argument must be a function')
-  
-  let servers = []
+function isThenable (x) {
+  return x != null && typeof x.then === 'function'
+}
+
+/**
+ * Start servers, run the test, then terminate in a safe order (non-registry first, registry last).
+ *
+ * **Evaluation order (JavaScript):** `terminateAfter(() => registry(), () => create(), testFn)` *starts* all
+ * async tasks while building the argument list, before `terminateAfter` runs—so a later `createRoute()`
+ * can hit the registry before it is listening. **Pass thunks (zero-arg functions) so work starts
+ * in sequence** inside this helper, e.g. `terminateAfter(() => registryServer(), () => createService('x', fn), testFn)`.
+ * You can still pass an already-started Promise (a thenable) for legacy tests.
+ *
+ * - Each server item is either: a **thenable** (awaited as-is), or a **function** (called with no
+ *   args; the return is awaited, then optional array flattening applies as below).
+ * - A single `Promise.all([...])` can be one argument: `() => Promise.all([...])` as a thunk, or
+ *   pass the Promise if you need legacy parallel start.
+ *
+ * @param  {...(Promise<unknown> | (() => unknown) | unknown | unknown[])} serverFns
+ *   Each item may be a thenable, a no-arg factory, a value, or (after await) a non-empty `Array` of
+ *   server-like objects.
+ * @param {Function} testFn
+ */
+export async function terminateAfter(...args) {
+  const testFn = args[args.length - 1]
+  const serverInputs = args.slice(0, -1)
+  if (typeof testFn !== 'function') {
+    throw new Error('terminateAfter last argument must be a function')
+  }
+
+  const flatServers = []
   try {
-    servers = await Promise.all(serverFns)
-    for (let server of servers) {
-      if (server && server.length > 0) {
-        let index = servers.indexOf(server)
-        servers.splice(index, 1)
-        servers.push(...server)
+    for (const item of serverInputs) {
+      let toAwait
+      if (isThenable(item)) {
+        toAwait = item
+      } else if (typeof item === 'function') {
+        const out = item()
+        toAwait = isThenable(out) ? out : Promise.resolve(out)
+      } else {
+        toAwait = Promise.resolve(item)
+      }
+      const resolved = await toAwait
+      if (Array.isArray(resolved) && resolved.length > 0) {
+        for (const s of resolved) {
+          flatServers.push(s)
+        }
+      } else {
+        flatServers.push(resolved)
       }
     }
-
-    let result = await testFn(...servers)
-    return result
+    return await testFn(...flatServers)
   } finally {
-    let registryIndex = servers.findIndex(s => s.isRegistry)
+    const registryIndex = flatServers.findIndex(s => s && s.isRegistry)
     if (registryIndex > -1) {
-      let registryServer = servers[registryIndex]
-      servers = servers.slice(0, registryIndex).concat(servers.slice(registryIndex + 1))
-      for (let server of servers) {
-        await server?.terminate()
-        logger.info(`terminated server ${server?.name} at port ${server?.port}`)
+      const registryServer_ = flatServers[registryIndex]
+      const otherServers = flatServers.filter((_, i) => i !== registryIndex)
+      for (const server of otherServers) {
+        if (!server) {
+          continue
+        }
+        await server.terminate()
+        logger.info(`terminated server ${server.name} at port ${server.port}`)
       }
-      await registryServer?.terminate()
-      logger.info(`terminated registry server at port ${registryServer?.port}`)
-    } else for (let server of servers) await server?.terminate()
+      await registryServer_?.terminate()
+      logger.info(`terminated registry server at port ${registryServer_?.port}`)
+    } else {
+      for (const server of flatServers) {
+        if (!server) {
+          continue
+        }
+        await server.terminate()
+        logger.info(`terminated server ${server.name} at port ${server.port}`)
+      }
+    }
   }
 }
 

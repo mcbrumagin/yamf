@@ -31,8 +31,8 @@ const logger = new Logger()
  */
 export async function testEventSourceServiceCreation() {
   await terminateAfter(
-    registryServer(),
-    await createEventSourceService('test-sse', {
+    () => registryServer(),
+    () => createEventSourceService('test-sse', {
       onConnect: async (client) => {
         client.send('welcome', { message: 'hello' })
       }
@@ -57,8 +57,8 @@ export async function testEventSourceServiceCreation() {
  */
 export async function testEventSourceClientConnection() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('connect-sse', {
+    () => registryServer(),
+    () => createEventSourceService('connect-sse', {
       onConnect: async (client) => {
         client.send('greeting', { text: 'welcome' })
       }
@@ -100,8 +100,8 @@ export async function testEventSourceClientConnection() {
  */
 export async function testEventSourceBroadcast() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('broadcast-sse', {}, { accessControl: 'private' }),
+    () => registryServer(),
+    () => createEventSourceService('broadcast-sse', {}, { accessControl: 'private' }),
     async (registry, service) => {
 
       // Connect two clients
@@ -141,8 +141,8 @@ export async function testEventSourceBroadcast() {
  */
 export async function testEventSourceSendTo() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('sendto-sse', {}, { accessControl: 'private' }),
+    () => registryServer(),
+    () => createEventSourceService('sendto-sse', {}, { accessControl: 'private' }),
     async (registry, service) => {
 
       const client1Events = []
@@ -180,8 +180,8 @@ export async function testEventSourceSendTo() {
 
 export async function testIsomorphicClientSubscribeToEventSourceService() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('sendto-sse', {}, { accessControl: 'private' }),
+    () => registryServer(),
+    () => createEventSourceService('sendto-sse', {}, { accessControl: 'private' }),
     async (registry, service) => {
 
       const events = []
@@ -207,8 +207,8 @@ export async function testIsomorphicClientSubscribeToEventSourceService() {
 
 export async function testIsomorphicClientSubscribeToEventSourceServiceMap() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('sendto-sse', {}, { accessControl: 'private' }),
+    () => registryServer(),
+    () => createEventSourceService('sendto-sse', {}, { accessControl: 'private' }),
     async (registry, service) => {
 
       const events = []
@@ -244,8 +244,8 @@ export async function testIsomorphicClientSubscribeToEventSourceServiceMap() {
 export async function testEventSourceOnDisconnect() {
   const disconnected = []
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('disconnect-sse', {
+    () => registryServer(),
+    () => createEventSourceService('disconnect-sse', {
       onDisconnect: async (clientId) => {
         disconnected.push(clientId)
       }
@@ -279,8 +279,8 @@ export async function testEventSourceOnDisconnect() {
 
 export async function testEventSourcePubsubForwarding() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('pubsub-sse', {
+    () => registryServer(),
+    () => createEventSourceService('pubsub-sse', {
       channels: {
         'item:created': (data, clients) => {
           clients.forEach(c => c.send('item-created', data))
@@ -314,8 +314,8 @@ export async function testEventSourcePubsubForwarding() {
  */
 export async function testEventSourceNonEventStreamRequest() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('info-sse', {}, { accessControl: 'private' }),
+    () => registryServer(),
+    () => createEventSourceService('info-sse', {}, { accessControl: 'private' }),
     async (registry, service) => {
       // Make a normal POST request (not EventSource)
       const result = await new Promise((resolve, reject) => {
@@ -352,7 +352,7 @@ export async function testEventSourceNonEventStreamRequest() {
  */
 export async function testEventSourceRejectsPureAccessControl() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       await assertErr(
         () => createEventSourceService('pure-sse', {}, { accessControl: 'pure' }),
@@ -372,8 +372,8 @@ export async function testEventSourceRejectsPureAccessControl() {
  */
 export async function testEventSourceContextRebuildPreservesConnections() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('ctx-sse', {}, { accessControl: 'private' }),
+    () => registryServer(),
+    () => createEventSourceService('ctx-sse', {}, { accessControl: 'private' }),
     async (registry, service) => {
 
       // Connect a client
@@ -385,7 +385,7 @@ export async function testEventSourceContextRebuildPreservesConnections() {
 
       // Register a new service -- this triggers a cache update and context rebuild
       await terminateAfter(
-        await createService('helper-for-ctx-test', async () => ({ ok: true })),
+        () => createService('helper-for-ctx-test', async () => ({ ok: true })),
         async () => {
           await sleep(100)
 
@@ -412,8 +412,8 @@ export async function testEventSourceContextRebuildPreservesConnections() {
  */
 export async function testEventSourceGracefulTermination() {
   await terminateAfter(
-    await registryServer(),
-    await createEventSourceService('term-sse', {}, { accessControl: 'private' }),
+    () => registryServer(),
+    () => createEventSourceService('term-sse', {}, { accessControl: 'private' }),
     async (registry, service) => {
       const events = []
       const client = await subscribeToEventSource(service.location, event => events.push(event))

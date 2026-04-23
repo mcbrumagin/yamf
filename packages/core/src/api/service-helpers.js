@@ -19,7 +19,7 @@ const logger = new Logger({ logGroup: 'yamf-service-helpers' })
  */
 const DEFAULT_RETRY_CONFIG = {
   tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
-  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 20),
+  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 100),
   muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false)
 }
 
@@ -206,7 +206,7 @@ export async function createServiceHttpServer(port, handler, options = {}) {
  * @param {Object} options - Configuration options
  * @returns {Promise<Object>} Service instance with { name, location, port, server, registryData }
  */
-const serviceRegistrationRetryLimit = envConfig.get('YAMF_REGISTRATION_RETRY_LIMIT', 50)
+const serviceRegistrationRetryLimit = envConfig.get('YAMF_REGISTRATION_RETRY_LIMIT', 120)
 export async function createAndRegisterService(serviceName, handler, options = {}, retryInfo) {
   validateServiceName(serviceName)
   

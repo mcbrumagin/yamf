@@ -21,8 +21,8 @@ const logger = new Logger()
 
 export async function testBasicRoute() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/hello', async function helloService() {
+    () => registryServer(),
+    () => createRoute('/hello', async function helloService() {
       return 'Hello World!'
     }),
     async () => {
@@ -38,8 +38,8 @@ export async function testBasicRoute() {
 
 export async function testRouteWithService() {
   await terminateAfter(
-    await registryServer(),
-    await createService('greetingService', function greetingService(payload) {
+    () => registryServer(),
+    () => createService('greetingService', function greetingService(payload) {
       return `Hello ${payload.name || 'World'}!`
     }),
     async () => {
@@ -58,9 +58,9 @@ export async function testRouteWithServiceThroughGateway() {
   await withEnv({
     YAMF_GATEWAY_URL: 'http://localhost:15000'
   }, async () => await terminateAfter(
-    await registryServer(),
-    await gatewayServer(),
-    await createService('greetingService', function greetingService(payload) {
+    () => registryServer(),
+    () => gatewayServer(),
+    () => createService('greetingService', function greetingService(payload) {
       return `Hello ${payload.name || 'World'}!`
     }),
     async () => {
@@ -76,11 +76,11 @@ export async function testRouteWithServiceThroughGateway() {
 
 export async function testRouteBulkCreate() {
   await terminateAfter(
-    await registryServer(),
-    await createService('greetingService', function greetingService(payload) {
+    () => registryServer(),
+    () => createService('greetingService', function greetingService(payload) {
       return `Hello ${payload.name || 'World'}!`
     }),
-    await createService('greetingService2', function greetingService2(payload) {
+    () => createService('greetingService2', function greetingService2(payload) {
       return `Well g'day then, ${payload.name || 'World'}!`
     }),
     async () => {
@@ -114,8 +114,8 @@ export async function testRouteBulkCreate() {
 
 export async function testRouteInlineServiceCreation() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/greet', function greetingService(payload) {
+    () => registryServer(),
+    () => createRoute('/greet', function greetingService(payload) {
       return `Hello ${payload.name || 'World'}!`
     }),
     async () => {
@@ -127,8 +127,8 @@ export async function testRouteInlineServiceCreation() {
 
 export async function testRouteControllerWildcard() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/*', async function apiController(payload, request) {
+    () => registryServer(),
+    () => createRoute('/api/*', async function apiController(payload, request) {
       return { path: request.url, message: 'API response' }
     }),
     async () => {
@@ -149,9 +149,9 @@ export async function testRouteControllerWildcardThroughGateway() {
   await withEnv({
     YAMF_GATEWAY_URL: 'http://localhost:15000'
   }, async () => await terminateAfter(
-    await registryServer(),
-    await gatewayServer(),
-    await createRoute('/api/*', async function apiController(payload, request) {
+    () => registryServer(),
+    () => gatewayServer(),
+    () => createRoute('/api/*', async function apiController(payload, request) {
       return { path: request.url, message: 'API response' }
     }),
     async () => {
@@ -169,8 +169,8 @@ export async function testRouteControllerWildcardThroughGateway() {
 
 export async function testRouteMissingService() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/broken', 'nonExistentService'),
+    () => registryServer(),
+    () => createRoute('/broken', 'nonExistentService'),
     async () => {
 
       await assertErr(
@@ -188,7 +188,7 @@ export async function testRouteMissingService() {
 
 export async function testRouteValidation() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       await assertErr(
         async () => createRoute('', 'someService'),

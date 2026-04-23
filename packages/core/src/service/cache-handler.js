@@ -10,6 +10,8 @@ import { HEADERS, COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.j
 import envConfig from '../shared/env-config.js'
 import Logger from '../utils/logger.js'
 import readStream from '../http-primitives/read-stream.js'
+import { validateRegistryToken as validateRegistryTokenOrThrow403 } from '../registry/registry-auth.js'
+import HttpError from '../http-primitives/http-error.js'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
@@ -30,6 +32,15 @@ export function isCacheUpdateRequest(request) {
 }
 
 /**
+ * Registry-issued graceful shutdown to this service
+ */
+export function isServiceShutdownRequest(request) {
+  if (!request?.headers) return false
+  const { command } = parseCommandHeaders(request.headers)
+  return command === COMMANDS.SERVICE_SHUTDOWN
+}
+
+/**
  * Check if request is a subscription message from registry
  * Uses yamf headers to identify pubsub subscription messages
  * 
@@ -45,13 +56,11 @@ export function isSubscriptionMessage(request) {
   return command === COMMANDS.PUBSUB_PUBLISH
 }
 
-function validateRegistryToken(request) {
+function validateCacheMessageRegistryToken(request) {
   const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   if (!registryToken) {
-    // if no token is configured, skip validation
     return true
   }
-  
   const authHeader = request?.headers?.[HEADERS.REGISTRY_TOKEN]
   if (authHeader !== registryToken) {
     throw new Error('Unauthorized cache update attempt')
@@ -71,13 +80,37 @@ function validateRegistryToken(request) {
  * @param {Function} serviceFn - The actual service handler function
  * @param {Object} cache - Service cache object
  * @param {Object} context - Service execution context
+ * @param {Object} [serviceOptions]
+ * @param {{ terminate: () => void | Promise<void> } | { terminate: null }} [serviceOptions.shutdownTerminateRef] — set `.terminate` to `server.terminate` after the server is created
  * @returns {Function} Wrapped handler
  */
-export function createCacheAwareHandler(serviceFn, cache, context) {
+export function createCacheAwareHandler(serviceFn, cache, context, serviceOptions = {}) {
   return async function cacheAwareHandler(payload, request, response) {
+    if (isServiceShutdownRequest(request)) {
+      const ref = serviceOptions.shutdownTerminateRef
+      try {
+        validateRegistryTokenOrThrow403(request)
+      } catch (err) {
+        const e = new HttpError(401, 'Invalid or missing registry token for service shutdown')
+        e.stack = err.stack
+        throw e
+      }
+      if (typeof ref?.terminate !== 'function') {
+        throw new HttpError(500, 'Service shutdown not available')
+      }
+      response.writeHead(202)
+      response.end()
+      queueMicrotask(() => {
+        Promise.resolve()
+          .then(() => ref.terminate())
+          .catch((err) => { logger.debugErr('service-shutdown terminate:', err) })
+      })
+      return false
+    }
+
     // Check if this is a cache update from registry using yamf headers
     if (isCacheUpdateRequest(request)) {
-      validateRegistryToken(request)
+      validateCacheMessageRegistryToken(request)
       const { pubsubChannel, serviceName, accessControl, serviceLocation, contract } = parseCommandHeaders(request.headers)
       
       logger.debug('cacheAwareHandler - cache update request', { pubsubChannel, serviceName, serviceLocation })
@@ -105,7 +138,7 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
     
     // Check if this is a subscription message from registry
     if (isSubscriptionMessage(request)) {
-      validateRegistryToken(request)
+      validateCacheMessageRegistryToken(request)
       const { pubsubChannel } = parseCommandHeaders(request.headers)
       
       if (context._pubSubManager) {

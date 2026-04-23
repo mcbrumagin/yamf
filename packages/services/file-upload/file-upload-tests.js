@@ -83,8 +83,8 @@ export async function testBasicFileUpload() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file'
       }),
@@ -126,8 +126,8 @@ export async function testFileUploadWithTextFields() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         textFields: ['title', 'description']
@@ -164,8 +164,8 @@ export async function testFileUploadWithAllTextFields() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         textFields: [] // Empty array = capture all
@@ -202,8 +202,8 @@ export async function testFileUploadWithCustomFileName() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         textFields: ['userId'],
@@ -246,8 +246,8 @@ export async function testFileUploadWithMimeTypeValidation() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         validateFile: validators.mimeType(['text/plain', 'text/html'])
@@ -280,8 +280,8 @@ export async function testFileUploadWithExtensionValidation() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         validateFile: validators.extension(['.txt', '.md'])
@@ -314,8 +314,8 @@ export async function testFileUploadValidationFailure() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         validateFile: validators.extension(['.pdf', '.doc'])
@@ -346,8 +346,8 @@ export async function testFileUploadWithCombinedValidators() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         validateFile: validators.combine(
@@ -381,8 +381,8 @@ export async function testFileUploadNoFile() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file'
       }),
@@ -411,8 +411,8 @@ export async function testFileUploadListFiles() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file'
       }),
@@ -450,8 +450,8 @@ export async function testFileUploadCustomSuccessHandler() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         onSuccess: (data, req, res) => {
@@ -496,8 +496,8 @@ export async function testFileUploadCustomErrorHandler() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file',
         validateFile: validators.extension(['.pdf']),
@@ -541,8 +541,8 @@ export async function testLargeFileUpload() {
   
   try {
     await terminateAfter(
-      await registryServer(),
-      await createFileUploadService({
+      () => registryServer(),
+      () => createFileUploadService({
         uploadDir,
         fileFieldName: 'file'
       }),

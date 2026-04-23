@@ -15,6 +15,9 @@
 
 import Logger from '../utils/logger.js'
 import { COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
+import { validateRegistryToken } from '../registry/registry-auth.js'
+import HttpError from '../http-primitives/http-error.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 import { createPubSubManager } from '../service/pubsub-manager.js'
 import {
   createAndRegisterService,
@@ -153,6 +156,22 @@ export default async function createSubscriptionService(serviceName, channelOrMa
     serviceName,
     async function subscriptionServiceHandler(message, request, response) {
       const { command, pubsubChannel } = parseCommandHeaders(request.headers)
+
+      if (command === COMMANDS.SERVICE_SHUTDOWN) {
+        try {
+          validateRegistryToken(request)
+        } catch (err) {
+          throw new HttpError(401, 'Invalid or missing registry token for service shutdown')
+        }
+        response.writeHead(202)
+        response.end()
+        queueMicrotask(() => {
+          Promise.resolve()
+            .then(() => server.terminate())
+            .catch(() => {})
+        })
+        return false
+      }
       
       // Handle incoming subscription messages
       if (command === COMMANDS.PUBSUB_PUBLISH) {
@@ -207,28 +226,25 @@ export default async function createSubscriptionService(serviceName, channelOrMa
   
   // Override terminate to handle cleanup
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runSubShutdown = async () => {
     logger.debug(`Terminating subscription service: ${serviceName}`)
-    
-    // Cleanup local registration
     unregisterLocalService(serviceName)
-    
-    // Cleanup subscriptions first (unsubscribes from all channels)
     await pubSubManager.cleanup()
-    
-    // Unregister from registry
-    await unregisterServiceFromRegistry(serviceName, location)
-    
-    // Stop HTTP server
+    try {
+      await unregisterServiceFromRegistry(serviceName, location)
+    } catch (err) {
+      if (err.code !== 'ECONNREFUSED' && err.code !== 'ECONNRESET' && err.code !== 'ENOTFOUND') {
+        throw err
+      }
+    }
     await httpServerTerminate()
-    
     logger.info(`Subscription service "${serviceName}" terminated`)
   }
-
-  process.once('SIGTERM', async () => {
-    logger.debug('SIGTERM received for service', serviceName)
-    await server.terminate()
-  })
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runSubShutdown, { priority: 10 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runSubShutdown()
+  }
   
   return server
 }

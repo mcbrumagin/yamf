@@ -21,6 +21,7 @@ import { createPubSubManager } from '../service/pubsub-manager.js'
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
 import { buildEnhancedContext, updateContext, bindServiceFunction } from '../service/service-context.js'
 import { createCacheAwareHandler } from '../service/cache-handler.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 import {
   createAndRegisterService,
   unregisterServiceFromRegistry
@@ -209,7 +210,8 @@ export default async function createEventSourceService(serviceName, handlers = {
   Object.defineProperty(sseServiceHandler, 'name', { value: serviceName, writable: false })
 
   const boundHandler = bindServiceFunction(sseServiceHandler, context)
-  const cacheHandler = createCacheAwareHandler(boundHandler, cache, context)
+  const shutdownTerminateRef = { terminate: null }
+  const cacheHandler = createCacheAwareHandler(boundHandler, cache, context, { shutdownTerminateRef })
   Object.defineProperty(cacheHandler, 'name', { value: serviceName, writable: false })
 
   // Register in local state
@@ -328,7 +330,7 @@ export default async function createEventSourceService(serviceName, handlers = {
 
   // Override terminate for graceful cleanup
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runSseShutdown = async () => {
     logger.debug(`Terminating SSE service: ${serviceName}`)
 
     if (heartbeatTimer) {
@@ -336,30 +338,32 @@ export default async function createEventSourceService(serviceName, handlers = {
       heartbeatTimer = null
     }
 
-    // Close all client connections
     for (const [id, { client }] of clients) {
       client.close()
     }
     clients.clear()
 
     unregisterLocalService(serviceName)
-
     removeFromCache(cache, { service: serviceName, location })
-
     if (pubSubManager) {
       await pubSubManager.cleanup()
     }
-
-    await unregisterServiceFromRegistry(serviceName, location)
+    try {
+      await unregisterServiceFromRegistry(serviceName, location)
+    } catch (err) {
+      if (err.code !== 'ECONNREFUSED' && err.code !== 'ECONNRESET' && err.code !== 'ENOTFOUND') {
+        throw err
+      }
+    }
     await httpServerTerminate()
-
     logger.info(`SSE service "${serviceName}" terminated`)
   }
-
-  process.once('SIGTERM', async () => {
-    logger.debug('SIGTERM received for service', serviceName)
-    await server.terminate()
-  })
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runSseShutdown, { priority: 10 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runSseShutdown()
+  }
+  shutdownTerminateRef.terminate = () => server.terminate()
 
   return server
 }

@@ -34,8 +34,8 @@ const TEST_ADMIN_PASS = envConfig.getRequired('ADMIN_PASS')
  */
 export async function testAuthServiceWorks() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       // Test authentication
       const authResult = await callService('auth-service', {
@@ -95,8 +95,8 @@ export async function testCreateAuthServiceRejectsInvalidMaxSessions() {
  */
 export async function testCreateAuthServiceSanityCheckAllowsThrowingValidator() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService({
+    () => registryServer(),
+    () => createAuthService({
       validateUserPassword: async () => {
         throw new HttpError(401, 'Invalid credentials')
       }
@@ -117,8 +117,8 @@ export async function testCreateAuthServiceSanityCheckAllowsThrowingValidator() 
  */
 export async function testAuthServiceBadCredentials() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     // Test invalid credentials
     () => assertErr(async () => callService('auth-service', {
         authenticate: {
@@ -136,9 +136,9 @@ export async function testAuthServiceBadCredentials() {
  */
 export async function testProtectedServiceWithAuth() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
-    createService('protected-service', payload => {
+    () => registryServer(),
+    () => createAuthService(),
+    () => createService('protected-service', payload => {
       return { message: 'Protected data accessed', timestamp: Date.now() }
     }, { useAuthService: 'auth-service' }),
     async () => {
@@ -182,8 +182,8 @@ export async function testProtectedServiceWithAuth() {
  */
 export async function testUnprotectedServiceStillWorks() {
   await terminateAfter(
-    registryServer(),
-    createService('normal-service', payload => {
+    () => registryServer(),
+    () => createService('normal-service', payload => {
       return { message: 'Normal service works', data: payload }
     }),
     async () => {
@@ -203,9 +203,9 @@ export async function testUnprotectedServiceStillWorks() {
  */
 export async function testServiceRegistrationWithAuth() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
-    createService('protected-service', payload => {
+    () => registryServer(),
+    () => createAuthService(),
+    () => createService('protected-service', payload => {
       return { message: 'Protected data', user: payload.user }
     }, { useAuthService: 'auth-service' }),
     async (registry, authServer, protectedServer) => {
@@ -219,9 +219,9 @@ export async function testServiceRegistrationWithAuth() {
  */
 export async function testProtectedServiceCallWithValidToken() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
-    createService('protected-service', () => {
+    () => registryServer(),
+    () => createAuthService(),
+    () => createService('protected-service', () => {
       return { message: 'Protected data accessed', timestamp: Date.now() }
     }, { useAuthService: 'auth-service' }),
     async () => {
@@ -252,9 +252,9 @@ export async function testProtectedServiceCallWithValidToken() {
  */
 export async function testProtectedServiceCallWithoutToken() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
-    createService('protected-service', payload => {
+    () => registryServer(),
+    () => createAuthService(),
+    () => createService('protected-service', payload => {
       return { message: 'Should not reach here' }
     }, { useAuthService: 'auth-service' }),
     async () => {
@@ -275,9 +275,9 @@ export async function testProtectedServiceCallWithoutToken() {
  */
 export async function testProtectedServiceCallWithInvalidToken() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
-    createService('protected-service', payload => {
+    () => registryServer(),
+    () => createAuthService(),
+    () => createService('protected-service', payload => {
       return { message: 'Should not reach here' }
     }, { useAuthService: 'auth-service' }),
     async () => {
@@ -303,8 +303,8 @@ export async function testProtectedServiceCallWithInvalidToken() {
  */
 export async function testProtectedServiceCallWithExpiredToken() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       // Test that auth service rejects invalid/expired tokens
       await assertErr(
@@ -323,8 +323,8 @@ export async function testProtectedServiceCallWithExpiredToken() {
  */
 export async function testAuthServiceNotFound() {
   await terminateAfter(
-    registryServer(),
-    createService('protected-service', payload => {
+    () => registryServer(),
+    () => createService('protected-service', payload => {
       return { message: 'Should not reach here' }
     }, { useAuthService: 'nonexistent-auth-service' }),
     async () => {
@@ -350,8 +350,8 @@ export async function testAuthServiceNotFound() {
  */
 export async function testAuthLoginCommand() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
@@ -377,8 +377,8 @@ export async function testAuthLoginCommand() {
  */
 export async function testAuthRefreshCommand() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
@@ -428,9 +428,9 @@ export async function testAuthRefreshCommand() {
  */
 export async function testRouteWithAuth() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
-    createService('route-service', payload => {
+    () => registryServer(),
+    () => createAuthService(),
+    () => createService('route-service', payload => {
       return { message: 'Route accessed', url: payload.url }
     }, { useAuthService: 'auth-service' }),
     async () => {
@@ -477,9 +477,9 @@ export async function testRouteWithAuth() {
  */
 export async function testMultipleAuthServices() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
-    createService('custom-auth-service', payload => {
+    () => registryServer(),
+    () => createAuthService(),
+    () => createService('custom-auth-service', payload => {
       if (payload.verifyAccess) {
         // Simple custom auth - just check if token is 'custom-token'
         if (payload.verifyAccess === 'custom-token') {
@@ -490,10 +490,10 @@ export async function testMultipleAuthServices() {
       }
       throw new HttpError(400, 'Invalid payload')
     }),
-    createService('service1', payload => {
+    () => createService('service1', payload => {
       return { message: 'Service 1 accessed' }
     }, { useAuthService: 'auth-service' }),
-    createService('service2', payload => {
+    () => createService('service2', payload => {
       return { message: 'Service 2 accessed' }
     }, { useAuthService: 'custom-auth-service' }),
     async () => {
@@ -553,8 +553,8 @@ export async function testMultipleAuthServices() {
  */
 export async function testAuthServiceUnregistration() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       const protectedServer = await createService('protected-service', payload => {
         return { message: 'Protected data' }
@@ -577,8 +577,8 @@ export async function testAuthServiceUnregistration() {
  */
 export async function testAuthServiceWithSessions() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService({
+    () => registryServer(),
+    () => createAuthService({
       useSessions: true
     }),
     async () => {
@@ -611,8 +611,8 @@ export async function testAuthServiceWithSessions() {
  */
 export async function testAuthServiceWithRefreshOnlySessions() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService({
+    () => registryServer(),
+    () => createAuthService({
       useSessions: 'refresh-only'
     }),
     async () => {
@@ -645,8 +645,8 @@ export async function testAuthServiceWithRefreshOnlySessions() {
  */
 export async function testAuthServiceStateless() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService({
+    () => registryServer(),
+    () => createAuthService({
       useSessions: false
     }), // No sessions (stateless)
     async () => {
@@ -679,8 +679,8 @@ export async function testAuthServiceStateless() {
  */
 export async function testRefreshTokenFlow() {
   await terminateAfter(
-    await registryServer(),
-    await createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
@@ -735,8 +735,8 @@ export async function testRefreshTokenFlow() {
  */
 export async function testTokenExpirationDetection() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       // Create an expired token manually by manipulating the payload
       // We can't easily test actual expiration without waiting, so we verify
@@ -757,8 +757,8 @@ export async function testTokenExpirationDetection() {
  */
 export async function testForwardedHeaderCapture() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
@@ -797,8 +797,8 @@ export async function testForwardedHeaderCapture() {
  */
 export async function testXForwardedForHeader() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
@@ -835,8 +835,8 @@ export async function testXForwardedForHeader() {
  */
 export async function testSessionInvalidation() {
   await terminateAfter(
-    registryServer(),
-    createAuthService({
+    () => registryServer(),
+    () => createAuthService({
       useSessions: true
     }), // Enable sessions
     async () => {
@@ -877,8 +877,8 @@ export async function testSessionInvalidation() {
  */
 export async function testConcurrentAuthRequests() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       // Make multiple concurrent auth requests
       const promises = []
@@ -911,8 +911,8 @@ export async function testConcurrentAuthRequests() {
  */
 export async function testConcurrentTokenValidation() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       // Get a single token
       const authResult = await callService('auth-service', {
@@ -950,8 +950,8 @@ export async function testConcurrentTokenValidation() {
  */
 export async function testRefreshTokenWithSessions() {
   await terminateAfter(
-    registryServer(),
-    createAuthService({
+    () => registryServer(),
+    () => createAuthService({
       useSessions: true
     }), // Enable sessions
     async () => {
@@ -1006,8 +1006,8 @@ export async function testRefreshTokenWithSessions() {
  */
 export async function testInvalidRefreshToken() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
       
@@ -1032,8 +1032,8 @@ export async function testInvalidRefreshToken() {
  */
 export async function testMissingRefreshToken() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       // Try to refresh without providing cookie
       await assertErr(
@@ -1049,11 +1049,11 @@ export async function testMissingRefreshToken() {
  */
 export async function testProtectedServiceWithSessionAuth() {
   await terminateAfter(
-    registryServer(),
-    createAuthService({
+    () => registryServer(),
+    () => createAuthService({
       useSessions: true
-    }), // Enable sessions
-    await createService('protected-service', async function(payload) {
+    }), () => // Enable sessions
+    createService('protected-service', async function(payload) {
       return { message: 'Protected data', data: payload }
     }, { useAuthService: 'auth-service' }),
     async () => {
@@ -1088,8 +1088,8 @@ export async function testProtectedServiceWithSessionAuth() {
  */
 export async function testTokenBase64Encoding() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       // Get auth token
       const authResult = await callService('auth-service', {
@@ -1138,8 +1138,8 @@ export async function testTokenBase64Encoding() {
  */
 export async function testTokenPayloadStructure() {
   await terminateAfter(
-    registryServer(),
-    createAuthService(),
+    () => registryServer(),
+    () => createAuthService(),
     async () => {
       // Get auth token
       const authResult = await callService('auth-service', {

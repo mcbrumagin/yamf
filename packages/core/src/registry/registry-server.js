@@ -11,7 +11,9 @@ import envConfig from '../shared/env-config.js'
 import { createRegistryState, resetState } from './registry-state.js'
 import { routeCommand } from './command-router.js'
 import { validateRegistryEnvironment } from './registry-auth.js'
-import { preRegisterGatewayIfItExists } from './service-registry.js'
+import { preRegisterGatewayIfItExists, broadcastShutdown } from './service-registry.js'
+import { performRegistryDrainHandshake, assignRegistryInstanceId } from './registry-drain-handshake.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
 import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
 
@@ -41,8 +43,10 @@ const logger = new Logger({ logGroup: 'yamf-registry' })
  * })
  */
 export default async function createRegistryServer(port, options = {}) {
+  const { broadcastShutdownOnTerminate = true } = options
   validateRegistryEnvironment()
   const state = createRegistryState()
+  assignRegistryInstanceId(state)
   
   // Initialize rate limit configuration from options
   if (options.rateLimit) {
@@ -113,6 +117,8 @@ export default async function createRegistryServer(port, options = {}) {
 
   // Separately check for YAMF_GATEWAY_URL and pre-register it (for decoupling)
   preRegisterGatewayIfItExists(state)
+  
+  await performRegistryDrainHandshake(state)
   
   // Calculate default starting port for services
   const registryEndpoint = envConfig.getRequired('YAMF_REGISTRY_URL')
@@ -185,23 +191,29 @@ export default async function createRegistryServer(port, options = {}) {
       const status = err.status || 500
       
       if (!response.writableEnded) {
-        response.writeHead(status, { 'content-type': 'text/plain' })
+        const extra = err.responseHeaders && typeof err.responseHeaders === 'object' ? err.responseHeaders : {}
+        response.writeHead(status, { 'content-type': 'text/plain', ...extra })
         response.end(err.stack || err.message)
       }
     }
   })
   
-  // Override terminate to clean up state and handlers
+  // Override terminate: broadcast shutdown, then state + socket
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runRegistryShutdown = async () => {
     logger.info('Registry shutting down')
-    
-    // Remove global error handlers
+    if (broadcastShutdownOnTerminate) {
+      await broadcastShutdown(state, { reason: 'registry-shutdown' })
+    }
     process.off('unhandledRejection', unhandledRejectionHandler)
     process.off('uncaughtException', uncaughtExceptionHandler)
-    
     resetState(state)
     await httpServerTerminate()
+  }
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runRegistryShutdown, { priority: 0 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runRegistryShutdown()
   }
   
   server.isRegistry = true

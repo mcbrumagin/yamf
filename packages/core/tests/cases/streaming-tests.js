@@ -21,8 +21,8 @@ const logger = new Logger()
  */
 export async function testJsonPayloadStillWorks() {
   await terminateAfter(
-    await registryServer(),
-    await createService('jsonEcho', function jsonEchoService(payload) {
+    () => registryServer(),
+    () => createService('jsonEcho', function jsonEchoService(payload) {
       return payload
     }),
     async () => {
@@ -45,8 +45,8 @@ export async function testJsonPayloadStillWorks() {
  */
 export async function testBufferStreaming() {
   await terminateAfter(
-    await registryServer(),
-    await createService('bufferEcho', function bufferEchoService(payload) {
+    () => registryServer(),
+    () => createService('bufferEcho', function bufferEchoService(payload) {
       // Service should receive the buffer as-is
       if (!Buffer.isBuffer(payload)) {
         throw new Error(`Expected buffer, got ${typeof payload}`)
@@ -74,8 +74,8 @@ export async function testBufferStreaming() {
  */
 export async function testBinaryFileStreaming() {
   await terminateAfter(
-    await registryServer(),
-    await createService('fileProcessor', function fileProcessorService(payload) {
+    () => registryServer(),
+    () => createService('fileProcessor', function fileProcessorService(payload) {
       // Verify we received a buffer
       if (!Buffer.isBuffer(payload)) {
         throw new Error(`Expected buffer, got ${typeof payload}`)
@@ -110,8 +110,8 @@ export async function testBinaryFileStreaming() {
  */
 export async function testBinaryDataProcessing() {
   await terminateAfter(
-    await registryServer(),
-    await createService('binaryProcessor', function binaryProcessorService(payload) {
+    () => registryServer(),
+    () => createService('binaryProcessor', function binaryProcessorService(payload) {
       if (!Buffer.isBuffer(payload)) {
         throw new Error(`Expected buffer, got ${typeof payload}`)
       }
@@ -143,8 +143,8 @@ export async function testBinaryDataProcessing() {
  */
 export async function testMixedContentTypes() {
   await terminateAfter(
-    await registryServer(),
-    await createService('polyglot', function polyglotService(payload) {
+    () => registryServer(),
+    () => createService('polyglot', function polyglotService(payload) {
       if (Buffer.isBuffer(payload)) {
         return Buffer.from('GOT BUFFER')
       } else if (typeof payload === 'object') {
@@ -186,8 +186,8 @@ export async function testMixedContentTypes() {
  */
 export async function testLargeBufferTransfer() {
   await terminateAfter(
-    await registryServer(),
-    await createService('largeBufferEcho', function largeBufferEchoService(payload) {
+    () => registryServer(),
+    () => createService('largeBufferEcho', function largeBufferEchoService(payload) {
       if (!Buffer.isBuffer(payload)) {
         throw new Error(`Expected buffer, got ${typeof payload}`)
       }
@@ -222,8 +222,8 @@ export async function testLargeBufferTransfer() {
  */
 export async function testEmptyBuffer() {
   await terminateAfter(
-    await registryServer(),
-    await createService('emptyBufferEcho', function emptyBufferEchoService(payload) {
+    () => registryServer(),
+    () => createService('emptyBufferEcho', function emptyBufferEchoService(payload) {
       return payload
     }),
     async () => {

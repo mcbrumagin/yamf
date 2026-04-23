@@ -9,13 +9,49 @@ import Logger from '../utils/logger.js'
 import { serializeServicesMap, setToArray } from './registry-state.js'
 import { publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
 import { selectServiceLocation } from './load-balancer.js'
-import { HEADERS } from '../shared/yamf-headers.js'
+import { HEADERS, buildShutdownHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import net from 'node:net'
 import { localState } from '../shared/local-state.js'
 import readStream from '../http-primitives/read-stream.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
+
+/**
+ * Ask every registered non-pure HTTP service to self-terminate (registry shutdown path).
+ * Pure services are skipped. Failures (except connection refused) are logged.
+ */
+export async function broadcastShutdown(state, { reason = 'registry-shutdown' } = {}) {
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
+  const timeout = Number(envConfig.get('YAMF_SHUTDOWN_BROADCAST_TIMEOUT_MS', 2000))
+  const jobs = []
+  for (const [service, locations] of state.services) {
+    const access = state.serviceAccess.get(service) || 'private'
+    if (access === 'pure') continue
+    for (const location of locations) {
+      if (!location || !location.startsWith('http')) continue
+      const h = buildShutdownHeaders(service, location, registryToken, reason)
+      jobs.push(
+        httpRequest(location, {
+          method: 'POST',
+          body: {},
+          timeout,
+          headers: {
+            ...h,
+            'content-type': 'application/json',
+            'mute-internal-error': '1'
+          }
+        }).catch((err) => {
+          if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET' || err.code === 'ENOTFOUND') {
+            return
+          }
+          logger.debugErr(`broadcastShutdown: ${service} @ ${location}:`, err.message)
+        })
+      )
+    }
+  }
+  await Promise.allSettled(jobs)
+}
 
 /**
  * Pre-register an already-running Gateway server

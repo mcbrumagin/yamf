@@ -24,7 +24,7 @@ const logger = new Logger()
  */
 export async function testServiceWithEmptyName() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => assertErr(async () => createService('', () => 'test'),
       err => err.message.toLowerCase().includes('service name')
     )
@@ -36,7 +36,7 @@ export async function testServiceWithEmptyName() {
  */
 export async function testServiceWithSpacesInName() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => assertErr(async () => createService('invalid service name', () => 'test'),
       err => err.message.toLowerCase().includes('service name')
           || err.message.includes('invalid')
@@ -49,7 +49,7 @@ export async function testServiceWithSpacesInName() {
  */
 export async function testServiceNameValidationSpecialChars() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => assertErr(async () => createService('service@#$%', () => 'test'),
       err => err.message.toLowerCase().includes('service name')
           || err.message.includes('invalid')
@@ -62,7 +62,7 @@ export async function testServiceNameValidationSpecialChars() {
  */
 export async function testCallNonExistentService() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => assertErr(async () => callService('doesNotExist', { data: 'test' }),
       err => err.message.includes('No service by name'),
       err => err.message.includes('doesNotExist')
@@ -79,8 +79,8 @@ export async function testCallNonExistentService() {
  */
 export async function testService404Error() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/404-test', async function notFoundService() {
+    () => registryServer(),
+    () => createRoute('/404-test', async function notFoundService() {
       throw new HttpError(404, 'Resource not found')
     }),
     async () => {
@@ -98,8 +98,8 @@ export async function testService404Error() {
  */
 export async function testService500Error() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/500-test', async function errorService() {
+    () => registryServer(),
+    () => createRoute('/500-test', async function errorService() {
       throw new Error('Internal server error')
     }),
     async () => {
@@ -115,8 +115,8 @@ export async function testService500Error() {
  */
 export async function testService400Error() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/400-test', async function badRequestService(payload) {
+    () => registryServer(),
+    () => createRoute('/400-test', async function badRequestService(payload) {
       if (!payload.required) {
         throw new HttpError(400, 'Missing required field: required')
       }
@@ -139,10 +139,10 @@ export async function testService400Error() {
  */
 export async function testCustomErrorStatusCodes() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/403-test', () => { throw new HttpError(403, 'Forbidden') }),
-    await createRoute('/409-test', () => { throw new HttpError(409, 'Conflict') }),
-    await createRoute('/422-test', () => { throw new HttpError(422, 'Unprocessable') }),
+    () => registryServer(),
+    () => createRoute('/403-test', () => { throw new HttpError(403, 'Forbidden') }),
+    () => createRoute('/409-test', () => { throw new HttpError(409, 'Conflict') }),
+    () => createRoute('/422-test', () => { throw new HttpError(422, 'Unprocessable') }),
     async () => {
       const resp403 = await fetch(`${process.env.YAMF_REGISTRY_URL}/403-test`)
       const resp409 = await fetch(`${process.env.YAMF_REGISTRY_URL}/409-test`)
@@ -166,8 +166,8 @@ export async function testCustomErrorStatusCodes() {
  */
 export async function testHtmlContentTypeDetection() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/html', () => '<html><body>test</body></html>'),
+    () => registryServer(),
+    () => createRoute('/html', () => '<html><body>test</body></html>'),
     async () => {
       const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/html`)
       const contentType = response.headers.get('content-type')
@@ -185,8 +185,8 @@ export async function testHtmlContentTypeDetection() {
  */
 export async function testJsonContentTypeDetection() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/json', () => ({ data: 'test', number: 123 })),
+    () => registryServer(),
+    () => createRoute('/json', () => ({ data: 'test', number: 123 })),
     async () => {
       const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/json`)
       const contentType = response.headers.get('content-type')
@@ -204,8 +204,8 @@ export async function testJsonContentTypeDetection() {
  */
 export async function testBinaryContentTypeDetection() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/binary', () => Buffer.from([0x89, 0x50, 0x4E, 0x47])),
+    () => registryServer(),
+    () => createRoute('/binary', () => Buffer.from([0x89, 0x50, 0x4E, 0x47])),
     async () => {
       const response = await fetch(`${process.env.YAMF_REGISTRY_URL}/binary`)
       const contentType = response.headers.get('content-type')
@@ -223,10 +223,10 @@ export async function testBinaryContentTypeDetection() {
  */
 export async function testMultipleContentTypes() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/html', () => '<html>test</html>'),
-    await createRoute('/json', () => ({ type: 'json' })),
-    await createRoute('/buffer', () => Buffer.from('binary')),
+    () => registryServer(),
+    () => createRoute('/html', () => '<html>test</html>'),
+    () => createRoute('/json', () => ({ type: 'json' })),
+    () => createRoute('/buffer', () => Buffer.from('binary')),
     async () => {
       const htmlResp = await fetch(`${process.env.YAMF_REGISTRY_URL}/html`)
       const jsonResp = await fetch(`${process.env.YAMF_REGISTRY_URL}/json`)
@@ -254,11 +254,11 @@ export async function testMultipleContentTypes() {
  */
 export async function testErrorPropagationThroughChain() {
   await terminateAfter(
-    registryServer(),
-    createService('errorService', () => {
+    () => registryServer(),
+    () => createService('errorService', () => {
       throw new HttpError(418, "I'm a teapot")
     }),
-    createService('callerService', async function(payload) {
+    () => createService('callerService', async function(payload) {
       return await this.call('errorService', payload)
     }),
     async () => assertErr(async () => callService('callerService', {}),
@@ -274,8 +274,8 @@ export async function testErrorPropagationThroughChain() {
 // TODO implement timeout configuration and enable/update this test
 export async function testRequestTimeout() {
   await terminateAfter(
-    registryServer(),
-    createService('slowService', async () => {
+    () => registryServer(),
+    () => createService('slowService', async () => {
       await new Promise(resolve => setTimeout(resolve, 35000)) // Exceeds default 30s timeout
       return 'done'
     }),
@@ -304,8 +304,8 @@ export async function testRequestTimeout() {
  */
 export async function testRegistryStaysHealthyAfterServiceCallError() {
   await terminateAfter(
-    await registryServer(),
-    await createService('test-service', async () => ({ status: 'ok' })),
+    () => registryServer(),
+    () => createService('test-service', async () => ({ status: 'ok' })),
     async () => {
       // Try to call non-existent service (this used to cause unhandled rejection)
       try {
@@ -342,7 +342,7 @@ export async function testRegistryStaysHealthyAfterServiceCallError() {
  */
 export async function testServiceCallWithUrlLikeName() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
 
     // service name with leading slash (mimics the user's bug report)
     async () => assertErr(async () => callService('/health', {}),

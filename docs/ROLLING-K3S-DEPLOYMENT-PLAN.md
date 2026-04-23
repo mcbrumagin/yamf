@@ -15,12 +15,12 @@ Secondary: relevant YAMF CLI ergonomics improvements that benefit non‑k3s user
 | 2 | Configurable static auth ed25519 keypair (persist under `.yamf/auth/`) | [x] |
 | 3 | Multi‑session auth + `maxSessionsPerUser` + configurable access/refresh expiries | [x] |
 | 4 | CLI: fix `0 services restarted` reporting + extend poll timings + env tunables | [x] |
-| 5.1 | Centralize SIGTERM handling (single process lifecycle, not per‑service) | [ ] |
-| 5.2 | Registry‑initiated `SERVICE_SHUTDOWN` broadcast | [ ] |
-| 5.3 | Service‑side shutdown handler (validates registry token, unregisters, terminates) | [ ] |
-| 5.4 | Dual‑registry drain protocol (`REGISTRY_DRAIN`) using existing `YAMF_REGISTRY_URL` + readiness probes | [ ] |
-| 5.5 | Timing defaults + env overrides | [ ] |
-| 5.6 | k3s manifest updates (accept one downtime window) | [ ] |
+| 5.1 | Centralize SIGTERM handling (single process lifecycle, not per‑service) | [x] |
+| 5.2 | Registry‑initiated `SERVICE_SHUTDOWN` broadcast | [x] |
+| 5.3 | Service‑side shutdown handler (validates registry token, unregisters, terminates) | [x] |
+| 5.4 | Dual‑registry drain protocol (`REGISTRY_DRAIN`) using existing `YAMF_REGISTRY_URL` + readiness probes | [x] |
+| 5.5 | Timing defaults + env overrides | [x] |
+| 5.6 | k3s manifest updates (accept one downtime window) | [x] |
 | 6   | Optional CLI polish (`yamf restart --rolling`, `yamf drain`, `yamf status --health`) | [ ] |
 
 **Deferred (tracked, not planned in detail here):**

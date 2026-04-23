@@ -31,7 +31,7 @@ export async function testRegistryStartsWithoutTokenInDev() {
     YAMF_REGISTRY_TOKEN: undefined 
   }, async () => {
     await terminateAfter(
-      await registryServer(),
+      () => registryServer(),
       async () => {
         const result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
@@ -56,7 +56,7 @@ export async function testRegistryWarnsInNonDevWithoutToken() {
     YAMF_REGISTRY_TOKEN: undefined 
   }, async () => {
     await terminateAfter(
-      await registryServer(),
+      () => registryServer(),
       async () => {
         const result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
@@ -116,8 +116,8 @@ export async function testRegistryStartsWithTokenInProduction() {
     YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await gatewayServer(),
+      () => registryServer(),
+      () => gatewayServer(),
       async () => {
         const result = await httpRequest('http://localhost:19000', {
           headers: { 
@@ -150,8 +150,8 @@ export async function testProtectedCommandRequiresValidToken() {
     YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await gatewayServer(),
+      () => registryServer(),
+      () => gatewayServer(),
       async () => {
         // Should succeed with valid token
         const location = await httpRequest('http://localhost:19001', {
@@ -185,8 +185,8 @@ export async function testRequestWithWrongTokenFails() {
     YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await gatewayServer(),
+      () => registryServer(),
+      () => gatewayServer(),
       async () => assertErr(
         async () => await httpRequest('http://localhost:19001', {
           headers: {
@@ -215,8 +215,8 @@ export async function testRequestWithoutTokenFails() {
     YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await gatewayServer(),
+      () => registryServer(),
+      () => gatewayServer(),
       async () => assertErr(
         async () => await httpRequest('http://localhost:19001', {
           headers: {
@@ -245,8 +245,8 @@ export async function testPublicCommandsDoNotRequireToken() {
     YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await gatewayServer(),
+      () => registryServer(),
+      () => gatewayServer(),
       async () => {
         // Health check without token should work
         const healthResult = await httpRequest('http://localhost:19000', {
@@ -277,9 +277,9 @@ export async function testServiceCreationWithValidToken() {
     YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await gatewayServer(),
-      createService('token-test-service', payload => {
+      () => registryServer(),
+      () => gatewayServer(),
+      () => createService('token-test-service', payload => {
         return { success: true, payload }
       }),
       async (registry, gateway, service) => {
@@ -306,8 +306,8 @@ export async function testAllProtectedCommandsValidated() {
     YAMF_GATEWAY_URL: 'http://localhost:19000'
   }, async () => {
     await terminateAfter(
-      await registryServer(),
-      await gatewayServer(),
+      () => registryServer(),
+      () => gatewayServer(),
       async () => {
         const protectedCommands = [
           COMMANDS.SERVICE_SETUP,

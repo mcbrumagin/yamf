@@ -36,8 +36,8 @@ const logger = new Logger({ includeLogLineNumbers: true })
 // Example 1: Create and test a simple service
 export async function testBasicService() {
   await terminateAfter(
-    await registryServer(),
-    await createService('math', (payload) => {
+    () => registryServer(),
+    () => createService('math', (payload) => {
       return payload.a + payload.b
     }),
     async () => {
@@ -50,8 +50,8 @@ export async function testBasicService() {
 // Example 2: Test service with validation
 export async function testServiceValidation() {
   await terminateAfter(
-    await registryServer(),
-    await createService('validator', (payload) => {
+    () => registryServer(),
+    () => createService('validator', (payload) => {
       if (!payload.email) {
         throw new HttpError(400, 'Email is required')
       }
@@ -88,13 +88,13 @@ export async function testServiceValidation() {
 // Example 3: Test service dependencies
 export async function testServiceDependencies() {
   await terminateAfter(
-    await registryServer(),
-    await createService('database', async (payload) => {
+    () => registryServer(),
+    () => createService('database', async (payload) => {
       // Simulate database lookup
       const users = { 1: 'Alice', 2: 'Bob' }
       return users[payload.id] || null
     }),
-    await createService('userService', async function(payload) {
+    () => createService('userService', async function(payload) {
       // This service depends on database service
       const name = await this.call('database', { id: payload.userId })
       if (!name) {
@@ -125,8 +125,8 @@ export async function testServiceDependencies() {
 // Example 4: Test HTTP routes
 export async function testHttpRoute() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/hello', async (payload, request) => {
+    () => registryServer(),
+    () => createRoute('/api/hello', async (payload, request) => {
       return { message: `Hello ${payload.name || 'World'}!`, method: request.method }
     }),
     async () => {
@@ -149,8 +149,8 @@ export async function testHttpRoute() {
 // Example 5: Test route with wildcard (controller pattern)
 export async function testWildcardRoute() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/*', async (payload, request) => {
+    () => registryServer(),
+    () => createRoute('/api/*', async (payload, request) => {
       const path = request.url
       if (path.includes('/users')) {
         return { resource: 'users', data: [{ id: 1, name: 'Alice' }] }
@@ -184,8 +184,8 @@ export async function testWildcardRoute() {
 // Example 6: Test concurrent service calls with assertEach
 export async function testConcurrentCalls() {
   await terminateAfter(
-    await registryServer(),
-    await createService('counter', (() => {
+    () => registryServer(),
+    () => createService('counter', (() => {
       let count = 0
       return () => ({ count: ++count, timestamp: Date.now() })
     })()),
@@ -214,8 +214,8 @@ export async function testConcurrentCalls() {
 // Example 7: Test service with state
 export async function testStatefulService() {
   await terminateAfter(
-    await registryServer(),
-    await createService('cart', (() => {
+    () => registryServer(),
+    () => createService('cart', (() => {
       const items = []
       return (payload) => {
         if (payload.action === 'add') {
@@ -256,10 +256,10 @@ export async function testStatefulService() {
 // Example 8: Test multiple services return expected formats
 export async function testMultipleServicesWithAssertEach() {
   await terminateAfter(
-    await registryServer(),
-    await createService('service1', () => ({ id: 1, status: 'ready' })),
-    await createService('service2', () => ({ id: 2, status: 'ready' })),
-    await createService('service3', () => ({ id: 3, status: 'ready' })),
+    () => registryServer(),
+    () => createService('service1', () => ({ id: 1, status: 'ready' })),
+    () => createService('service2', () => ({ id: 2, status: 'ready' })),
+    () => createService('service3', () => ({ id: 3, status: 'ready' })),
     async () => {
       const results = await Promise.all([
         callService('service1'),
@@ -280,8 +280,8 @@ export async function testMultipleServicesWithAssertEach() {
 // Example 9: Test validation sequence with assertSequence
 export async function testValidationSequence() {
   await terminateAfter(
-    await registryServer(),
-    await createService('validator', (payload) => {
+    () => registryServer(),
+    () => createService('validator', (payload) => {
       if (!payload.value) return { valid: false, reason: 'missing' }
       if (typeof payload.value !== 'number') return { valid: false, reason: 'type' }
       if (payload.value < 0) return { valid: false, reason: 'range' }
@@ -309,8 +309,8 @@ export async function testValidationSequence() {
 // Example 10: Test multiple error conditions with assertErrEach
 export async function testMultipleErrorConditions() {
   await terminateAfter(
-    await registryServer(),
-    await createService('strict', (payload) => {
+    () => registryServer(),
+    () => createService('strict', (payload) => {
       if (!payload.name) throw new HttpError(400, 'Name required')
       if (payload.name.length < 3) throw new HttpError(400, 'Name too short')
       return { name: payload.name }
@@ -332,8 +332,8 @@ export async function testMultipleErrorConditions() {
 // Example 11: Test specific error sequence with assertErrSequence
 export async function testErrorSequence() {
   await terminateAfter(
-    await registryServer(),
-    await createService('errors', (payload) => {
+    () => registryServer(),
+    () => createService('errors', (payload) => {
       if (payload.code === 400) throw new HttpError(400, 'Bad Request')
       if (payload.code === 401) throw new HttpError(401, 'Unauthorized')
       if (payload.code === 404) throw new HttpError(404, 'Not Found')
@@ -360,10 +360,10 @@ export async function testErrorSequence() {
 // Example 12: Test pipeline of dependent services
 export async function testServicePipeline() {
   await terminateAfter(
-    await registryServer(),
-    await createService('step1', (payload) => ({ value: payload.input * 2 })),
-    await createService('step2', (payload) => ({ value: payload.input + 10 })),
-    await createService('step3', (payload) => ({ value: payload.input * 3 })),
+    () => registryServer(),
+    () => createService('step1', (payload) => ({ value: payload.input * 2 })),
+    () => createService('step2', (payload) => ({ value: payload.input + 10 })),
+    () => createService('step3', (payload) => ({ value: payload.input * 3 })),
     async () => {
       // Process through pipeline
       const step1Result = await callService('step1', { input: 5 })  // 10

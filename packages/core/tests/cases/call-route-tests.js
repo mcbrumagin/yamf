@@ -27,8 +27,8 @@ const logger = new Logger()
  */
 export async function testBasicGetRoute() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/hello', async function() {
+    () => registryServer(),
+    () => createRoute('/hello', async function() {
       return { message: 'Hello World!' }
     }),
     async () => {
@@ -49,8 +49,8 @@ export async function testBasicGetRoute() {
  */
 export async function testGetWithQueryParams() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/search/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/search/*', async function(payload, request) {
       // Parse query string from URL
       const url = new URL(request.url, 'http://localhost')
       const query = url.searchParams.get('q')
@@ -85,8 +85,8 @@ export async function testGetWithQueryParams() {
  */
 export async function testPostWithBody() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/users', async function(payload) {
+    () => registryServer(),
+    () => createRoute('/users', async function(payload) {
       return { 
         id: 123, 
         name: payload.name,
@@ -117,8 +117,8 @@ export async function testPostWithBody() {
  */
 export async function testPutRequest() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/users/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/users/*', async function(payload, request) {
       return { 
         method: request.method,
         updated: true,
@@ -148,8 +148,8 @@ export async function testPutRequest() {
  */
 export async function testDeleteRequest() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/users/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/users/*', async function(payload, request) {
       return { 
         method: request.method,
         path: request.url,
@@ -182,8 +182,8 @@ export async function testDeleteRequest() {
  */
 export async function testPathWithoutLeadingSlash() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/test', async function() {
+    () => registryServer(),
+    () => createRoute('/api/test', async function() {
       return { ok: true }
     }),
     async () => {
@@ -201,7 +201,7 @@ export async function testPathWithoutLeadingSlash() {
  */
 export async function testInvalidEmptyPath() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       await assertErr(
         async () => callRoute(''),
@@ -219,7 +219,7 @@ export async function testInvalidEmptyPath() {
  */
 export async function testInvalidNullPath() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       await assertErr(
         async () => callRoute(null),
@@ -237,7 +237,7 @@ export async function testInvalidNullPath() {
  */
 export async function testInvalidPathCharacters() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       await assertErr(
         async () => callRoute('/api/test<script>'),
@@ -259,8 +259,8 @@ export async function testInvalidPathCharacters() {
  */
 export async function testControllerRoute() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/api/*', async function(payload, request) {
       return { 
         path: request.url,
         method: request.method 
@@ -290,8 +290,8 @@ export async function testControllerRoute() {
  */
 export async function testControllerRouteNested() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/v1/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/api/v1/*', async function(payload, request) {
       return { 
         fullPath: request.url 
       }
@@ -317,8 +317,8 @@ export async function testControllerRouteNested() {
  */
 export async function testVariousHttpMethods() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/api/*', async function(payload, request) {
       return { method: request.method }
     }),
     async () => {
@@ -345,8 +345,8 @@ export async function testVariousHttpMethods() {
  */
 export async function testCustomHeaders() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/test', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/api/test', async function(payload, request) {
       return { 
         hasCustomHeader: !!request.headers['x-custom-header'],
         hasUserAgent: !!request.headers['user-agent'],
@@ -380,8 +380,8 @@ export async function testCustomHeaders() {
  */
 export async function testCustomContentType() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/api/data', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/api/data', async function(payload, request) {
       return { 
         contentType: request.headers['content-type']
       }
@@ -415,7 +415,7 @@ export async function testNonExistentRoute() {
     YAMF_GATEWAY_URL: 'http://localhost:15000',
   }, async () => {
     await terminateAfter(
-      registryServer(),
+      () => registryServer(),
       async () => {
         await sleep(100)
         await assertErr(
@@ -433,8 +433,8 @@ export async function testNonExistentRoute() {
  */
 export async function testServiceErrorPropagation() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/error', async function() {
+    () => registryServer(),
+    () => createRoute('/error', async function() {
       throw new HttpError(418, "I'm a teapot")
     }),
     async () => {
@@ -458,8 +458,8 @@ export async function testServiceErrorPropagation() {
  */
 export async function testComplexQueryParams() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/filter/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/filter/*', async function(payload, request) {
       const url = new URL(request.url, 'http://localhost')
       return {
         name: url.searchParams.get('name'),
@@ -495,8 +495,8 @@ export async function testComplexQueryParams() {
  */
 export async function testNullQueryParamsFiltered() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/test/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/test/*', async function(payload, request) {
       return { 
         url: request.url,
         hasQueryString: request.url.includes('?')
@@ -534,8 +534,8 @@ export async function testNullQueryParamsFiltered() {
  */
 export async function testCallRouteWithServiceBackend() {
   await terminateAfter(
-    await registryServer(),
-    await createService('userService', async function(payload) {
+    () => registryServer(),
+    () => createService('userService', async function(payload) {
       return {
         users: [
           { id: 1, name: 'Alice' },
@@ -565,8 +565,8 @@ export async function testCallRouteWithServiceBackend() {
  */
 export async function testMixedMethodsSequence() {
   await terminateAfter(
-    await registryServer(),
-    await createRoute('/users/*', async function(payload, request) {
+    () => registryServer(),
+    () => createRoute('/users/*', async function(payload, request) {
       // Use a simple in-memory store (closure)
       if (!this.users) this.users = []
       

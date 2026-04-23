@@ -44,7 +44,7 @@ export async function testGatewayHealthCheck() {
     YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      gatewayServer(),
+      () => gatewayServer(),
       async () => {
         const response = await httpRequest(GATEWAY_URL, {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
@@ -69,7 +69,7 @@ export async function testGatewayPreRegistration() {
     YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      registryServer(),
+      () => registryServer(),
       async () => {
         await sleep(100) // Give registry time to pre-register gateway
         
@@ -101,8 +101,8 @@ export async function testGatewayPullsState() {
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
-      registryServer(),
-      gatewayServer(),
+      () => registryServer(),
+      () => gatewayServer(),
       async () => {
         // Register a test service with registry
         const testServiceUrl = 'http://localhost:16000'
@@ -144,8 +144,8 @@ export async function testGatewayUpdateNotification() {
     YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      registryServer(),
-      gatewayServer(),
+      () => registryServer(),
+      () => gatewayServer(),
       async () => {
         await sleep(100)
         
@@ -176,7 +176,7 @@ export async function testGatewayRejectsUnauthorizedUpdates() {
     YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      gatewayServer(),
+      () => gatewayServer(),
       async () => {
         await sleep(50)
         
@@ -204,9 +204,9 @@ export async function testGatewayIsNotSubscribed() {
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
-      registryServer(),
-      gatewayServer(),
-      createService('normal-service', () => {
+      () => registryServer(),
+      () => gatewayServer(),
+      () => createService('normal-service', () => {
         return { received: 'cache-update' }
       }),
       async () => {
@@ -253,12 +253,12 @@ export async function testGatewayRoutesToServices() {
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
-      registryServer(),
-      createService('echo-service', payload => {
+      () => registryServer(),
+      () => createService('echo-service', payload => {
         return { echo: payload }
       }),
-      createRoute('/api/echo', 'echo-service'),
-      gatewayServer(),
+      () => createRoute('/api/echo', 'echo-service'),
+      () => gatewayServer(),
       async () => {
         await sleep(100) // Give time for gateway to do initial pull
         
@@ -287,7 +287,7 @@ export async function testGatewayMetadataStorage() {
     YAMF_REGISTRY_TOKEN: 'test-token'
   }, async () => {
     await terminateAfter(
-      registryServer(),
+      () => registryServer(),
       async () => {
         await sleep(100)
         
@@ -323,9 +323,9 @@ export async function testGatewayStateReflectsRegistry() {
     ENVIRONMENT: 'test'
   }, async () => {
     await terminateAfter(
-      registryServer(),
-      createService('test-service', () => ({ test: true })),
-      gatewayServer(),
+      () => registryServer(),
+      () => createService('test-service', () => ({ test: true })),
+      () => gatewayServer(),
       async () => {
         await sleep(100)
         
@@ -371,7 +371,7 @@ export async function testGatewayRequiresRegistryUrl() {
   }, async () => {
     // Gateway should fail to process updates without registry URL
     await terminateAfter(
-      await gatewayServer(),
+      () => gatewayServer(),
       async () => assertErr(
         async () => httpRequest(GATEWAY_URL, {
           body: { service: 'test', location: 'http://localhost:16000' },

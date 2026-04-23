@@ -23,8 +23,8 @@ const logger = new Logger()
  */
 export async function testBasicSetAndGet() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Set a value
       const setResult = await callService('cache-service', { set: { key1: 'value1' } })
@@ -50,8 +50,8 @@ export async function testBasicSetAndGet() {
  */
 export async function testSetMultipleKeys() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Set multiple keys
       await callService('cache-service', { 
@@ -79,8 +79,8 @@ export async function testSetMultipleKeys() {
  */
 export async function testCacheExpiration() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 200, evictionInterval: 20 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 200, evictionInterval: 20 }),
     async () => {
       // Set value with expiration
       const setexResult = await callService('cache-service', { setex: { tempKey: 'tempValue' } })
@@ -115,8 +115,8 @@ export async function testCacheExpiration() {
  */
 export async function testCustomExpirationTime() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 1000, evictionInterval: 20 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 1000, evictionInterval: 20 }),
     async () => {
       // Set a value
       await callService('cache-service', { set: { customKey: 'customValue' } })
@@ -143,8 +143,8 @@ export async function testCustomExpirationTime() {
  */
 export async function testRemoveExpiration() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 100 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 100 }),
     async () => {
       // Set value with expiration
       await callService('cache-service', { setex: { persistKey: 'persistValue' } })
@@ -175,8 +175,8 @@ export async function testRemoveExpiration() {
  */
 export async function testDeleteKeys() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Set some values
       await callService('cache-service', { 
@@ -205,8 +205,8 @@ export async function testDeleteKeys() {
  */
 export async function testDeleteMultipleKeys() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Set some values
       await callService('cache-service', { 
@@ -236,8 +236,8 @@ export async function testDeleteMultipleKeys() {
  */
 export async function testClearCache() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Set multiple values
       await callService('cache-service', { 
@@ -275,8 +275,8 @@ export async function testClearCache() {
  */
 export async function testUpdateSettings() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 1000, evictionInterval: 500 }),
     async () => {
       // Update settings
       const newSettings = await callService('cache-service', { 
@@ -299,8 +299,8 @@ export async function testUpdateSettings() {
  */
 export async function testCacheComplexObjects() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       const complexObject = {
         user: {
@@ -337,8 +337,8 @@ export async function testCacheComplexObjects() {
  */
 export async function testEvictionInterval() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ 
+    () => registryServer(),
+    () => createCacheService({ 
       expireTime: 100,
       evictionInterval: 50 // Check every 50ms
     }),
@@ -371,8 +371,8 @@ export async function testEvictionInterval() {
  */
 export async function testSetMultipleExpirations() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Set values
       await callService('cache-service', { 
@@ -410,8 +410,8 @@ export async function testSetMultipleExpirations() {
  */
 export async function testConcurrentOperations() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Perform multiple concurrent operations
       await Promise.all([
@@ -447,8 +447,8 @@ export async function testCacheUpdateWithHeaders() {
   }
   
   await terminateAfter(
-    await registryServer(),
-    await createService('test-service', testService, { port: 11001 }),
+    () => registryServer(),
+    () => createService('test-service', testService, { port: 11001 }),
     async () => {
       // Wait a moment for service registration
       await sleep(100)
@@ -485,13 +485,13 @@ export async function testCacheUpdateWithHeaders() {
  * receive cache update notifications via yamf headers
  */
 export async function testServiceRegistrationCacheUpdate() {
-  let service1, service2, newService
-  
+  let newService
+
   await terminateAfter(
-    await registryServer(),
-    service1 = await createService('tracking-service-1', async () => ({ message: 'service1' }), { port: 11001 }),
-    service2 = await createService('tracking-service-2', async () => ({ message: 'service2' }), { port: 11002 }),
-    async () => {
+    () => registryServer(),
+    () => createService('tracking-service-1', async () => ({ message: 'service1' }), { port: 11001 }),
+    () => createService('tracking-service-2', async () => ({ message: 'service2' }), { port: 11002 }),
+    async (_registry, service1, service2) => {
       // Wait for initial registrations
       await sleep(200)
       
@@ -578,8 +578,8 @@ export function testBoundDelArray() {
  */
 export async function testExpireTimeNone() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 'None', evictionInterval: 50 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 'None', evictionInterval: 50 }),
     async () => {
       // Set value with expiration (should be ignored since expireTime is 'None')
       await callService('cache-service', { setex: { persistKey: 'persistValue' } })
@@ -602,8 +602,8 @@ export async function testExpireTimeNone() {
  */
 export async function testEvictionIntervalNone() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 100, evictionInterval: 'None' }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 100, evictionInterval: 'None' }),
     async () => {
       // Set value with expiration
       await callService('cache-service', { setex: { expiredKey: 'expiredValue' } })
@@ -627,8 +627,8 @@ export async function testEvictionIntervalNone() {
  */
 export async function testBothSettingsNone() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 'None', evictionInterval: 'None' }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 'None', evictionInterval: 'None' }),
     async () => {
       // Set multiple values
       await callService('cache-service', { 
@@ -661,8 +661,8 @@ export async function testBothSettingsNone() {
  */
 export async function testToggleExpireTimeAtRuntime() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 100, evictionInterval: 50 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 100, evictionInterval: 50 }),
     async () => {
       // Set value with expiration (should expire)
       await callService('cache-service', { setex: { tempKey: 'tempValue' } })
@@ -710,8 +710,8 @@ export async function testToggleExpireTimeAtRuntime() {
  */
 export async function testToggleEvictionIntervalAtRuntime() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 100, evictionInterval: 50 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 100, evictionInterval: 50 }),
     async () => {
       // Set value with expiration
       await callService('cache-service', { setex: { key1: 'value1' } })
@@ -756,7 +756,7 @@ export async function testToggleEvictionIntervalAtRuntime() {
  */
 export async function testInvalidExpireTimeValidation() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       // Test negative expireTime
       await assertErr(
@@ -786,7 +786,7 @@ export async function testInvalidExpireTimeValidation() {
  */
 export async function testInvalidEvictionIntervalValidation() {
   await terminateAfter(
-    await registryServer(),
+    () => registryServer(),
     async () => {
       // Test negative evictionInterval
       await assertErr(
@@ -816,8 +816,8 @@ export async function testInvalidEvictionIntervalValidation() {
  */
 export async function testRuntimeValidation() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 1000, evictionInterval: 500 }),
     async () => {
       // Try to update to invalid expireTime
       await assertErr(
@@ -854,8 +854,8 @@ export async function testRuntimeValidation() {
  */
 export async function testBulkSettingsUpdate() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService({ expireTime: 1000, evictionInterval: 500 }),
+    () => registryServer(),
+    () => createCacheService({ expireTime: 1000, evictionInterval: 500 }),
     async () => {
       // Update both settings to 'None'
       const noneSettings = await callService('cache-service', { 
@@ -900,8 +900,8 @@ export async function testBulkSettingsUpdate() {
  */
 export async function testInvalidGetAction() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Test get with invalid type (number)
       await assertErr(
@@ -919,8 +919,8 @@ export async function testInvalidGetAction() {
  */
 export async function testInvalidSetAction() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Test set with invalid type (string)
       await assertErr(
@@ -944,8 +944,8 @@ export async function testInvalidSetAction() {
  */
 export async function testInvalidSetexAction() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Test setex with invalid type
       await assertErr(
@@ -961,8 +961,8 @@ export async function testInvalidSetexAction() {
  */
 export async function testInvalidExAction() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Test ex with invalid type
       await assertErr(
@@ -978,8 +978,8 @@ export async function testInvalidExAction() {
  */
 export async function testInvalidDelAction() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Test del with invalid type
       await assertErr(
@@ -995,8 +995,8 @@ export async function testInvalidDelAction() {
  */
 export async function testUnknownAction() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Test unknown action
       await assertErr(
@@ -1012,8 +1012,8 @@ export async function testUnknownAction() {
  */
 export async function testActionResults() {
   await terminateAfter(
-    await registryServer(),
-    await createCacheService(),
+    () => registryServer(),
+    () => createCacheService(),
     async () => {
       // Test set result
       const setResult = await callService('cache-service', { set: { key1: 'value1', key2: 'value2' } })
