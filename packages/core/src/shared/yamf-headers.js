@@ -1,8 +1,8 @@
 /**
  * Yamf Headers
- * Constants and utilities for header-based command routing
- * 
- * Phase 1-Light: Essential headers only for streaming support
+ * Constants and utilities for header-based command routing.
+ * Covers core protocol (SERVICE_CALL, REGISTER, UNREGISTER, lookup), pub/sub,
+ * rate limiting, contracts, and the rolling-registry drain/shutdown handoff.
  */
 
 /**

@@ -366,20 +366,25 @@ async function routeCommandByHeaders(state, payload, request, response) {
     
     case COMMANDS.AUTH_LOGIN:
     case COMMANDS.AUTH_REFRESH:
-    case COMMANDS.AUTH_LOGOUT:
-      // Default to 'auth-service' if no specific auth service is configured
-      // TODO should make certain the serviceName is an auth service
-      const authServiceName = 'auth-service' // uncomment when we validate serviceName is auth || serviceName
+    case COMMANDS.AUTH_LOGOUT: {
+      // Allow caller to target a non-default auth service via yamf-service-name, as long as
+      // the gateway has cached it as serviceType === 'auth-service'. Otherwise fall back to
+      // the conventional 'auth-service'.
+      const DEFAULT_AUTH_SERVICE = 'auth-service'
+      let authServiceName = DEFAULT_AUTH_SERVICE
+      if (serviceName && serviceName !== DEFAULT_AUTH_SERVICE) {
+        const requestedType = state.serviceTypes?.get(serviceName)
+        if (requestedType === 'auth-service') authServiceName = serviceName
+      }
       if (!state.services.has(authServiceName)) {
         throw new HttpError(503, `Auth service "${authServiceName}" not found`)
       }
-      
-      // Proxy the auth request to the auth service
-      return streamProxyServiceCall(state, { 
-        name: authServiceName, 
-        request, 
-        response 
+      return streamProxyServiceCall(state, {
+        name: authServiceName,
+        request,
+        response
       })
+    }
 
     // for gateway service calls, we need to check that a service is published for public access
     // TODO provide config in createService to publish to gateways

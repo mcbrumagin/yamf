@@ -136,28 +136,23 @@ export function createCacheAwareHandler(serviceFn, cache, context, serviceOption
       }
     }
     
-    // Check if this is a subscription message from registry
     if (isSubscriptionMessage(request)) {
       validateCacheMessageRegistryToken(request)
       const { pubsubChannel } = parseCommandHeaders(request.headers)
-      
+
       if (context._pubSubManager) {
-        // Check if pubsub manager has handlers for this channel
         const subscriptions = context._pubSubManager.listSubscriptions()
         if (subscriptions[pubsubChannel]) {
-          // Route to pubsub manager handlers
-          // in case the server is in stream mode, we need to read the stream and parse the body
-          if (request.headers['content-type'] === 'application/json') {
-            payload = await readStream(request)
-            try { payload = JSON.parse(payload) } catch { /* don't care */ }
+          // If the server is in stream mode (payload === null) and we have a JSON
+          // content-type, drain the body so we can dispatch the parsed message.
+          if (payload == null && request.headers['content-type'] === 'application/json') {
+            const raw = await readStream(request)
+            try { payload = JSON.parse(raw) } catch { payload = raw }
           }
           return await context._pubSubManager.handleIncomingMessage(pubsubChannel, payload)
         }
       }
-      
-      // No pubsub manager or no handlers for this channel
-      // Pass through to normal service handler (for direct registry subscriptions)
-      // The service handler is called directly and should return its result
+
       return await serviceFn(payload, request, response)
     }
     

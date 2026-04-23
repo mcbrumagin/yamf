@@ -13,6 +13,7 @@ import { routeCommand } from './command-router.js'
 import { validateRegistryEnvironment } from './registry-auth.js'
 import { preRegisterGatewayIfItExists, broadcastShutdown } from './service-registry.js'
 import { performRegistryDrainHandshake, assignRegistryInstanceId } from './registry-drain-handshake.js'
+import { notifyGatewayOfUpdate } from './pubsub-manager.js'
 import { lifecycle } from '../shared/process-lifecycle.js'
 import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
 import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
@@ -217,10 +218,16 @@ export default async function createRegistryServer(port, options = {}) {
   }
   
   server.isRegistry = true
-  
+
   // Expose state for testing
   // Note: In production, access to state should be restricted
   server._state = state
-  
+
+  // After the server is listening, nudge a pre-existing gateway to re-pull state. This closes
+  // the k3s rolling race where a gateway started before a fresh registry had empty state and
+  // would otherwise wait for the first service registration to trigger a push.
+  // Fire-and-forget: don't block registry readiness on gateway reachability.
+  notifyGatewayOfUpdate(state, { service: 'yamf-registry', location: 'registry-ready' }).catch(() => {})
+
   return server
 }

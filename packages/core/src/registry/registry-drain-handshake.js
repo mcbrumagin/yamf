@@ -52,7 +52,7 @@ export async function performRegistryDrainHandshake(state) {
       return
     }
     if (res.status === 200) {
-      const peer = res.headers.get(HEADERS.REGISTRY_INSTANCE_ID) || res.headers.get(HEADERS.REGISTRY_INSTANCE_ID.toLowerCase())
+      const peer = res.headers.get(HEADERS.REGISTRY_INSTANCE_ID)
       logger.info(`REGISTRY_DRAIN: peer accepted drain (instance ${peer || 'unknown'})`)
     }
   } catch (err) {

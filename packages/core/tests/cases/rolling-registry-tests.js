@@ -1,7 +1,11 @@
-import { assert, assertErr, terminateAfter, withEnv } from '@yamf/test'
+import { assert, assertErr, terminateAfter, withEnv, sleep } from '@yamf/test'
+import { subscribeToEventSource } from '@yamf/client/event-source'
 import {
   registryServer,
   createService,
+  createSubscriptionService,
+  createEventSourceService,
+  publishMessage,
   httpRequest,
   HEADERS,
   COMMANDS,
@@ -219,6 +223,83 @@ export async function testRegistryHealthShowsDraining() {
           })
           const h1 = await httpRequest(url, { headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH } })
           await assert(h1, (h) => h.draining === true)
+        }
+      )
+    }
+  )
+}
+
+/**
+ * Subscription channel handler runs with `this === context` and can this.call a peer
+ * registered after the subscription service (cache-aware).
+ */
+export async function testSubscriptionChannelHandlerBindsThisContextLatePeer() {
+  await withEnv(
+    {
+      YAMF_REGISTRY_URL: 'http://127.0.0.1:4020',
+      YAMF_SERVICE_URL: 'http://127.0.0.1',
+      YAMF_GATEWAY_URL: 'http://127.0.0.1:5020',
+      YAMF_REGISTRY_TOKEN: 'test-tok-slice2-sub'
+    },
+    async () => {
+      await terminateAfter(
+        () => registryServer(4020, { broadcastShutdownOnTerminate: false }),
+        () =>
+          createSubscriptionService('sub-slice2-late', {
+            'foo:bar:slice2': async function () {
+              return await this.call('late-peer-s2', { n: 11 })
+            }
+          }),
+        () => createService('late-peer-s2', (p) => ({ ok: p.n })),
+        async () => {
+          const out = await publishMessage('foo:bar:slice2', {})
+          await assert(
+            out,
+            (r) => r.results?.[0]?.results?.[0]?.ok === 11
+          )
+        }
+      )
+    }
+  )
+}
+
+/**
+ * SSE onConnect runs with `this === context` and can this.call a peer registered after
+ * the SSE service starts.
+ */
+export async function testSseOnConnectBindsThisContextLatePeer() {
+  await withEnv(
+    {
+      YAMF_REGISTRY_URL: 'http://127.0.0.1:4021',
+      YAMF_SERVICE_URL: 'http://127.0.0.1',
+      YAMF_GATEWAY_URL: 'http://127.0.0.1:5021',
+      YAMF_REGISTRY_TOKEN: 'test-tok-slice2-sse'
+    },
+    async () => {
+      await terminateAfter(
+        () => registryServer(4021, { broadcastShutdownOnTerminate: false }),
+        () =>
+          createEventSourceService(
+            'sse-slice2-late',
+            {
+              onConnect: async function (client) {
+                const r = await this.call('late-sse-s2', { n: 7 })
+                client.send('late', r)
+              }
+            },
+            { accessControl: 'private' }
+          ),
+        () => createService('late-sse-s2', (p) => ({ value: p.n })),
+        async (reg, sse) => {
+          const events = []
+          const es = await subscribeToEventSource(sse.location, (ev) => events.push(ev))
+          await sleep(150)
+          await assert(
+            events,
+            (e) => e.length >= 2,
+            (e) => e.some((x) => x?.event === 'late' && x?.data?.value === 7)
+          )
+          es.close()
         }
       )
     }

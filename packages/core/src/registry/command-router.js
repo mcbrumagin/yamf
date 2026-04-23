@@ -46,7 +46,7 @@ function assertNotDrainingForNewRegistrations(state) {
  * Response includes {@link HEADERS#REGISTRY_INSTANCE_ID} for the drained peer.
  */
 async function handleRegistryDrainRequest(state, request, response) {
-  const drainerId = request.headers[HEADERS.REGISTRY_INSTANCE_ID] || request.headers['yamf-registry-instance-id']
+  const drainerId = request.headers[HEADERS.REGISTRY_INSTANCE_ID]
   if (!drainerId) {
     if (!response.writableEnded) {
       response.writeHead(400, { 'content-type': 'text/plain' })
@@ -448,20 +448,25 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.AUTH_LOGIN:
     case COMMANDS.AUTH_REFRESH:
-    case COMMANDS.AUTH_LOGOUT:
-      // Default to 'auth-service' if no specific auth service is configured
-      // TODO should make certain the serviceName is an auth service
-      const authServiceName = 'auth-service' || serviceName
+    case COMMANDS.AUTH_LOGOUT: {
+      // Allow caller to target a non-default auth service via yamf-service-name, as long as
+      // that name is a known auth service (registered with serviceType === 'auth-service').
+      // Absent a valid override, fall back to the conventional 'auth-service'.
+      const DEFAULT_AUTH_SERVICE = 'auth-service'
+      let authServiceName = DEFAULT_AUTH_SERVICE
+      if (serviceName && serviceName !== DEFAULT_AUTH_SERVICE) {
+        const requestedType = state.serviceTypes.get(serviceName)
+        if (requestedType === 'auth-service') authServiceName = serviceName
+      }
       if (!state.services.has(authServiceName)) {
         throw new HttpError(503, `Auth service "${authServiceName}" not found`)
       }
-      
-      // Proxy the auth request to the auth service
-      return streamProxyServiceCall(state, { 
-        name: authServiceName, 
-        request, 
-        response 
+      return streamProxyServiceCall(state, {
+        name: authServiceName,
+        request,
+        response
       })
+    }
     
     default:
       throw new HttpError(400, `Unknown command`)

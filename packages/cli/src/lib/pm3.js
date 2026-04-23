@@ -445,6 +445,68 @@ export class PM3 {
     return results.length === 1 ? results[0] : results
   }
 
+  /**
+   * Rolling restart: for each resolved instance, spawn a replacement first, wait for it to
+   * register with the registry, then SIGTERM the old instance. Yields zero-downtime behavior
+   * for load-balanced services.
+   *
+   * Constraints:
+   * - Registry targets are refused locally (port collision — rolling registry needs k3s).
+   * - Pure services (no HTTP, no registry lookup) fall back to the standard restart path.
+   */
+  async restartRolling(target, options = {}) {
+    const state = loadState()
+    const { keys } = resolveTarget(state, target)
+
+    if (keys.length === 0) {
+      throw new Error(`No managed process found for "${target}"`)
+    }
+
+    if (keys.some(k => state.processes[k]?.isRegistry)) {
+      throw new Error(
+        'Rolling restart of the registry is not supported locally (port collision). ' +
+        'Registry rolling is driven by k3s readiness + REGISTRY_DRAIN — see docs/ROLLING-K3S-DEPLOYMENT-PLAN.md.'
+      )
+    }
+
+    const results = []
+    const replaced = []
+    for (const key of keys) {
+      const entry = state.processes[key]
+      if (!entry) continue
+      const wasInternal = entry?.internal || false
+      const oldPid = entry.pid
+      const oldKey = key
+
+      logger.info(`Rolling restart: spawning replacement for ${entry.filepath} (PID ${oldPid || '-'})`)
+      const fresh = await this.start(entry.filepath, { internal: wasInternal, ...options })
+
+      // After start(), the old entry may have been renormalized (bare key → #0).
+      // Re-resolve the old instance by PID so we stop the right one.
+      const afterStart = loadState()
+      const stopKey = Object.keys(afterStart.processes)
+        .find(k => afterStart.processes[k]?.pid === oldPid) || oldKey
+
+      try {
+        await this.stopOne(stopKey)
+      } catch (err) {
+        logger.warn(`Rolling restart: failed to stop old instance ${stopKey}: ${err.message}`)
+      }
+
+      const updated = loadState()
+      const newKey = resolveStateKey(updated, entry.filepath)
+      if (updated.processes[newKey]) {
+        updated.processes[newKey].restarts = (entry?.restarts || 0) + 1
+        saveState(updated)
+      }
+      results.push(fresh)
+      replaced.push({ oldKey: stopKey, newKey })
+    }
+
+    logger.info(`Rolling restart complete: ${replaced.length} instance(s) replaced`)
+    return { replaced, results }
+  }
+
   async restartWithRegistry(state, registryKeys, options) {
     logger.warn('Registry restart detected — all services must be restarted to replenish registry state')
 

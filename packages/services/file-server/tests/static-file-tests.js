@@ -34,6 +34,7 @@ async function createTempTestFiles() {
   fs.mkdirSync(publicDir)
   fs.writeFileSync(path.join(publicDir, 'style.css'), 'body { color: red; }')
   fs.writeFileSync(path.join(publicDir, 'script.js'), 'console.log("hello");')
+  fs.writeFileSync(path.join(publicDir, 'library.js'), 'console.log("library");')
   
   // Create assets directory
   const assetsDir = path.join(publicDir, 'assets')
@@ -188,6 +189,101 @@ export async function testStaticFileCatchAllFallback() {
         await assert(nestedResult, r => r.includes('Index Page'))
         
         return { style: styleResult, dashboard: dashboardResult, nested: nestedResult }
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+export async function testStaticFileSpaModeFallback() {
+  const tempDir = await createTempTestFiles()
+
+  try {
+    await terminateAfter(
+      () => registryServer(),
+      () => createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: {
+          '/': 'index.html',
+          '/public/*': 'public'
+        },
+        spa: {
+          entry: 'index.html',
+          excludePrefixes: ['/public'],
+          excludeExtensions: true
+        },
+        externalRootDir: true
+      }),
+      async () => {
+        const spaRoute = await callService('static-file-service', { url: '/dashboard' })
+        const nestedSpaRoute = await callService('static-file-service', { url: '/app/settings/profile' })
+        const knownAsset = await callService('static-file-service', { url: '/public/style.css' })
+
+        await assert(spaRoute, r => r.includes('Index Page'))
+        await assert(nestedSpaRoute, r => r.includes('Index Page'))
+        await assert(knownAsset, r => r.includes('body { color: red; }'))
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+export async function testStaticFileSpaModeExcludesPrefixesAndExtensions() {
+  const tempDir = await createTempTestFiles()
+
+  try {
+    await terminateAfter(
+      () => registryServer(),
+      () => createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: {
+          '/': 'index.html',
+          '/public/*': 'public'
+        },
+        spa: {
+          entry: 'index.html',
+          excludePrefixes: ['/api', '/public'],
+          excludeExtensions: true
+        },
+        externalRootDir: true
+      }),
+      async () => {
+        await assertErr(
+          async () => callService('static-file-service', { url: '/api/missing' }),
+          err => err.status === 404
+        )
+        await assertErr(
+          async () => callService('static-file-service', { url: '/missing.js' }),
+          err => err.status === 404
+        )
+      }
+    )
+  } finally {
+    cleanupTempFiles(tempDir)
+  }
+}
+
+export async function testStaticFileSecurityAllowsLibrarySegment() {
+  const tempDir = await createTempTestFiles()
+
+  try {
+    await terminateAfter(
+      () => registryServer(),
+      () => createStaticFileService({
+        rootDir: tempDir,
+        urlRoot: '/',
+        fileMap: {
+          '/public/*': 'public'
+        },
+        externalRootDir: true
+      }),
+      async () => {
+        const result = await callService('static-file-service', { url: '/public/library.js' })
+        await assert(result, r => r.includes('library'))
       }
     )
   } finally {

@@ -7,7 +7,8 @@ const logger = new Logger()
 const ARGS = {
   help:    { flags: ['-h', '--help'] },
   verbose: { flags: ['-v', '--verbose'] },
-  all:     { flags: ['--all'] }
+  all:     { flags: ['--all'] },
+  rolling: { flags: ['--rolling'] }
 }
 
 function getRestartHelp() {
@@ -22,8 +23,13 @@ Accepts a filepath, service name, or instance ref (e.g. simple-service#1).
 
 Options:
   --all                 Restart all managed processes
+  --rolling             Spawn replacement before stopping old instance (zero-downtime for load-balanced services)
   -v, --verbose         Verbose output
   -h, --help            Show this help
+
+Notes:
+  --rolling and --all cannot be combined (rolling targets a single known service/filepath).
+  --rolling refuses to operate on the registry process locally; k3s drives registry rolling.
 `
 }
 
@@ -37,6 +43,10 @@ export async function runRestartCommand(args) {
   }
 
   const pm3 = new PM3()
+
+  if (options.rolling && options.all) {
+    throw new Error('--rolling and --all cannot be combined. Use --rolling <target> for a single service/filepath.')
+  }
 
   if (options.all) {
     const entries = await pm3.list({ all: true })
@@ -59,6 +69,16 @@ export async function runRestartCommand(args) {
 
   if (!target) {
     throw new Error('Filename or service name is required. Usage: yamf restart <target> or yamf restart --all')
+  }
+
+  if (options.rolling) {
+    const result = await pm3.restartRolling(target)
+    if (options.verbose) {
+      console.log(result)
+    } else {
+      logger.info(`Rolling-restarted ${result.replaced.length} instance(s) of "${target}".`)
+    }
+    return
   }
 
   const result = await pm3.restart(target)

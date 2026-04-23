@@ -262,10 +262,11 @@ export default async function createEventSourceService(serviceName, handlers = {
       if (typeof handler !== 'function') {
         throw new Error(`Channel handler for "${channel}" must be a function`)
       }
-      await pubSubManager.subscribe(channel, async (data) => {
+      const channelFn = async function (data) {
         const clientHandles = Array.from(clients.values()).map(c => c.client)
-        await handler.call(context, data, clientHandles)
-      })
+        return await handler.call(this, data, clientHandles)
+      }
+      await pubSubManager.subscribe(channel, bindServiceFunction(channelFn, context))
     }
   }
 

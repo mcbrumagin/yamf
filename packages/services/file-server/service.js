@@ -147,6 +147,41 @@ function normalizePath(path) {
   return path
 }
 
+function getPathnameFromUrl(url) {
+  if (!url) return '/'
+  if (typeof url !== 'string') return '/'
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      return new URL(url).pathname || '/'
+    } catch {
+      return '/'
+    }
+  }
+  const withoutQuery = url.split('?')[0] || '/'
+  return withoutQuery || '/'
+}
+
+function hasFileExtension(pathname = '') {
+  const parts = pathname.split('/')
+  const lastPart = parts[parts.length - 1] || ''
+  return /\.[a-zA-Z0-9]+$/.test(lastPart)
+}
+
+function shouldUseSpaFallback(pathname, spaConfig = {}) {
+  if (!spaConfig?.enabled) return false
+  if (!pathname) return false
+  const normalizedPath = normalizePath(pathname)
+  const excludePrefixes = spaConfig.excludePrefixes || []
+  for (const prefix of excludePrefixes) {
+    const normalizedPrefix = normalizePath(prefix)
+    if (normalizedPath === normalizedPrefix || normalizedPath.startsWith(`${normalizedPrefix}/`)) {
+      return false
+    }
+  }
+  if (spaConfig.excludeExtensions && hasFileExtension(normalizedPath)) return false
+  return true
+}
+
 
 function sanityCheckRootDir(rootDir, externalRootDir = false) {
   if (!externalRootDir && !rootDir.startsWith(process.cwd())) {
@@ -165,24 +200,19 @@ function sanityCheckRootDir(rootDir, externalRootDir = false) {
 }
 
 function simpleSecurityCheck(url, preventSystemFileAccess = true) {
-  if (url.includes('..') // prevent path traversal
-    || url.split('/').some(segment => segment.startsWith('.')) // prevent access to hidden files/directories
-    || url.includes('%2e%2e') // prevent encoded path traversal ".."
-    || url.includes('%2e') // prevent encoded dot
-    || url.includes('\\') // prevent backslash
-    || url.includes('%5c') // prevent encoded double-backslash
-    || url.includes('%2f') // prevent encoded forward slash
+  const lowerUrl = String(url || '').toLowerCase()
+  const pathname = getPathnameFromUrl(lowerUrl)
+  const segments = pathname.split('/').filter(Boolean)
+  const systemSegments = new Set(['etc', 'boot', 'lib', 'bin', 'sbin', 'usr', 'var'])
 
-    // prevent access to typical system files
-    || (preventSystemFileAccess && (
-         url.includes('/etc')
-      || url.includes('/boot')
-      || url.includes('/lib')
-      || url.includes('/bin')
-      || url.includes('/sbin')
-      || url.includes('/usr')
-      || url.includes('/var')
-    ))
+  if (lowerUrl.includes('..') // prevent path traversal
+    || segments.some(segment => segment.startsWith('.')) // prevent access to hidden files/directories
+    || lowerUrl.includes('%2e%2e') // prevent encoded path traversal ".."
+    || lowerUrl.includes('%2e') // prevent encoded dot
+    || lowerUrl.includes('\\') // prevent backslash
+    || lowerUrl.includes('%5c') // prevent encoded double-backslash
+    || lowerUrl.includes('%2f') // prevent encoded forward slash
+    || (preventSystemFileAccess && segments.some(segment => systemSegments.has(segment)))
   ) throw new HttpError(403, 'url contains invalid characters')
   else return true
 }
@@ -232,6 +262,7 @@ export default async function createStaticFileService({
   customSecurityCheck = null,
   simpleSecurity = true,
   preventSystemFileAccess = true,
+  spa = null,
   useAuthService = null,
   autoRefresh = false  // NEW: false | { mode, ...options }
 }, resolverFn, defaultFn = $404) {
@@ -249,6 +280,30 @@ export default async function createStaticFileService({
     fileMap = { '/' : fileMap }
   }
 
+  const legacyCatchAllConfigured = Object.prototype.hasOwnProperty.call(fileMap, '/*')
+  const spaEnabled = !!spa
+  if (spaEnabled && legacyCatchAllConfigured) {
+    logger.warn('SPA mode is enabled while fileMap contains "/*". SPA mode takes precedence and catch-all route is deprecated.')
+  }
+
+  const spaConfig = {
+    enabled: spaEnabled,
+    entryPath: null,
+    excludePrefixes: [],
+    excludeExtensions: true
+  }
+  if (spaEnabled) {
+    const spaInput = typeof spa === 'object' ? spa : {}
+    spaConfig.entryPath = targetToFsPath(rootDir, normalizePath(spaInput.entry || 'index.html'))
+    spaConfig.excludePrefixes = Array.isArray(spaInput.excludePrefixes)
+      ? spaInput.excludePrefixes.map(normalizePath)
+      : []
+    spaConfig.excludeExtensions = spaInput.excludeExtensions !== false
+    if (!fs.existsSync(spaConfig.entryPath)) {
+      throw new Error(`spa.entry file does not exist: "${spaInput.entry || 'index.html'}"`)
+    }
+  }
+
   const { quickLookup, catchAllFallbackPath } = generateQuickLookupMap(fileMap, urlRoot, rootDir)
   logger.info(`Static files mapped for "${urlRoot}" ${prettyPrintQuickLookup(quickLookup)}${catchAllFallbackPath ? ` (catch-all: ${path.relative(process.cwd(), catchAllFallbackPath)})` : ''}`)
   
@@ -262,14 +317,24 @@ export default async function createStaticFileService({
   let refreshInterval = null
   let isPaused = false
 
-  async function getLocalFile(url) {
-    const normalizedUrl = normalizePath(url)
+  function resolveFilePath(url) {
+    const pathname = getPathnameFromUrl(url)
+    const normalizedUrl = normalizePath(pathname)
     let filePath = quickLookup[normalizedUrl]
 
-    if (!filePath && catchAllFallbackPath) {
+    if (!filePath && spaConfig.enabled && shouldUseSpaFallback(normalizedUrl, spaConfig)) {
+      filePath = spaConfig.entryPath
+      logger.debug(`using spa fallback for url: "${url}"`)
+    } else if (!filePath && catchAllFallbackPath) {
       filePath = catchAllFallbackPath
       logger.debug(`using catch-all fallback for url: "${url}"`)
     }
+
+    return { filePath, normalizedUrl }
+  }
+
+  async function getLocalFile(url) {
+    const { filePath } = resolveFilePath(url)
 
     if (!filePath) {
       logger.debug(`file not found in lookup for url: "${url}"`)
@@ -293,13 +358,7 @@ export default async function createStaticFileService({
 
     if (!url) throw new HttpError(400, 'url is required')
 
-    const normalizedUrl = normalizePath(url)
-    let filePath = quickLookup[normalizedUrl]
-
-    if (!filePath && catchAllFallbackPath) {
-      filePath = catchAllFallbackPath
-      logger.debug(`using catch-all fallback for url: "${url}"`)
-    }
+    const { filePath } = resolveFilePath(url)
 
     // TODO optional eager lookup of file path before resolver
     // eager lookup should also update quickLookup if it's not already present

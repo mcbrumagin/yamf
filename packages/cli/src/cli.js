@@ -80,6 +80,11 @@ async function main() {
       await runHealthCommand(subcommandArgs)
       break
     }
+    case 'drain': {
+      const { runDrainCommand } = await import('./commands/drain.js')
+      await runDrainCommand(subcommandArgs)
+      break
+    }
     case 'route': {
       const { runRouteCommand } = await import('./commands/route.js')
       await runRouteCommand(subcommandArgs)
@@ -183,6 +188,7 @@ API:
 
 Registry:
   health              Get health of yamf environment
+  drain               Ask the registry to drain (reject new registrations)
   route <path> <svc>  Register a route (--remove to unregister)
   lookup <filter>     Look up services, routes, or channels
   state <property>    Get registry state

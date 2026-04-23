@@ -182,26 +182,7 @@ export default async function createService(name, serviceFn, options = {}) {
   server.accessControl = config.accessControl
 
   let originalHandler = server.handler
-  let pubSubManager = null
-  let subscriptionIds = {}
-
-  let pubsubHandler = null
   let overrideHandler = null
-
-  // TODO: Remove this deprecated method and related code (pubSubManager, subscriptionIds, pubsubHandler variables above)
-  // Use createSubscriptionService instead for pub/sub functionality
-  /**
-   * @deprecated Use createSubscriptionService instead.
-   * Dynamic subscriptions on regular services are being removed in favor of
-   * the cleaner separation: createService for RPC, createSubscriptionService for pub/sub.
-   */
-  server.createSubscription = async function createSubscriptionForService(channelOrMap, handler) {
-    throw new Error(
-      'DEPRECATED: server.createSubscription() is deprecated. ' +
-      'Use createSubscriptionService() instead for pub/sub functionality. ' +
-      'This method will be removed in a future version.'
-    )
-  }
 
   /**
    * Add a preprocessing function that runs before the main service handler
@@ -247,9 +228,7 @@ export default async function createService(name, serviceFn, options = {}) {
         return await originalHandler(processedPayload, request, response)
       }
     }
-    if (!pubsubHandler) {
-      server.handler = overrideHandler
-    } // else, we already have a reference setup
+    server.handler = overrideHandler
   }
 
   // override terminate to gracefully unregister
@@ -288,7 +267,6 @@ export default async function createService(name, serviceFn, options = {}) {
  * @returns {Promise<Object>} Minimal service object with expected interface
  */
 async function createPureService(name, boundServiceFn, cache, context, config) {
-  // Check for existing local service
   if (hasLocalService(name)) {
     const existingAccess = getLocalServiceAccess(name)
     throw new Error(
@@ -297,7 +275,6 @@ async function createPureService(name, boundServiceFn, cache, context, config) {
     )
   }
 
-  // Register in local state
   registerLocalService(name, boundServiceFn, 'pure')
   
   // Notify registry for observability (registry tracks pure services for awareness)
