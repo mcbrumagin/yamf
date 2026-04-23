@@ -465,7 +465,7 @@ export class PM3 {
     if (keys.some(k => state.processes[k]?.isRegistry)) {
       throw new Error(
         'Rolling restart of the registry is not supported locally (port collision). ' +
-        'Registry rolling is driven by k3s readiness + REGISTRY_DRAIN — see docs/ROLLING-K3S-DEPLOYMENT-PLAN.md.'
+        'Registry rolling is driven by k3s readiness + REGISTRY_DRAIN — see yamf/docs/ROADMAP.md.'
       )
     }
 
