@@ -109,6 +109,7 @@ export default async function createService(name, serviceFn, options = {}) {
   validateServiceName(name)
 
   const config = { ...DEFAULT_CONFIG, ...options }
+  config.metadata = { cacheBulk: true, ...(config.metadata || {}) }
   config.useAuthService = config.useAuthService?.name || config.useAuthService
 
   const contract = buildContract(config.useContract, serviceFn)

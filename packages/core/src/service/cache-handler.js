@@ -111,11 +111,42 @@ export function createCacheAwareHandler(serviceFn, cache, context, serviceOption
     // Check if this is a cache update from registry using yamf headers
     if (isCacheUpdateRequest(request)) {
       validateCacheMessageRegistryToken(request)
-      const { pubsubChannel, serviceName, accessControl, serviceLocation, contract } = parseCommandHeaders(request.headers)
+      const h = parseCommandHeaders(request.headers)
+
+      if (h.cacheBulk) {
+        let p = payload
+        if (p == null || p === undefined) {
+          const raw = await readStream(request)
+          const s = raw && raw.length ? raw.toString('utf8') : '{}'
+          try {
+            p = JSON.parse(s)
+          } catch {
+            p = {}
+          }
+        }
+        const updates = Array.isArray(p?.updates) ? p.updates : []
+        for (const u of updates) {
+          logger.debug('cacheAwareHandler - bulk cache update', u)
+          updateCacheEntry(cache, {
+            subscription: u.subscription,
+            service: u.service,
+            accessControl: u.accessControl,
+            location: u.location,
+            contract: u.contract != null ? u.contract : null
+          })
+        }
+        updateContext(context, cache)
+        return {
+          status: 'cache_updated_bulk',
+          count: updates.length,
+          windowId: p?.windowId
+        }
+      }
+
+      const { pubsubChannel, serviceName, accessControl, serviceLocation, contract } = h
       
       logger.debug('cacheAwareHandler - cache update request', { pubsubChannel, serviceName, serviceLocation })
 
-      // Update local cache
       updateCacheEntry(cache, {
         subscription: pubsubChannel,
         service: serviceName,
@@ -124,10 +155,8 @@ export function createCacheAwareHandler(serviceFn, cache, context, serviceOption
         contract
       })
       
-      // Update context to reflect new services
       updateContext(context, cache)
       
-      // Return success response
       return {
         status: 'cache_updated',
         subscription: pubsubChannel,

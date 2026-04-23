@@ -13,7 +13,8 @@ import { routeCommand } from './command-router.js'
 import { validateRegistryEnvironment } from './registry-auth.js'
 import { preRegisterGatewayIfItExists, broadcastShutdown } from './service-registry.js'
 import { performRegistryDrainHandshake, assignRegistryInstanceId } from './registry-drain-handshake.js'
-import { notifyGatewayOfUpdate } from './pubsub-manager.js'
+import { notifyGatewayOfUpdate, drainCacheUpdateQueues } from './pubsub-manager.js'
+import { registerCommand, unregisterCommand } from './command-router.js'
 import { lifecycle } from '../shared/process-lifecycle.js'
 import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
 import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
@@ -203,6 +204,7 @@ export default async function createRegistryServer(port, options = {}) {
   const httpServerTerminate = server.terminate.bind(server)
   const runRegistryShutdown = async () => {
     logger.info('Registry shutting down')
+    await drainCacheUpdateQueues(state)
     if (broadcastShutdownOnTerminate) {
       await broadcastShutdown(state, { reason: 'registry-shutdown' })
     }
@@ -222,6 +224,8 @@ export default async function createRegistryServer(port, options = {}) {
   // Expose state for testing
   // Note: In production, access to state should be restricted
   server._state = state
+  server.registerCommand = (name, handler, opts) => registerCommand(state, name, handler, opts)
+  server.unregisterCommand = (name) => unregisterCommand(state, name)
 
   // After the server is listening, nudge a pre-existing gateway to re-pull state. This closes
   // the k3s rolling race where a gateway started before a fresh registry had empty state and

@@ -186,7 +186,8 @@ async function handleRegister(state, payload, headers = {}) {
     useAuthService, accessControl,
     routePath, routeDataType, routeType,
     rateLimitRequired, contract,
-    serviceType, timeout
+    serviceType, timeout,
+    serviceMetadata
   } = parseCommandHeaders(headers)
   
   // Header-based registration
@@ -209,7 +210,8 @@ async function handleRegister(state, payload, headers = {}) {
       accessControl,
       contract,
       serviceType,
-      timeout
+      timeout,
+      metadata: serviceMetadata && typeof serviceMetadata === 'object' ? serviceMetadata : {}
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {
@@ -468,7 +470,49 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       })
     }
     
-    default:
+    default: {
+      const plugin = state.pluginCommands?.get(command)
+      if (plugin) {
+        if (plugin.requireRegistryToken !== false) {
+          validateRegistryToken(request)
+        }
+        const requesterLocation =
+          request.headers?.[HEADERS.SERVICE_LOCATION] ||
+          request.headers?.['x-forwarded-for'] ||
+          null
+        return await plugin.handler({ headers, body: payload, request, requesterLocation, response })
+      }
       throw new HttpError(400, `Unknown command`)
+    }
   }
+}
+
+const RESERVED_YAMF_COMMANDS = new Set(Object.values(COMMANDS))
+
+/**
+ * Register a custom `yamf-command` handler (slice F). Built-in COMMANDS values are reserved.
+ * Cleared when the owning service+location unregisters (see service-registry).
+ */
+export function registerCommand(state, name, handler, { service, location, requireRegistryToken = true } = {}) {
+  if (!name || typeof name !== 'string' || !handler) {
+    throw new Error('registerCommand(name, handler, { service, location }): name and handler are required')
+  }
+  if (!service || !location) {
+    throw new Error('registerCommand: service and location are required for lifecycle cleanup')
+  }
+  if (RESERVED_YAMF_COMMANDS.has(name)) {
+    throw new HttpError(400, `Command "${name}" is reserved`)
+  }
+  if (!state.pluginCommands) {
+    state.pluginCommands = new Map()
+  }
+  if (state.pluginCommands.has(name)) {
+    throw new HttpError(409, `Command "${name}" is already registered`)
+  }
+  state.pluginCommands.set(name, { handler, service, location, requireRegistryToken })
+  logger.debug('registerCommand', name, service, location)
+}
+
+export function unregisterCommand(state, name) {
+  state.pluginCommands?.delete(name)
 }

@@ -15,6 +15,7 @@
  */
 
 import Logger from '../utils/logger.js'
+import { getDefaultResponseSecurityHeaders } from '../shared/csp.js'
 import crypto from 'crypto'
 import { COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
 import readStream from '../http-primitives/read-stream.js'
@@ -160,16 +161,15 @@ export default async function createEventSourceService(serviceName, handlers = {
           }
         }
         const r = await ssr.invoke(p, context)
-        response.setHeader('x-content-type-options', 'nosniff')
+        // Short-circuits before http-server's default response (returns false); align with slice A via same helper it uses.
+        const sec = getDefaultResponseSecurityHeaders({ csp: options.csp })
         if (r.status === 204) {
-          response.writeHead(204)
+          response.writeHead(204, sec)
           response.end()
         } else {
-          response.setHeader('content-type', 'application/json')
           response.writeHead(r.status, {
-            'x-content-type-options': 'nosniff',
-            'x-frame-options': 'DENY',
-            'x-xss-protection': '1; mode=block'
+            ...sec,
+            'content-type': 'application/json'
           })
           response.end(typeof r.body === 'string' ? r.body : JSON.stringify(r.body))
         }

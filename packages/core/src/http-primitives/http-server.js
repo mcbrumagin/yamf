@@ -4,6 +4,7 @@ import HttpError from './http-error.js'
 import Logger from '../utils/logger.js'
 import fs from 'node:fs'
 import { detectContentType } from './content-type-detector.js'
+import { getDefaultResponseSecurityHeaders } from '../shared/csp.js'
 
 const logger = new Logger({ logGroup: 'http-primitives' })
 
@@ -36,9 +37,13 @@ export default async function createServer(port, serverFn, options = {}) {
   if (!port) throw new Error('"port" is required')
   if (!serverFn) throw new Error('"serverFn" is required')
 
-  const { streamPayload = false } = options
+  const { streamPayload = false, csp: cspOverride = null, frameOptions } = options
   const requestTimeout = options.requestTimeout !== undefined ? options.requestTimeout : 60000
   const headersTimeout = options.headersTimeout !== undefined ? options.headersTimeout : 30000
+  const securityHeaders = getDefaultResponseSecurityHeaders({
+    csp: cspOverride,
+    frameOptions
+  })
 
   return new Promise((resolve, reject) => {
     const server = http.createServer({
@@ -113,10 +118,7 @@ export default async function createServer(port, serverFn, options = {}) {
           
           response.writeHead(200, {
             'content-type': contentType,
-            // Modern security headers
-            'x-content-type-options': 'nosniff',
-            'x-frame-options': 'DENY',
-            'x-xss-protection': '1; mode=block'
+            ...securityHeaders
           })
           response.end(responseBody)
         } // else logger.warn('nothing returned from server handler', {port, name: serverFn.name})
@@ -125,6 +127,9 @@ export default async function createServer(port, serverFn, options = {}) {
           prependServiceNameToErrorStack(err, serverFn.name)
           // response.setHeader('x-correlation-id', generateId()) // TODO?
           if (!response.writableEnded) {
+            for (const [hk, hv] of Object.entries(securityHeaders)) {
+              response.setHeader(hk, hv)
+            }
             response.setHeader('content-type', 'text/plain')
             response.writeHead(err.status || 500)
             response.end(err.stack)
@@ -134,6 +139,9 @@ export default async function createServer(port, serverFn, options = {}) {
           }
         } else {
           if (!response.writableEnded) {
+            for (const [hk, hv] of Object.entries(securityHeaders)) {
+              response.setHeader(hk, hv)
+            }
             response.setHeader('content-type', 'text/plain')
             response.writeHead(500)
             response.end(err.stack)

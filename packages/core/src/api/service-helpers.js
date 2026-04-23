@@ -120,7 +120,7 @@ export async function setupServiceWithRegistry(serviceName, serviceHome, options
  */
 export async function registerServiceWithRegistry(serviceName, location, options = {}) {
   const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService, accessControl, rateLimit, contract, serviceType, timeout /* TODO?, pubsubChannels */ } = options
+  const { useAuthService, accessControl, rateLimit, contract, serviceType, timeout, metadata } = options
   
   logger.debug(`registerServiceWithRegistry - ${serviceName} at ${location}`)
   
@@ -133,7 +133,8 @@ export async function registerServiceWithRegistry(serviceName, location, options
       rateLimit,
       contract,
       serviceType,
-      timeout
+      timeout,
+      metadata
     })
   })
 }
@@ -208,6 +209,10 @@ export async function createServiceHttpServer(port, handler, options = {}) {
  */
 const serviceRegistrationRetryLimit = envConfig.get('YAMF_REGISTRATION_RETRY_LIMIT', 120)
 export async function createAndRegisterService(serviceName, handler, options = {}, retryInfo) {
+  options = {
+    ...options,
+    metadata: { cacheBulk: true, ...(options.metadata || {}) }
+  }
   validateServiceName(serviceName)
   
   // Check for local service name collision before proceeding
@@ -259,6 +264,8 @@ export async function createAndRegisterService(serviceName, handler, options = {
   const serverOptions = { streamPayload: options.streamPayload || false }
   if (options.requestTimeout !== undefined) serverOptions.requestTimeout = options.requestTimeout
   if (options.headersTimeout !== undefined) serverOptions.headersTimeout = options.headersTimeout
+  if (options.csp !== undefined) serverOptions.csp = options.csp
+  if (options.frameOptions !== undefined) serverOptions.frameOptions = options.frameOptions
   try {
     server = await createServiceHttpServer(port, handler, serverOptions)
   } catch (err) {

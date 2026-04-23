@@ -291,6 +291,41 @@ export async function testStaticFileSecurityAllowsLibrarySegment() {
   }
 }
 
+/**
+ * fileMap targets may use `..` to resolve outside rootDir (Soundclone-style). Serving must not 403
+ * once the resolved directory is in allowed serve roots.
+ */
+export async function testStaticFileFileMapWithParentSegmentOutsideRoot() {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'static-escape-'))
+  const siteRoot = path.join(base, 'www')
+  const dataDir = path.join(base, 'data')
+  fs.mkdirSync(siteRoot, { recursive: true })
+  fs.mkdirSync(dataDir, { recursive: true })
+  fs.writeFileSync(path.join(siteRoot, 'index.html'), '<html>root</html>')
+  fs.writeFileSync(path.join(dataDir, 'hello.txt'), 'from-parent-path')
+
+  try {
+    await terminateAfter(
+      () => registryServer(),
+      () => createStaticFileService({
+        rootDir: siteRoot,
+        urlRoot: '/',
+        fileMap: {
+          '/': 'index.html',
+          '/u/*': '../data'
+        },
+        externalRootDir: true
+      }),
+      async () => {
+        const out = await callService('static-file-service', { url: '/u/hello.txt' })
+        await assert(out, (r) => r.includes('from-parent-path'))
+      }
+    )
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true })
+  }
+}
+
 export async function testStaticFileNotFound() {
   const tempDir = await createTempTestFiles()
   

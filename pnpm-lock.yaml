@@ -96,6 +96,9 @@ importers:
       '@yamf/core':
         specifier: workspace:*
         version: link:../../core
+      '@yamf/shared':
+        specifier: workspace:*
+        version: link:../../shared
     devDependencies:
       '@yamf/cli':
         specifier: workspace:*
@@ -109,6 +112,9 @@ importers:
       '@yamf/core':
         specifier: workspace:^
         version: link:../../core
+      '@yamf/shared':
+        specifier: workspace:*
+        version: link:../../shared
       busboy:
         specifier: ^1.6.0
         version: 1.6.0

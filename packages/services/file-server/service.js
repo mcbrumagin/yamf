@@ -6,6 +6,7 @@ import {
   next,
   detectContentType
 } from '@yamf/core'
+import { isPathUnderRoot, URL_PATH_DANGEROUS_CTRL_RE } from '@yamf/shared'
 
 import path from 'node:path'
 import fs from 'node:fs'
@@ -205,7 +206,8 @@ function simpleSecurityCheck(url, preventSystemFileAccess = true) {
   const segments = pathname.split('/').filter(Boolean)
   const systemSegments = new Set(['etc', 'boot', 'lib', 'bin', 'sbin', 'usr', 'var'])
 
-  if (lowerUrl.includes('..') // prevent path traversal
+  if (URL_PATH_DANGEROUS_CTRL_RE.test(String(url || ''))
+    || lowerUrl.includes('..') // prevent path traversal
     || segments.some(segment => segment.startsWith('.')) // prevent access to hidden files/directories
     || lowerUrl.includes('%2e%2e') // prevent encoded path traversal ".."
     || lowerUrl.includes('%2e') // prevent encoded dot
@@ -214,7 +216,56 @@ function simpleSecurityCheck(url, preventSystemFileAccess = true) {
     || lowerUrl.includes('%2f') // prevent encoded forward slash
     || (preventSystemFileAccess && segments.some(segment => systemSegments.has(segment)))
   ) throw new HttpError(403, 'url contains invalid characters')
-  else return true
+  else   return true
+}
+
+/**
+ * Allowed directory roots for resolved file paths (slice B + Soundclone): includes `rootDir` and
+ * every directory that contains a mapped file, including paths outside `rootDir` when fileMap
+ * uses `..` (e.g. `../data`) or absolute targets.
+ */
+function addPathToAllowedServeRoots(roots, fsPath) {
+  if (!fsPath) return
+  const abs = path.resolve(fsPath)
+  try {
+    if (fs.existsSync(abs)) {
+      const st = fs.statSync(abs)
+      if (st.isDirectory()) {
+        roots.add(abs)
+      } else {
+        roots.add(path.resolve(path.dirname(abs)))
+      }
+    } else {
+      roots.add(path.resolve(path.dirname(abs)))
+    }
+  } catch {
+    roots.add(path.resolve(path.dirname(abs)))
+  }
+}
+
+function buildAllowedStaticServeRootDirs(quickLookup, catchAllFallbackPath, spaEntryPath, rootDir) {
+  const roots = new Set()
+  addPathToAllowedServeRoots(roots, rootDir)
+  for (const fp of Object.values(quickLookup)) {
+    addPathToAllowedServeRoots(roots, fp)
+  }
+  if (catchAllFallbackPath) {
+    addPathToAllowedServeRoots(roots, catchAllFallbackPath)
+  }
+  if (spaEntryPath) {
+    addPathToAllowedServeRoots(roots, spaEntryPath)
+  }
+  return roots
+}
+
+function isPathUnderAllowedServeRoots(resolvedFile, allowedDirRoots) {
+  const abs = path.resolve(resolvedFile)
+  for (const r of allowedDirRoots) {
+    if (isPathUnderRoot(abs, r)) {
+      return true
+    }
+  }
+  return false
 }
 
 function getLastModified(filePath) {
@@ -304,8 +355,23 @@ export default async function createStaticFileService({
     }
   }
 
-  const { quickLookup, catchAllFallbackPath } = generateQuickLookupMap(fileMap, urlRoot, rootDir)
+  let { quickLookup, catchAllFallbackPath } = generateQuickLookupMap(fileMap, urlRoot, rootDir)
   logger.info(`Static files mapped for "${urlRoot}" ${prettyPrintQuickLookup(quickLookup)}${catchAllFallbackPath ? ` (catch-all: ${path.relative(process.cwd(), catchAllFallbackPath)})` : ''}`)
+
+  let allowedStaticServeRootDirs = buildAllowedStaticServeRootDirs(
+    quickLookup,
+    catchAllFallbackPath,
+    spaConfig.enabled ? spaConfig.entryPath : null,
+    rootDir
+  )
+  const syncAllowedStaticServeRoots = () => {
+    allowedStaticServeRootDirs = buildAllowedStaticServeRootDirs(
+      quickLookup,
+      catchAllFallbackPath,
+      spaConfig.enabled ? spaConfig.entryPath : null,
+      rootDir
+    )
+  }
   
   // Auto-refresh state tracking
   let refreshStats = {
@@ -339,6 +405,11 @@ export default async function createStaticFileService({
     if (!filePath) {
       logger.debug(`file not found in lookup for url: "${url}"`)
       throw new HttpError(404, 'Not found')
+    }
+
+    const absRead = path.resolve(filePath)
+    if (!isPathUnderAllowedServeRoots(absRead, allowedStaticServeRootDirs)) {
+      throw new HttpError(403, 'path not under allowed static roots')
     }
 
     return await fsAsync.readFile(filePath)
@@ -396,6 +467,11 @@ export default async function createStaticFileService({
       } else {
         return defaultResult
       }
+    }
+
+    const absServe = path.resolve(filePath)
+    if (!isPathUnderAllowedServeRoots(absServe, allowedStaticServeRootDirs)) {
+      throw new HttpError(403, 'path not under allowed static roots')
     }
 
     logger.debug('staticFileService - filePath:', filePath)
@@ -492,6 +568,7 @@ export default async function createStaticFileService({
     
     quickLookup[urlPath] = filePath
     refreshStats.totalFiles = Object.keys(quickLookup).length
+    syncAllowedStaticServeRoots()
     
     if (autoRefresh?.onFileAdded) {
       autoRefresh.onFileAdded({ urlPath, filePath })
@@ -577,6 +654,7 @@ export default async function createStaticFileService({
           logger.error(`Error refreshing path ${dirPath}:`, err)
           throw err
         }
+        syncAllowedStaticServeRoots()
       }
     }
     
@@ -599,6 +677,8 @@ export default async function createStaticFileService({
       const result = generateQuickLookupMap(fileMap, urlRoot, rootDir)
       for (const k of Object.keys(quickLookup)) delete quickLookup[k]
       for (const k in result.quickLookup) quickLookup[k] = result.quickLookup[k]
+      catchAllFallbackPath = result.catchAllFallbackPath
+      syncAllowedStaticServeRoots()
       
       // Calculate changes
       const oldUrls = new Set(Object.keys(oldLookup))

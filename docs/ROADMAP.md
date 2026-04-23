@@ -145,6 +145,8 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 
 **Version bumps.** `@yamf/core` minor bump (new exported API, backward compatible).
 
+**Remote scope.** F is in-process only (`server.registerCommand` on the registry instance). Slice C3’s deploy router either runs in-process beside the registry (e.g. homelab), or a later follow-up adds a remote `REGISTRY_COMMAND_REGISTER` (or equivalent) command envelope; choose before C3.
+
 ### Slice A — Content‑Security‑Policy & default security headers  `[small]`
 
 **Goal.** Give YAMF services sane default response headers (CSP + friends) and a minimal, declarative way to tighten them per service or route. Remove the need for apps to hand‑set `x-content-type-options`, `x-frame-options`, etc. on each response.

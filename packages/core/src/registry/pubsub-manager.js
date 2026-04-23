@@ -5,12 +5,199 @@
 
 import httpRequest from '../http-primitives/http-request.js'
 import HttpError from '../http-primitives/http-error.js'
-import { buildPublishHeaders, buildCacheUpdateHeaders, buildRegistryUpdatedHeaders } from '../shared/yamf-headers.js'
+import { buildPublishHeaders, buildCacheUpdateHeaders, buildRegistryUpdatedHeaders, buildBulkCacheUpdateHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 
 import Logger from '../utils/logger.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
+
+// Default 0: preserve synchronous push (tests + backward compat). Set e.g. 50 in prod to batch.
+const COALESCE_MS = () => Number(envConfig.get('YAMF_CACHE_COALESCE_MS', 0))
+const COALESCE_MAX_MS = () => Number(envConfig.get('YAMF_CACHE_COALESCE_MAX_MS', 250))
+const BULK_MAX = () => Number(envConfig.get('YAMF_CACHE_BULK_MAX', 500))
+const STALE_AFTER = () => Number(envConfig.get('YAMF_CACHE_PUSH_STALE_AFTER', 3))
+
+function isCoalescingEnabled() {
+  return COALESCE_MS() > 0
+}
+
+function getCoalesceKey(state) {
+  const id = state.registryInstanceId || 'reg'
+  state.cacheUpdateSeq = (state.cacheUpdateSeq || 0) + 1
+  return `${id}:${state.cacheUpdateSeq}`
+}
+
+function wantsBulkCache(state, subscriberLocation) {
+  const name = state.addresses?.get(subscriberLocation)
+  if (!name) return false
+  return state.serviceMetadata.get(name)?.cacheBulk === true
+}
+
+function getOrCreatePending(state, location) {
+  if (!state.cacheCoalesceBySubscriber) {
+    state.cacheCoalesceBySubscriber = new Map()
+  }
+  let p = state.cacheCoalesceBySubscriber.get(location)
+  if (!p) {
+    p = { items: [], firstAt: null, debounceTimer: null, maxTimer: null }
+    state.cacheCoalesceBySubscriber.set(location, p)
+  }
+  return p
+}
+
+function clearTimers(p) {
+  if (p?.debounceTimer) {
+    clearTimeout(p.debounceTimer)
+    p.debounceTimer = null
+  }
+  if (p?.maxTimer) {
+    clearTimeout(p.maxTimer)
+    p.maxTimer = null
+  }
+}
+
+/**
+ * Send one batch of cache updates to a subscriber. `mode` `bulk` = one JSON body; `legacy` = N header-only calls.
+ */
+async function sendCacheUpdatesToSubscriber(state, registryToken, subscriberLocation, items, mode) {
+  if (items.length === 0) return { ok: true }
+  if (mode === 'bulk') {
+    const windowId = getCoalesceKey(state)
+    const body = { windowId, updates: items }
+    await httpRequest(subscriberLocation, {
+      body,
+      headers: buildBulkCacheUpdateHeaders(windowId, registryToken)
+    })
+    return { ok: true }
+  }
+  for (const u of items) {
+    await httpRequest(subscriberLocation, {
+      body: null,
+      headers: buildCacheUpdateHeaders(
+        u.subscription,
+        u.service,
+        u.location,
+        registryToken,
+        u.contract != null ? u.contract : null
+      )
+    })
+  }
+  return { ok: true }
+}
+
+async function pushWithRetry(state, registryToken, subscriberLocation, items, mode) {
+  const failures = state.cachePushFailures
+  const stale = state.cacheUpdateStaleSubscribers
+  if (stale.has(subscriberLocation)) {
+    return { dropped: 'stale' }
+  }
+  try {
+    await sendCacheUpdatesToSubscriber(state, registryToken, subscriberLocation, items, mode)
+    failures.delete(subscriberLocation)
+    stale.delete(subscriberLocation)
+    return { ok: true }
+  } catch (err) {
+    logger.debugErr(`cache coalesce push failed for ${subscriberLocation}, retrying once:`, err?.message)
+    try {
+      await new Promise((r) => setImmediate(r))
+      await sendCacheUpdatesToSubscriber(state, registryToken, subscriberLocation, items, mode)
+      failures.delete(subscriberLocation)
+      stale.delete(subscriberLocation)
+      return { ok: true }
+    } catch (err2) {
+      const n = (failures.get(subscriberLocation) || 0) + 1
+      failures.set(subscriberLocation, n)
+      if (n >= STALE_AFTER()) {
+        stale.add(subscriberLocation)
+        logger.warn(`marking cache subscriber stale after ${n} failed windows: ${subscriberLocation}`)
+      }
+      throw err2
+    }
+  }
+}
+
+async function flushSubscriberQueue(state, registryToken, subscriberLocation) {
+  const p = state.cacheCoalesceBySubscriber?.get(subscriberLocation)
+  if (!p || p.items.length === 0) return
+  const items = p.items.splice(0, p.items.length)
+  p.firstAt = null
+  clearTimers(p)
+  const mode = wantsBulkCache(state, subscriberLocation) ? 'bulk' : 'legacy'
+  try {
+    await pushWithRetry(state, registryToken, subscriberLocation, items, mode)
+  } catch (err) {
+    logger.debugErr('flushSubscriberQueue final failure', subscriberLocation, err?.message)
+  }
+}
+
+function enqueueCacheUpdate(state, { subscription, service, location, contract }) {
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
+  const subscribers = state.subscriptions.get('register')
+  if (!subscribers) {
+    return
+  }
+  const item = { subscription, service, location, contract }
+  for (const subscriberLocation of subscribers) {
+    if (state.cacheUpdateStaleSubscribers?.has(subscriberLocation)) {
+      continue
+    }
+    const p = getOrCreatePending(state, subscriberLocation)
+    const wasEmpty = p.items.length === 0
+    p.items.push(item)
+    if (p.items.length >= BULK_MAX()) {
+      const chunk = p.items.splice(0, p.items.length)
+      p.firstAt = null
+      clearTimers(p)
+      const mode = wantsBulkCache(state, subscriberLocation) ? 'bulk' : 'legacy'
+      void pushWithRetry(state, registryToken, subscriberLocation, chunk, mode).catch((err) =>
+        logger.debugErr('immediate bulk-max flush failed', err?.message)
+      )
+      continue
+    }
+    if (wasEmpty) {
+      p.firstAt = Date.now()
+      p.maxTimer = setTimeout(() => {
+        void flushSubscriberQueue(state, registryToken, subscriberLocation)
+      }, COALESCE_MAX_MS())
+    }
+    if (p.debounceTimer) clearTimeout(p.debounceTimer)
+    p.debounceTimer = setTimeout(() => {
+      void flushSubscriberQueue(state, registryToken, subscriberLocation)
+    }, COALESCE_MS())
+  }
+}
+
+/**
+ * Await all pending coalesced cache flushes (registry shutdown, slice E)
+ */
+export async function drainCacheUpdateQueues(state) {
+  if (!state?.cacheCoalesceBySubscriber) return
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
+  const jobs = []
+  for (const loc of state.cacheCoalesceBySubscriber.keys()) {
+    const p = state.cacheCoalesceBySubscriber.get(loc)
+    if (p && p.items.length > 0) {
+      clearTimers(p)
+      const items = p.items
+      p.items = []
+      p.firstAt = null
+      if (state.cacheUpdateStaleSubscribers?.has(loc)) {
+        continue
+      }
+      const mode = wantsBulkCache(state, loc) ? 'bulk' : 'legacy'
+      jobs.push(
+        pushWithRetry(state, registryToken, loc, items, mode).catch((err) =>
+          logger.debugErr('drainCacheUpdateQueues', loc, err?.message)
+        )
+      )
+    } else if (p) {
+      clearTimers(p)
+    }
+  }
+  await Promise.all(jobs)
+  state.cacheCoalesceBySubscriber.clear()
+}
 
 /**
  * Publish a message to all subscribers of a type
@@ -73,38 +260,56 @@ export async function notifyGatewayOfUpdate(state, { service, location }) {
 }
 
 /**
- * Publish cache update notifications to all subscribers
- * Uses yamf headers to identify internal cache update calls
- * Also notifies gateway via pull model
+ * Original per-subscriber push (used when coalescing is off).
  */
-export async function publishCacheUpdate(state, { subscription, service, location, contract }) {
+async function publishCacheUpdateImmediate(state, { subscription, service, location, contract }) {
   const results = []
   const errors = []
   const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
-  // Notify gateway separately (pull model)
   const gatewayNotification = await notifyGatewayOfUpdate(state, { subscription, service, location })
   if (gatewayNotification.notified) {
     logger.debug('Gateway notified of registry update')
   }
-  
   const subscribers = state.subscriptions.get('register')
   if (!subscribers) {
     return { results, errors, gatewayNotification }
   }
-  
-  // Notify regular services (push model)
+  const one = { subscription, service, location, contract }
   for (const subscriberLocation of subscribers) {
+    if (state.cacheUpdateStaleSubscribers?.has(subscriberLocation)) {
+      continue
+    }
+    const mode = wantsBulkCache(state, subscriberLocation) ? 'bulk' : 'legacy'
     try {
-      const result = await httpRequest(subscriberLocation, {
-        body: null, // No body needed - all info is in headers
-        headers: buildCacheUpdateHeaders(subscription, service, location, registryToken, contract || null)
-      })
+      const result = await sendCacheUpdatesToSubscriber(
+        state,
+        registryToken,
+        subscriberLocation,
+        [one],
+        mode
+      )
       results.push(result)
     } catch (err) {
       errors.push(err)
     }
   }
-  
+  return { results, errors, gatewayNotification }
+}
+
+/**
+ * Publish cache update notifications to all subscribers (coalesced when enabled, slice E)
+ */
+export async function publishCacheUpdate(state, { subscription, service, location, contract }) {
+  if (!isCoalescingEnabled()) {
+    return publishCacheUpdateImmediate(state, { subscription, service, location, contract })
+  }
+  const results = []
+  const errors = []
+  const gatewayNotification = await notifyGatewayOfUpdate(state, { subscription, service, location })
+  if (gatewayNotification.notified) {
+    logger.debug('Gateway notified of registry update')
+  }
+  enqueueCacheUpdate(state, { subscription, service, location, contract })
   return { results, errors, gatewayNotification }
 }
 
@@ -157,5 +362,14 @@ export function removeAllSubscriptionsForLocation(state, location) {
       state.subscriptions.delete(type)
     }
   }
+  if (state.cacheCoalesceBySubscriber) {
+    const p = state.cacheCoalesceBySubscriber.get(location)
+    if (p) {
+      if (p.debounceTimer) clearTimeout(p.debounceTimer)
+      if (p.maxTimer) clearTimeout(p.maxTimer)
+    }
+    state.cacheCoalesceBySubscriber.delete(location)
+  }
+  state.cachePushFailures?.delete(location)
+  state.cacheUpdateStaleSubscribers?.delete(location)
 }
-

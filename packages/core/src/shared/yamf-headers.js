@@ -44,7 +44,14 @@ export const HEADERS = {
 
   // Rolling registry
   REGISTRY_INSTANCE_ID: 'yamf-registry-instance-id',
-  SHUTDOWN_REASON: 'yamf-shutdown-reason'
+  SHUTDOWN_REASON: 'yamf-shutdown-reason',
+
+  /** JSON object: e.g. `{ "cacheBulk": true }` */
+  SERVICE_METADATA: 'yamf-service-metadata',
+
+  /** Bulk cache update window (registry → subscriber) */
+  CACHE_BULK: 'yamf-cache-bulk',
+  CACHE_WINDOW_ID: 'yamf-cache-window-id'
 }
 
 /**
@@ -124,12 +131,17 @@ export function buildRegisterHeaders(serviceName, location, {
   rateLimit = false,  // true = require rate limit config exists
   contract = true,
   serviceType = null, // 'sse', etc. -- null means standard
-  timeout = null      // per-service timeout in ms (0 = no timeout)
-}) {
+  timeout = null,    // per-service timeout in ms (0 = no timeout)
+  metadata = null
+} = {}) {
   // TODO: Hybrid rate limiting - if rateLimit is an object, serialize it
   // For now, only support boolean (true = require config exists)
   const rateLimitRequired = rateLimit === true
-  
+  const meta =
+    metadata && typeof metadata === 'object' && Object.keys(metadata).length > 0
+      ? JSON.stringify(metadata)
+      : null
+
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
@@ -140,7 +152,8 @@ export function buildRegisterHeaders(serviceName, location, {
     ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' }),
     ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) }),
     ...(serviceType && { [HEADERS.SERVICE_TYPE]: serviceType }),
-    ...(timeout !== null && { [HEADERS.TIMEOUT]: String(timeout) })
+    ...(timeout !== null && { [HEADERS.TIMEOUT]: String(timeout) }),
+    ...(meta && { [HEADERS.SERVICE_METADATA]: meta })
   }
 }
 
@@ -252,6 +265,18 @@ export function buildCacheUpdateHeaders(pubsubChannel, serviceName, location, re
 }
 
 /**
+ * Bulk cache update (one POST with JSON body; headers identify command only).
+ */
+export function buildBulkCacheUpdateHeaders(windowId, registryToken = null) {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.CACHE_UPDATE,
+    [HEADERS.CACHE_BULK]: '1',
+    [HEADERS.CACHE_WINDOW_ID]: windowId,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
+  }
+}
+
+/**
  * Build headers for registry-issued graceful shutdown to a service HTTP endpoint
  */
 export function buildShutdownHeaders(serviceName, location, registryToken, reason = 'registry-broadcast') {
@@ -335,6 +360,12 @@ export function parseCommandHeaders(headers) {
   if (contractHeader) {
     try { contract = JSON.parse(contractHeader) } catch {}
   }
+
+  let serviceMetadata = null
+  const metaHeader = headers[HEADERS.SERVICE_METADATA]
+  if (metaHeader) {
+    try { serviceMetadata = JSON.parse(metaHeader) } catch {}
+  }
   
   // Parse timeout from header (string -> number or null)
   const timeoutHeader = headers[HEADERS.TIMEOUT]
@@ -354,7 +385,10 @@ export function parseCommandHeaders(headers) {
     rateLimitRequired,
     contract,
     serviceType: headers[HEADERS.SERVICE_TYPE] || null,
-    timeout
+    timeout,
+    serviceMetadata,
+    cacheBulk: headers[HEADERS.CACHE_BULK] === '1',
+    cacheWindowId: headers[HEADERS.CACHE_WINDOW_ID] || null
   }
 }
 

@@ -1,8 +1,12 @@
 import {
   createService,
-  Logger
+  Logger,
+  publishMessage,
+  envConfig,
+  HttpError
 } from '@yamf/core'
 
+import { sanitizePathSegment } from '@yamf/shared'
 import busboy from 'busboy'
 import fs from 'fs'
 import { promises as fsPromises } from 'fs'
@@ -11,12 +15,29 @@ import crypto from 'crypto'
 
 let logger = new Logger({ logGroup: 'file-upload-service' })
 
-/**
- * Sanitize a filename to prevent path traversal attacks.
- * Strips directory components and .. sequences.
- */
 function sanitizeFilename(filename) {
-  return path.basename(filename || 'unnamed').replace(/\.\./g, '').replace(/\0/g, '') || 'unnamed'
+  return sanitizePathSegment(path.basename(filename || 'unnamed'))
+}
+
+/** Sniff MIME from first bytes (do not trust client Content-Type) */
+function sniffMimeFromBuffer(buf) {
+  if (!buf || buf.length < 1) return 'application/octet-stream'
+  const b = buf
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png'
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return 'image/gif'
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46) return 'image/webp'
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return 'application/pdf'
+  if (b[0] === 0x50 && b[1] === 0x4b) return 'application/zip'
+  return 'application/octet-stream'
+}
+
+function mimeAllowed(sniffed, allowList) {
+  if (!allowList || allowList.length === 0) return true
+  return allowList.some((t) => {
+    if (t.endsWith('/*')) return sniffed.startsWith(t.slice(0, -1))
+    return sniffed === t
+  })
 }
 
 /**
@@ -28,6 +49,21 @@ function sanitizeFilename(filename) {
  * Files are written to a temporary location with a crypto-generated name,
  * then renamed to the final name once all form fields are received.
  */
+async function verifyFileMagicIfNeeded(finalPath, acceptMime) {
+  if (!acceptMime || acceptMime.length === 0) return
+  const fh = await fsPromises.open(finalPath, 'r')
+  try {
+    const buf = Buffer.alloc(32)
+    await fh.read(buf, 0, 32, 0)
+    const sniffed = sniffMimeFromBuffer(buf)
+    if (!mimeAllowed(sniffed, acceptMime)) {
+      throw new HttpError(415, `content type mismatch: detected ${sniffed}`)
+    }
+  } finally {
+    await fh.close()
+  }
+}
+
 function handleStreamingUpload(_payload, req, res, options) {
   const {
     uploadDir,
@@ -40,10 +76,17 @@ function handleStreamingUpload(_payload, req, res, options) {
     multiFile = false,
     maxFileSize = null,
     maxFiles = null,
+    acceptMime = null,
+    onAllocate = null,
+    auditUpload = null,
+    serviceName: uploadServiceName = 'file-upload-service'
   } = options
 
+  const envCap = Number(envConfig.get('YAMF_UPLOAD_MAX_BYTES', 25 * 1024 * 1024))
+  const effectiveMax = maxFileSize != null ? Math.min(maxFileSize, envCap) : envCap
+
   const limits = {}
-  if (maxFileSize) limits.fileSize = maxFileSize
+  limits.fileSize = effectiveMax
   if (maxFiles) limits.files = maxFiles
 
   const bb = busboy({ headers: req.headers, limits })
@@ -63,6 +106,41 @@ function handleStreamingUpload(_payload, req, res, options) {
   const cleanupTempFiles = async (entries) => {
     for (const entry of entries) {
       try { await fsPromises.unlink(entry.tempFilePath) } catch {}
+    }
+  }
+
+  const postProcessSavedFile = async (finalPath, stats, { filename, mimeType }) => {
+    try {
+      await verifyFileMagicIfNeeded(finalPath, acceptMime)
+    } catch (err) {
+      await fsPromises.unlink(finalPath).catch(() => {})
+      throw err
+    }
+    if (onAllocate) {
+      const r = await onAllocate({
+        userId: formData.userId ?? formData.user_id,
+        bytes: stats.size
+      })
+      if (r && r.allow === false) {
+        await fsPromises.unlink(finalPath).catch(() => {})
+        throw new HttpError(403, r.reason || 'upload not allowed')
+      }
+    }
+    if (auditUpload) {
+      try {
+        await auditUpload({
+          userId: formData.userId,
+          service: uploadServiceName,
+          bytes: stats.size,
+          mime: mimeType,
+          hash: null,
+          ip: req.socket?.remoteAddress,
+          path: finalPath,
+          originalName: filename
+        })
+      } catch (e) {
+        logger.debugErr('upload audit callback failed', e)
+      }
     }
   }
 
@@ -92,6 +170,7 @@ function handleStreamingUpload(_payload, req, res, options) {
           const finalPath = path.join(uploadDir, finalFileName)
           await fsPromises.rename(entry.tempFilePath, finalPath)
           const stats = await fsPromises.stat(finalPath)
+          await postProcessSavedFile(finalPath, stats, { filename, mimeType })
           uploadedFiles.push({
             originalName: filename,
             savedName: finalFileName,
@@ -141,6 +220,7 @@ function handleStreamingUpload(_payload, req, res, options) {
         const finalPath = path.join(uploadDir, finalFileName)
         await fsPromises.rename(tempFilePath, finalPath)
         const stats = await fsPromises.stat(finalPath)
+        await postProcessSavedFile(finalPath, stats, { filename, mimeType })
 
         const uploadedFileInfo = {
           originalName: filename,
@@ -177,11 +257,12 @@ function handleStreamingUpload(_payload, req, res, options) {
 
   const handleError = (error, message = 'Upload failed') => {
     if (res.headersSent) return
+    const status = error instanceof HttpError ? error.status : 500
     const errorData = { success: false, error: message, details: error?.message }
     if (onError) {
       onError(errorData, error, req, res)
     } else {
-      if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' })
+      if (!res.headersSent) res.writeHead(status, { 'Content-Type': 'application/json' })
       if (!res.writableEnded) res.end(JSON.stringify(errorData))
     }
   }
@@ -412,8 +493,12 @@ export default async function createFileUploadService({
 
   multiFile = false,
   maxFileSize = null,
+  maxBytes = null,
   maxFiles = null,
-  
+  acceptMime = null,
+  onAllocate = null,
+  auditUploads = false,
+
   // auto-publish upload events
   publishFileEvents = false,
   updateChannel = 'yamf:file-updated',
@@ -470,8 +555,20 @@ export default async function createFileUploadService({
       onSuccess: wrappedOnSuccess,
       onError,
       multiFile,
-      maxFileSize,
+      maxFileSize: maxBytes ?? maxFileSize,
       maxFiles,
+      acceptMime,
+      onAllocate,
+      serviceName,
+      auditUpload: auditUploads
+        ? async (info) => {
+            try {
+              await publishMessage('yamf:upload', { ...info, at: Date.now() })
+            } catch (err) {
+              logger.debugErr('yamf:upload publish failed (registry may be down):', err?.message)
+            }
+          }
+        : null
     })
     
     // Return false to indicate that the response is handled by the function itself

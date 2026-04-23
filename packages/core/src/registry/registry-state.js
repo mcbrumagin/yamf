@@ -61,7 +61,25 @@ export function createRegistryState() {
     /** @type {string|null} set when this registry process starts */
     registryInstanceId: null,
     /** When true, new registrations are rejected (503) while calls/reads still work */
-    draining: false
+    draining: false,
+
+    /** Monotonic id for coalesced cache-update windows (slice E) */
+    cacheUpdateSeq: 0,
+
+    /** @type {Map<string, { handler: Function, service: string, location: string }>} plugin yamf-command handlers (slice F) */
+    pluginCommands: new Map(),
+
+    /** @type {Map<string, number>} consecutive failed cache push windows per subscriber location */
+    cachePushFailures: new Map(),
+
+    /** @type {Set<string>} subscriber locations that stopped receiving cache pushes (slice E) */
+    cacheUpdateStaleSubscribers: new Set(),
+
+    /**
+     * Per-subscriber coalesce buffers (slice E)
+     * @type {Map<string, { items: Array<{ subscription: string, service: string, location: string, contract: * }>, firstAt: number | null, debounceTimer: ReturnType<typeof setTimeout> | null, maxTimer: ReturnType<typeof setTimeout> | null }>}
+     */
+    cacheCoalesceBySubscriber: new Map()
   }
 }
 
@@ -80,6 +98,17 @@ export function resetState(state) {
   state.serviceContracts.clear()
   state.serviceTypes.clear()
   state.serviceTimeouts.clear()
+  state.cacheUpdateSeq = 0
+  state.pluginCommands?.clear()
+  state.cachePushFailures?.clear()
+  state.cacheUpdateStaleSubscribers?.clear()
+  if (state.cacheCoalesceBySubscriber) {
+    for (const p of state.cacheCoalesceBySubscriber.values()) {
+      if (p.debounceTimer) clearTimeout(p.debounceTimer)
+      if (p.maxTimer) clearTimeout(p.maxTimer)
+    }
+    state.cacheCoalesceBySubscriber.clear()
+  }
   
   // Note: rateLimitConfig is NOT reset - it's configuration set at startup
   // Only reset the runtime rate limiter state
