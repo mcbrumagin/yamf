@@ -81,7 +81,10 @@ export const COMMANDS = {
   SERVICE_SHUTDOWN: 'service-shutdown',
 
   // Registry rolling handoff
-  REGISTRY_DRAIN: 'registry-drain'
+  REGISTRY_DRAIN: 'registry-drain',
+
+  // Server-rendered / signed handler round-trip (SSR invoke)
+  SSR_INVOKE_HANDLER: 'ssr-invoke-handler'
 }
 
 /**

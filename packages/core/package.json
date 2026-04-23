@@ -1,6 +1,6 @@
 {
   "name": "@yamf/core",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "description": "A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, api gateway, pub/sub messaging, HTTP routing, and load balancing.",
   "main": "src/index.js",
@@ -62,6 +62,7 @@
     }
   },
   "devDependencies": {
+    "@yamf/client": "workspace:*",
     "@yamf/cli": "workspace:*",
     "@yamf/shared": "workspace:*",
     "@yamf/test": "workspace:*",

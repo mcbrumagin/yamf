@@ -45,14 +45,13 @@ importers:
         version: link:../test
 
   packages/core:
-    dependencies:
-      '@yamf/client':
-        specifier: workspace:*
-        version: link:../client
     devDependencies:
       '@yamf/cli':
         specifier: workspace:*
         version: link:../cli
+      '@yamf/client':
+        specifier: workspace:*
+        version: link:../client
       '@yamf/shared':
         specifier: workspace:*
         version: link:../shared

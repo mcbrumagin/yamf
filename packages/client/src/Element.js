@@ -7,6 +7,7 @@ import {
   isEventAttribute 
 } from '@yamf/shared'
 import { getYamf } from './client-init.js'
+import { getRenderContext } from './render-context.js'
 
 // List of boolean HTML attributes that should be rendered without values
 const booleanAttributes = new Set([
@@ -57,6 +58,15 @@ export default class Element {
   }
 
   addEventListener(eventName, handler) {
+    const ctx = getRenderContext()
+    if (ctx && typeof ctx.registerHandler === 'function') {
+      const { slot, signedId } = ctx.registerHandler(handler)
+      const key = String(slot)
+      this.__listeners__[key] = eventName
+      if (!this.__ssrSignedIds) this.__ssrSignedIds = {}
+      this.__ssrSignedIds[key] = signedId
+      return
+    }
     const yamf = getYamf()
     const handlerName = String(yamf.__nextListenerId__++)
     this.__listeners__[handlerName] = eventName
@@ -70,17 +80,19 @@ export default class Element {
 
     for (let handlerName in this.__listeners__) {
       let eventName = this.__listeners__[handlerName]
-      // Handler names are internally generated integers - safe by design
-      // The handler reference is just `yamf.__listeners__[N](event)`
-      // where N is a numeric index we control
-      if (!/^\d+$/.test(String(handlerName))) {
-        // Extra safety: skip non-numeric handler names (shouldn't happen)
-        if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
-          console.warn(`[YAMF Security] Invalid handler name "${handlerName}" ignored`)
+      let domEventHandler
+      if (this.__ssrSignedIds && this.__ssrSignedIds[handlerName]) {
+        const signed = String(this.__ssrSignedIds[handlerName]).replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+        domEventHandler = `yamf.invoke('${signed}',event)`
+      } else {
+        if (!/^\d+$/.test(String(handlerName))) {
+          if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+            console.warn(`[YAMF Security] Invalid handler name "${handlerName}" ignored`)
+          }
+          continue
         }
-        continue
+        domEventHandler = `yamf.__listeners__[${handlerName}](event)`
       }
-      let domEventHandler = `yamf.__listeners__[${handlerName}](event)`
       if (events[eventName]) events[eventName].push(domEventHandler)
       else events[eventName] = [domEventHandler]
     }

@@ -21,6 +21,9 @@ import {
   getYamf
 } from './client-init.js'
 
+import { renderWithHandlers, runWithRenderContext, getRenderContext } from './ssr-render.js'
+import { installSsrInvoke, installSsrRenderFromEventSource, serializeSsrEvent } from './ssr-hydrate.js'
+
 import {
   waitForElement,
   isMobileBrowser,
@@ -61,7 +64,13 @@ export {
   isMobileBrowser,
   loadResource,
   router,
-  hashRouter
+  hashRouter,
+  renderWithHandlers,
+  runWithRenderContext,
+  getRenderContext,
+  installSsrInvoke,
+  installSsrRenderFromEventSource,
+  serializeSsrEvent
 }
 
 // Default export for backward compatibility
@@ -84,6 +93,12 @@ export default {
   loadResource,
   router,
   hashRouter,
+  renderWithHandlers,
+  runWithRenderContext,
+  getRenderContext,
+  installSsrInvoke,
+  installSsrRenderFromEventSource,
+  serializeSsrEvent,
   // XSS utilities
   trusted,
   isTrusted,

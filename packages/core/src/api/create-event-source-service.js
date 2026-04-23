@@ -17,6 +17,8 @@
 import Logger from '../utils/logger.js'
 import crypto from 'crypto'
 import { COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
+import readStream from '../http-primitives/read-stream.js'
+import { createSsrHandlerRegistry } from '../service/ssr-handler-registry.js'
 import { createPubSubManager } from '../service/pubsub-manager.js'
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
 import { buildEnhancedContext, updateContext, bindServiceFunction } from '../service/service-context.js'
@@ -110,6 +112,8 @@ export default async function createEventSourceService(serviceName, handlers = {
   const { onConnect, onDisconnect, channels } = handlers
   const accessControl = options.accessControl || 'public'
   const heartbeatInterval = options.heartbeatInterval !== undefined ? options.heartbeatInterval : 30000
+  const renderMode = options.renderMode === 'html-handlers'
+  const ssr = renderMode ? createSsrHandlerRegistry(serviceName) : null
   
   if (accessControl === 'pure' || accessControl === 'local') {
     throw new Error(
@@ -143,7 +147,36 @@ export default async function createEventSourceService(serviceName, handlers = {
    * Non-SSE requests get service info
    */
   async function sseServiceHandler(payload, request, response) {
-    
+    if (ssr) {
+      const { command } = parseCommandHeaders(request.headers || {})
+      if (request.method === 'POST' && command === COMMANDS.SSR_INVOKE_HANDLER) {
+        let p = payload
+        if (p == null && String(request.headers['content-type'] || '').includes('application/json')) {
+          const raw = await readStream(request)
+          try {
+            p = raw && raw.length ? JSON.parse(raw.toString('utf8')) : {}
+          } catch {
+            p = null
+          }
+        }
+        const r = await ssr.invoke(p, context)
+        response.setHeader('x-content-type-options', 'nosniff')
+        if (r.status === 204) {
+          response.writeHead(204)
+          response.end()
+        } else {
+          response.setHeader('content-type', 'application/json')
+          response.writeHead(r.status, {
+            'x-content-type-options': 'nosniff',
+            'x-frame-options': 'DENY',
+            'x-xss-protection': '1; mode=block'
+          })
+          response.end(typeof r.body === 'string' ? r.body : JSON.stringify(r.body))
+        }
+        return false
+      }
+    }
+
     const accept = request.headers['accept'] || ''
 
     if (!accept.includes('text/event-stream')) {
@@ -281,6 +314,22 @@ export default async function createEventSourceService(serviceName, handlers = {
   server.cache = cache
   server.context = context
 
+  if (ssr) {
+    server.ssr = {
+      getBindings: () => ssr.getBindings(),
+      /**
+       * @param {string} html
+       * @param {object} [opts]
+       * @param {string} [opts.target] - CSS selector for client patch target
+       */
+      broadcastRender (html, { target = 'body' } = {}) {
+        return server.broadcast('render', { patch: html, target })
+      }
+    }
+  } else {
+    server.ssr = null
+  }
+
   /**
    * Broadcast an event to all connected clients
    * @param {string} event - Event name
@@ -343,6 +392,8 @@ export default async function createEventSourceService(serviceName, handlers = {
       client.close()
     }
     clients.clear()
+
+    ssr?.destroy()
 
     unregisterLocalService(serviceName)
     removeFromCache(cache, { service: serviceName, location })

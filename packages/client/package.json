@@ -1,6 +1,6 @@
 {
   "name": "@yamf/client",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "type": "module",
   "description": "Isomorphic HTML-as-JavaScript library with conditional exports for browser and server",
   "main": "src/index.js",
@@ -14,7 +14,10 @@
     "./load-client": "./src/loadClient.js",
     "./utils": "./src/utils.js",
     "./patch-dom": "./src/patch-dom.js",
-    "./event-source": "./src/event-source.js"
+    "./event-source": "./src/event-source.js",
+    "./ssr-render": "./src/ssr-render.js",
+    "./ssr-hydrate": "./src/ssr-hydrate.js",
+    "./render-context": "./src/render-context.js"
   },
   "engines": {
     "node": ">=20.0.0"
