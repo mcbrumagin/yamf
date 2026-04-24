@@ -8,7 +8,7 @@ import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
 import { serializeServicesMap, setToArray } from './registry-state.js'
 import { publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
-import { selectServiceLocation } from './load-balancer.js'
+import { getServiceAddresses, selectServiceLocation } from './load-balancer.js'
 import { HEADERS, buildShutdownHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import net from 'node:net'
@@ -511,7 +511,9 @@ const headerWhitelist = [
   'yamf-command',
   'yamf-service-name',
   'yamf-auth-token',
-  'yamf-registry-token'
+  'yamf-registry-token',
+  'yamf-deploy-token',
+  'yamf-prefer-service-location'
 ]
 
 const filterForUsefulHeaders = (headers) => {
@@ -536,8 +538,19 @@ export async function streamProxyServiceCall(state, { name, request, response })
   const authToken = request.headers?.[HEADERS.AUTH_TOKEN]
   await verifyAuthToken(state, name, authToken)
 
-  // use round-robin for proxy calls
-  const location = selectServiceLocation(state, name, 'round-robin')
+  // use round-robin for proxy calls; optional sticky routing for multi-replica (e.g. remote pm3 CLI)
+  const prefer = request.headers?.[HEADERS.SERVICE_PREFER_LOCATION]
+  let location
+  if (prefer) {
+    try {
+      const addrs = getServiceAddresses(state, name)
+      location = addrs.includes(prefer) ? prefer : selectServiceLocation(state, name, 'round-robin')
+    } catch {
+      location = selectServiceLocation(state, name, 'round-robin')
+    }
+  } else {
+    location = selectServiceLocation(state, name, 'round-robin')
+  }
   const endpoint = request.url
   const url = new URL(location + (endpoint ? endpoint : ''))
 

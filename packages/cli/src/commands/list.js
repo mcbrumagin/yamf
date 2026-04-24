@@ -34,7 +34,10 @@ Options:
   -h, --help            Show this help
 
 For remote, filepaths in the "Filepath" column are the paths to pass to yamf stop|restart|logs|delete|describe --remote.
-If multiple pm3-service instances are registered, each request may hit a different node unless you pin routing later.
+If multiple pm3-service instances are registered, each request may hit a different node. Set
+  YAMF_PM3_SERVICE_LOCATION
+to a pm3-service base URL (from REGISTRY_PULL or your ops notes) to send all --remote pm3 commands to that
+instance via the yamf-prefer-service-location header on SERVICE_CALL.
 `
 }
 

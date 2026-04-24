@@ -2,7 +2,8 @@ import {
   createService,
   Logger,
   HttpError,
-  envConfig
+  envConfig,
+  HEADERS
 } from '@yamf/core'
 import { createWriteStream, existsSync, mkdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
@@ -14,6 +15,53 @@ import { PM3 } from '@yamf/cli'
 const logger = new Logger({ logGroup: 'pm3-service' })
 
 /**
+ * When YAMF_DEPLOY_TOKEN is set, deploy and rolling-deploy require the same value in
+ * the proxied yamf-deploy-token header (enforced for SERVICE_CALL, not just registry plugin commands).
+ * @param {import('node:http').IncomingMessage | undefined} request
+ */
+function assertDeployTokenForCommand (request) {
+  const expected = envConfig.get('YAMF_DEPLOY_TOKEN', '')
+  if (!expected) {
+    return
+  }
+  const v = (request) => {
+    const h = request?.headers || {}
+    return h[HEADERS.DEPLOY_TOKEN] || h['yamf-deploy-token']
+  }
+  if (v(request) !== expected) {
+    throw new HttpError(401, 'Invalid or missing deploy token for this command')
+  }
+}
+
+/**
+ * @param {string} managedServicePath
+ * @param {string} hash
+ * @returns {Promise<string>} absolute bundle path
+ */
+async function ensureBundleFile (managedServicePath, hash) {
+  const bundlePath = join(managedServicePath, `${hash}.mjs`)
+  if (existsSync(bundlePath)) {
+    return bundlePath
+  }
+  const registryUrl = envConfig.get('YAMF_REGISTRY_URL', '')
+  if (!registryUrl) {
+    throw new HttpError(500, 'YAMF_REGISTRY_URL required to fetch bundle')
+  }
+  const base = registryUrl.replace(/\/$/, '')
+  const u = new URL(`${base}/bundles/${String(hash).replace(/\.mjs$/, '')}`)
+  const token = envConfig.get('YAMF_DEPLOY_TOKEN', '')
+  const res = await fetch(u, { headers: { ...(token ? { 'yamf-deploy-token': token } : {}) } })
+  if (!res.ok) {
+    throw new HttpError(502, `bundle fetch failed: ${res.status}`)
+  }
+  mkdirSync(managedServicePath, { recursive: true })
+  const tmp = bundlePath + '.part'
+  await pipeline(Readable.fromWeb(res.body), createWriteStream(tmp))
+  renameSync(tmp, bundlePath)
+  return bundlePath
+}
+
+/**
  * PM3 Service - network-facing process manager for yamf nodes.
  *
  * Can be deployed at a given YAMF_SERVICE_URL to enable remote CLI capabilities.
@@ -21,13 +69,13 @@ const logger = new Logger({ logGroup: 'pm3-service' })
  *
  * For now, this service is NOT recommended for production use.
  */
-export default async function createPm3Service({
+export default async function createPm3Service ({
   serviceName = 'pm3-service',
   managedServicePath = '/tmp/yamf/services'
 } = {}) {
   const pm3 = new PM3()
 
-  const service = await createService(serviceName, async function (payload) {
+  const service = await createService(serviceName, async function (payload, request) {
     const { command, filepath, options } = payload || {}
 
     if (!command) {
@@ -70,28 +118,12 @@ export default async function createPm3Service({
         return pm3.delete(filepath)
       }
       case 'deploy': {
+        assertDeployTokenForCommand(request)
         const { service, hash, env: spawnEnv = {} } = payload || {}
         if (!hash) {
           throw new HttpError(400, 'hash is required (YAMF_SOURCE_HASH from deploy)')
         }
-        mkdirSync(managedServicePath, { recursive: true })
-        const bundlePath = join(managedServicePath, `${hash}.mjs`)
-        if (!existsSync(bundlePath)) {
-          const registryUrl = envConfig.get('YAMF_REGISTRY_URL', '')
-          if (!registryUrl) {
-            throw new HttpError(500, 'YAMF_REGISTRY_URL required to fetch bundle')
-          }
-          const base = registryUrl.replace(/\/$/, '')
-          const u = new URL(`${base}/bundles/${String(hash).replace(/\.mjs$/, '')}`)
-          const token = envConfig.get('YAMF_DEPLOY_TOKEN', '')
-          const res = await fetch(u, { headers: { ...(token ? { 'yamf-deploy-token': token } : {}) } })
-          if (!res.ok) {
-            throw new HttpError(502, `bundle fetch failed: ${res.status}`)
-          }
-          const tmp = bundlePath + '.part'
-          await pipeline(Readable.fromWeb(res.body), createWriteStream(tmp))
-          renameSync(tmp, bundlePath)
-        }
+        const bundlePath = await ensureBundleFile(managedServicePath, hash)
         const nodeId = process.env.YAMF_SERVICE_URL || null
         return pm3.start(bundlePath, {
           env: {
@@ -104,6 +136,7 @@ export default async function createPm3Service({
         })
       }
       case 'rolling-deploy': {
+        assertDeployTokenForCommand(request)
         const { service, hash, env } = payload || {}
         if (!service) {
           throw new HttpError(400, 'service is required for rolling-deploy')
@@ -111,10 +144,7 @@ export default async function createPm3Service({
         if (!hash) {
           throw new HttpError(400, 'hash is required for rolling-deploy')
         }
-        const bundlePath = join(managedServicePath, `${hash}.mjs`)
-        if (!existsSync(bundlePath)) {
-          throw new HttpError(400, `Bundle not on disk: ${bundlePath}. Fetch the bundle on this node first.`)
-        }
+        const bundlePath = await ensureBundleFile(managedServicePath, hash)
         return pm3.restartRolling(service, { env, bundlePath })
       }
       default:

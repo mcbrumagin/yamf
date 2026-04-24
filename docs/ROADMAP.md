@@ -867,7 +867,7 @@ Before starting C3, the following need to land:
 YAMF's identity shifts with slices C + D: from "service framework with rolling support" to **"small, system‑agnostic orchestrator that also happens to be a service framework"**. A 1.0 bar worth committing to:
 
 - **Ships:** slices A, B, C (through C5), D (through D3), E, F, and all six cross‑cutting concerns above.
-- **Doesn't ship yet:** federation / multi‑registry gossip, cascade fan‑out (see Deferred), non‑JS bundle deploys, mTLS between nodes (tokens + signed bundles remain primary), `applyPatch` state‑preserving HMR (D4).
+- **Doesn't ship yet:** federation / multi‑registry gossip, cascade fan‑out (see Deferred below), non‑JS bundle deploys, mTLS between nodes (tokens + signed bundles remain primary), `applyPatch` state‑preserving HMR (D4), **gateway–registry continuity** (hold, last‑known routing, split‑brain mitigations — horizon subsection in Deferred).
 - **Story:** a single binary (`yamf`) takes you from `yamf init` to `yamf dev` to `yamf deploy --remote`, on k3s **or** a fleet of plain VMs, with rolling + rollback + contracts + secrets management, zero vendor dependencies.
 - **Plugin model formalized.** Already mostly true — `@yamf/services-*` packages are plugins today. At 1.0, name it explicitly: **core is a tiny kernel** (registry state, gateway routing, HTTP primitives, pub/sub, lifecycle); **everything else is a service** that can be swapped or omitted. Concretely:
   - **Always‑there kernel:** `create-service`, `create-route`, `create-subscription-service`, `create-event-source-service`, registry, gateway, pub/sub, lifecycle, call‑service, HTTP primitives.
@@ -955,6 +955,26 @@ Mitigations, in order of diminishing returns:
 
 ### mTLS between services
 Today services authenticate to the registry with `YAMF_REGISTRY_TOKEN`; callers don't authenticate to each other except via application auth. The ed25519 keypairs from `createAuthService` (and the bundle‑signing identities from slice C tier 2) could underwrite **mTLS between nodes** without new key material. Not needed for homelab; becomes interesting when YAMF deploys across untrusted network segments.
+
+### Gateway‑stable edge & registry continuity (horizon, theoretical)
+
+**Motivation.** On bare metal, only one process can bind a given `IP:port`; k8s avoids that for *external* clients with a **Service** (stable DNS:port → changing pods). A similar **operator** story is: keep the **gateway** as the long‑lived public (or internal) edge that **pulls** registry state and proxies traffic; roll **registry + app services** behind it. That does **not** remove registry replacement complexity, but it **concentrates** downtime and migration risk on the control plane and cached topology, not on every client.
+
+**Problem to solve (big rocks).**
+
+1. **Gateway stays pull‑only.** The gateway must not become a second write path to registry truth. All authority stays on the registry; the gateway holds a **cache** from `REGISTRY_PULL` (and pushes / cache updates are already the fanout path). Any “continuity” feature must preserve that invariant.
+
+2. **Fresh / empty registry vs last‑known good.** After a registry process is replaced, a pull can return **empty or partial** topology while services are still re‑registering. Without policy, the gateway could **flash** to an empty route table or route to nowhere. A **hold** (or “degraded serve last snapshot”) mode is needed: if the registry signals **unknown**, **draining**, or **rollout in progress**, or if the pull result is **implausibly empty** vs the previous snapshot, the gateway should **not** immediately replace a healthy cache with worse data.
+
+3. **Minimize user‑visible downtime.** While the gateway keeps **last known** service locations, **services** should respond to normal lifecycle signals (`SERVICE_SHUTDOWN`, unregister, drain) so old replicas exit and new ones register quickly. The gateway can add **naive resilience**: short **backoff / retry** on proxied service or route errors when a pull (or response header) indicates **rollout** or **draining**, without turning the gateway into a message broker.
+
+4. **Coordinating old ↔ new registry (and operator).** The **draining** peer is already initiated by `performRegistryDrainHandshake` in [`registry-drain-handshake.js`](../packages/core/src/registry/registry-drain-handshake.js). A fuller story may need an explicit **compatibility window**: e.g. new registry token, contract version, or breaking config known **before** cutover so the **old** registry (or a tiny sidecar) can signal **“prepare gateway for epoch B”** before the new instance is authoritative. That is orchestration‑layer work (scripts, systemd, or k8s Job order) as much as core code.
+
+5. **Split‑brain.** Two sources of truth (stale gateway cache vs new registry, or two registries briefly both accepting registrations) is the main risk. **Mitigation sketch (happy path first):** assume **same topology + extended functionality** (backward‑compatible rollouts) as the default; optimize for that. A disciplined sequence reduces overlap: **hold** or serve last good → **drain and detach** old registrations on the old registry → **when** the new registry has a **complete enough** pull (or a explicit **epoch / generation** matches), **commit** the gateway cache to the new view. Push/cache‑update fanout already helps subscribers converge; the gateway’s job is to **avoid replacing good cache with empty** during that window.
+
+**What “good enough prod” might look like without full replication:** stable gateway URL; internal stable registry URL (proxy, loopback, or DNS); registry rolling with drain + service re‑register; gateway policy that **defaults to last‑known routing** under uncertainty plus bounded retries. **Full state replication** between registry processes remains a larger step (see [multi‑region / multi‑registry federation](#multi‑region--multi‑registry-federation) above).
+
+**Not committed.** No wire format or env names here — this section records **design intent** for when bare‑metal or “gateway‑first” deployments need stronger guarantees than “best effort pull after restart.”
 
 ---
 

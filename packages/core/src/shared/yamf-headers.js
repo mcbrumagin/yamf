@@ -14,6 +14,8 @@ export const HEADERS = {
   
   // Service operations
   SERVICE_NAME: 'yamf-service-name',
+  /** When set, registry SERVICE_CALL may route to this pm3-service instance (must be a registered location for the service) */
+  SERVICE_PREFER_LOCATION: 'yamf-prefer-service-location',
   SERVICE_LOCATION: 'yamf-service-location',
   USE_AUTH_SERVICE: 'yamf-use-auth-service',
   SERVICE_HOME: 'yamf-service-home',

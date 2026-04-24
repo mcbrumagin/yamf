@@ -13,7 +13,7 @@ const logger = new Logger()
 const ARGS = {
   help: { flags: ['-h', '--help'] },
   local: { flags: ['--local'] },
-  remote: { flags: ['-r', '--remote'], type: 'string' },
+  remote: { flags: ['-r', '--remote'] },
   hash: { flags: ['--hash'], type: 'string' },
   env: { flags: ['-e', '--env'], type: 'string' },
   replicas: { flags: ['-i', '--replicas'], type: 'number' },
@@ -29,10 +29,13 @@ Usage:
   yamf deploy --local <service> [options]
   yamf deploy --remote <service> [options]
 
+Example:
+  yamf deploy --remote my-service
+
 Requires:
   - yamf.config.js with the service
   - A prior \`yamf build <name>\` (or --hash / --rollback to an existing .mjs under .yamf/build)
-  - YAMF_REGISTRY_URL (registry must be reachable; remote also needs YAMF_DEPLOY_TOKEN to upload the bundle)
+  - YAMF_REGISTRY_URL (remote also: YAMF_DEPLOY_TOKEN to upload; optional YAMF_PM3_SERVICE_LOCATION to pin pm3-service for SERVICE_CALL)
 
 Options:
   --local          Local deploy via pm3

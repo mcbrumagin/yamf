@@ -24,6 +24,8 @@ export function attachDeployRouter (registry, { bundleStore, location, pm3Servic
   }
   const store = bundleStore || registry._bundleStore
 
+  // Server-side plan (auth: deploy token). The `yamf deploy` CLI still uses REGISTRY_PULL + planAndApply
+  // client-side for parity; keep this for HTTP API consumers and future "registry as source of truth" flows.
   registry.registerCommand(
     'deploy-plan',
     async ({ body, headers }) => {

@@ -1,17 +1,21 @@
 import { httpRequest, HEADERS, COMMANDS } from '@yamf/core'
 
 /**
- * @param {{ registryUrl: string, registryToken?: string }} p
+ * @param {{ registryUrl: string, registryToken?: string, deployToken?: string, preferLocation?: string }} p
  * @param {Record<string, unknown>} payload
  */
-function callPm3Service ({ registryUrl, registryToken = process.env.YAMF_REGISTRY_TOKEN || '' }, payload) {
+function callPm3Service ({ registryUrl, registryToken = process.env.YAMF_REGISTRY_TOKEN || '', deployToken, preferLocation = process.env.YAMF_PM3_SERVICE_LOCATION || '' }, payload) {
+  const useDeploy = payload?.command === 'deploy' || payload?.command === 'rolling-deploy'
+  const tok = useDeploy ? (deployToken ?? process.env.YAMF_DEPLOY_TOKEN ?? '') : ''
   return httpRequest(registryUrl, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
       [HEADERS.SERVICE_NAME]: 'pm3-service',
-      ...(registryToken ? { [HEADERS.REGISTRY_TOKEN]: registryToken } : {})
+      ...(registryToken ? { [HEADERS.REGISTRY_TOKEN]: registryToken } : {}),
+      ...(tok ? { [HEADERS.DEPLOY_TOKEN]: tok } : {}),
+      ...(preferLocation ? { [HEADERS.SERVICE_PREFER_LOCATION]: preferLocation } : {})
     },
     body: payload
   })
@@ -19,7 +23,7 @@ function callPm3Service ({ registryUrl, registryToken = process.env.YAMF_REGISTR
 
 /**
  * All pm3-service wire commands (CLI `--remote`). Does not use deploy / rolling-deploy.
- * @param {{ registryUrl: string, registryToken?: string }} p
+ * @param {{ registryUrl: string, registryToken?: string, preferLocation?: string }} p
  */
 export function createRemotePm3Cli (p) {
   const c = (body) => callPm3Service(p, body)
@@ -42,12 +46,17 @@ export function createRemotePm3Cli (p) {
  * duck-typed PM3 for {@link import('./deploy-driver.js').planAndApply} over `pm3-service` (C3).
  * Also includes {@link createRemotePm3Cli} fields (`startFile`, `list`, …) except the names
  * `start` / `restartRolling` here mean **deploy** and **rolling-deploy** (see deploy-driver).
- * @param {{ registryUrl: string, registryToken?: string }} p
+ * @param {{ registryUrl: string, registryToken?: string, deployToken?: string, preferLocation?: string }} p
  */
-export function createRemotePm3 ({ registryUrl, registryToken = process.env.YAMF_REGISTRY_TOKEN || '' }) {
-  const c = (body) => callPm3Service({ registryUrl, registryToken }, body)
+export function createRemotePm3 ({
+  registryUrl,
+  registryToken = process.env.YAMF_REGISTRY_TOKEN || '',
+  deployToken = process.env.YAMF_DEPLOY_TOKEN || '',
+  preferLocation = process.env.YAMF_PM3_SERVICE_LOCATION || ''
+} = {}) {
+  const c = (body) => callPm3Service({ registryUrl, registryToken, deployToken, preferLocation }, body)
   return {
-    ...createRemotePm3Cli({ registryUrl, registryToken }),
+    ...createRemotePm3Cli({ registryUrl, registryToken, preferLocation }),
     start: (bundlePath, { env }) =>
       c({
         command: 'deploy',
