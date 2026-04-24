@@ -121,6 +121,11 @@ async function main() {
       await runListCommand(subcommandArgs)
       break
     }
+    case 'describe': {
+      const { runDescribeCommand } = await import('./commands/describe.js')
+      await runDescribeCommand(subcommandArgs)
+      break
+    }
     case 'logs': {
       const { runLogsCommand } = await import('./commands/logs.js')
       await runLogsCommand(subcommandArgs)
@@ -217,7 +222,8 @@ Process Management (pm3):
   start <filename>    Start a script as a managed process (-i N for instances)
   stop <filename>     Stop managed process(es)
   restart <filename>  Restart managed process(es)
-  list                List processes (--services, --locations, --all)
+  list                List processes (--services, --locations, --all, --remote)
+  describe <target>   JSON state for one process (same as --remote list + other commands)
   logs <filename>     View logs for a managed process
   delete <filename>   Stop and remove from process list
 

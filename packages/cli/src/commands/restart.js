@@ -1,6 +1,7 @@
 import { Logger } from '@yamf/core'
 import { PM3 } from '../lib/pm3.js'
 import parseArgs from '../lib/parse-args.js'
+import { createRemotePm3Cli, requireRegistryUrlForRemote } from '../lib/remote-pm3-adapter.js'
 
 const logger = new Logger()
 
@@ -8,7 +9,8 @@ const ARGS = {
   help:    { flags: ['-h', '--help'] },
   verbose: { flags: ['-v', '--verbose'] },
   all:     { flags: ['--all'] },
-  rolling: { flags: ['--rolling'] }
+  rolling: { flags: ['--rolling'] },
+  remote:  { flags: ['-r', '--remote'] }
 }
 
 function getRestartHelp() {
@@ -22,8 +24,9 @@ Usage:
 Accepts a filepath, service name, or instance ref (e.g. simple-service#1).
 
 Options:
-  --all                 Restart all managed processes
-  --rolling             Spawn replacement before stopping old instance (zero-downtime for load-balanced services)
+  --all                 Restart all managed processes (not supported with --remote)
+  --rolling             Spawn replacement before stopping the old instance (local pm3 or remote pm3 on that node)
+  -r, --remote          Target the node via YAMF_REGISTRY_URL; use a path or service ref from yamf list --remote
   -v, --verbose         Verbose output
   -h, --help            Show this help
 
@@ -47,6 +50,9 @@ export async function runRestartCommand(args) {
   if (options.rolling && options.all) {
     throw new Error('--rolling and --all cannot be combined. Use --rolling <target> for a single service/filepath.')
   }
+  if (options.remote && options.all) {
+    throw new Error('--all with --remote is not supported.')
+  }
 
   if (options.all) {
     const entries = await pm3.list({ all: true })
@@ -69,6 +75,27 @@ export async function runRestartCommand(args) {
 
   if (!target) {
     throw new Error('Filename or service name is required. Usage: yamf restart <target> or yamf restart --all')
+  }
+
+  if (options.remote) {
+    const registryUrl = requireRegistryUrlForRemote()
+    const remote = createRemotePm3Cli({ registryUrl })
+    if (options.rolling) {
+      const result = await remote.restartRollingOnNode(target, {})
+      if (options.verbose) {
+        console.log(result)
+      } else {
+        logger.info('Remote rolling-restart:', result)
+      }
+    } else {
+      const result = await remote.restart(target)
+      if (options.verbose) {
+        console.log(result)
+      } else {
+        logger.info('Remote restart:', result)
+      }
+    }
+    return
   }
 
   if (options.rolling) {

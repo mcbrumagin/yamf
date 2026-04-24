@@ -31,7 +31,7 @@ export default async function createPm3Service({
     const { command, filepath, options } = payload || {}
 
     if (!command) {
-      throw new HttpError(400, 'command is required (start, stop, restart, list, status, logs, delete)')
+      throw new HttpError(400, 'command is required (start, stop, restart, restart-rolling, list, status, logs, delete, deploy, rolling-deploy)')
     }
 
     switch (command) {
@@ -47,6 +47,13 @@ export default async function createPm3Service({
         if (!filepath) throw new HttpError(400, 'filepath is required for restart')
         return pm3.restart(filepath, options)
       }
+      case 'restart-rolling': {
+        const { target, options: rollOpts } = payload || {}
+        if (!target) {
+          throw new HttpError(400, 'target is required for restart-rolling (service name or filepath on this node)')
+        }
+        return pm3.restartRolling(target, rollOpts || {})
+      }
       case 'list': {
         return pm3.list(options)
       }
@@ -56,7 +63,7 @@ export default async function createPm3Service({
       }
       case 'logs': {
         if (!filepath) throw new HttpError(400, 'filepath is required for logs')
-        return pm3.logs(filepath)
+        return pm3.logs(filepath, options || {})
       }
       case 'delete': {
         if (!filepath) throw new HttpError(400, 'filepath is required for delete')
@@ -111,7 +118,7 @@ export default async function createPm3Service({
         return pm3.restartRolling(service, { env, bundlePath })
       }
       default:
-        throw new HttpError(400, `Unknown command: ${command}. Valid: start, stop, restart, list, status, logs, delete, deploy, rolling-deploy`)
+        throw new HttpError(400, `Unknown command: ${command}. Valid: start, stop, restart, restart-rolling, list, status, logs, delete, deploy, rolling-deploy`)
     }
   })
 
