@@ -148,6 +148,21 @@ async function main() {
       await runTestCommand(subcommandArgs)
       break
     }
+    case 'build': {
+      const { runBuildCommand } = await import('./commands/build.js')
+      await runBuildCommand(subcommandArgs)
+      break
+    }
+    case 'deploy': {
+      const { runDeployCommand } = await import('./commands/deploy.js')
+      await runDeployCommand(subcommandArgs)
+      break
+    }
+    case 'config': {
+      const { runConfigCommand } = await import('./commands/config.js')
+      await runConfigCommand(subcommandArgs)
+      break
+    }
     case '--help':
     case '-h':
       printHelp()
@@ -204,6 +219,11 @@ Process Management (pm3):
 Utilities:
   run <filename>      Run a script directly with Node
   test                Run tests (requires @yamf/test)
+
+Deploy (Phase 2):
+  build [name]        Bundle services with esbuild into .yamf/build/ (needs yamf.config.js)
+  deploy --local SVC   Plan/apply a local deploy (YAMF_SOURCE_HASH + pm3)
+  config get|set|list  Control config-service (optional; for deploy env overlay)
 
 Options:
   --help, -h          Show this help

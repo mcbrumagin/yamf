@@ -177,4 +177,47 @@ export function decryptAES256GCM(encryptedData, ivHex, authTagHex, key) {
   return decrypted
 }
 
+/**
+ * Derive a 32-byte AES-256 key from a passphrase (e.g. `YAMF_CONFIG_KEY`) using scrypt.
+ * @param {string|Buffer} passphrase
+ * @param {string|Buffer} salt
+ * @param {object} [options] scrypt options (e.g. N, r, p)
+ * @returns {Buffer}
+ */
+export function deriveKeyScrypt32 (passphrase, salt, options = { N: 16384, r: 8, p: 1 }) {
+  return crypto.scryptSync(passphrase, salt, 32, options)
+}
+
+/**
+ * AEAD-encrypt JSON to a single UTF-8 string (uses existing AES-256-GCM helpers).
+ * For at-rest secrets (e.g. config store). Do not invent ciphers; use this + Node `crypto` only.
+ * @param {Buffer} key - 32 bytes
+ * @param {object} obj
+ * @returns {string}
+ */
+export function sealJsonAesGcm256 (key, obj) {
+  const { encryptedData, iv, authTag } = encryptAES256GCM(JSON.stringify(obj), key)
+  return JSON.stringify({
+    v: 1,
+    alg: 'aes-256-gcm',
+    iv,
+    tag: authTag,
+    d: encryptedData
+  })
+}
+
+/**
+ * @param {Buffer} key - 32 bytes
+ * @param {string} sealedJson
+ * @returns {object}
+ */
+export function openJsonAesGcm256 (key, sealedJson) {
+  const p = JSON.parse(sealedJson)
+  if (p.v !== 1 || p.alg !== 'aes-256-gcm' || !p.iv || !p.tag || p.d == null) {
+    throw new Error('Invalid sealed payload (expected v1 aes-256-gcm)')
+  }
+  const text = decryptAES256GCM(p.d, p.iv, p.tag, key)
+  return JSON.parse(text)
+}
+
 // TODO quantum-ready encryption (PQC) - https://csrc.nist.gov/pubs/fips/205/final

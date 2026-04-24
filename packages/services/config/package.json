@@ -1,0 +1,33 @@
+{
+  "name": "@yamf/services-config",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Encrypted config key-value service for YAMF deploys (Phase 2 cross-cut 1)",
+  "main": "service.js",
+  "exports": {
+    ".": "./service.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT",
+  "author": "Matthew C Brumagin",
+  "peerDependencies": {
+    "@yamf/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@yamf/core": "workspace:*",
+    "@yamf/test": "workspace:*"
+  },
+  "scripts": {
+    "test": "node -e \"console.log('no tests yet')\""
+  },
+  "files": [
+    "service.js",
+    "storage.js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcbrumagin/yamf"
+  }
+}

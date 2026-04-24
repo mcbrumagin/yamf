@@ -9,7 +9,8 @@ const logger = new Logger()
 const ARGS = {
   help:    { flags: ['-h', '--help'] },
   verbose: { flags: ['-v', '--verbose'] },
-  health:  { flags: ['--health'] }
+  health:  { flags: ['--health'] },
+  versions: { flags: ['--versions'] }
 }
 
 function getStatusHelp() {
@@ -21,6 +22,7 @@ Usage:
 
 Options:
   --health              Focused health view: draining state + active service counts
+  --versions            Show per-replica sourceHash / configVersion (REGISTRY_PULL replicas)
   -v, --verbose         Verbose output
   -h, --help            Show this help
 `
@@ -86,12 +88,48 @@ async function runFocusedHealthStatus(options) {
   return { health, services }
 }
 
+async function runVersionsStatus (options) {
+  const registryUrl = process.env.YAMF_REGISTRY_URL
+  if (!registryUrl) {
+    console.error('YAMF_REGISTRY_URL is not set.')
+    process.exit(1)
+  }
+  const registryState = await httpRequest(registryUrl, {
+    headers: {
+      [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+      ...(process.env.YAMF_REGISTRY_TOKEN && { [HEADERS.REGISTRY_TOKEN]: process.env.YAMF_REGISTRY_TOKEN })
+    }
+  })
+  const rep = registryState.replicas || {}
+  const names = Object.keys(rep).sort()
+  if (!names.length) {
+    console.log('No per-replica metadata (replicas block empty or legacy services).')
+    return
+  }
+  console.log('\nReplica versions:')
+  for (const n of names) {
+    for (const row of rep[n]) {
+      const bits = [row.sourceHash, row.configVersion].filter(Boolean).join('  ')
+      console.log(`  ${n}  @ ${row.location}${bits ? '  ' + bits : ''}`)
+    }
+  }
+  if (options.verbose) {
+    console.log()
+    console.log(JSON.stringify(rep, null, 2))
+  }
+  console.log()
+}
+
 export async function runStatusCommand(args) {
   const options = parseArgs(args, ARGS)
 
   if (options.help) {
     console.log(getStatusHelp())
     return
+  }
+
+  if (options.versions) {
+    return runVersionsStatus(options)
   }
 
   if (options.health) {

@@ -304,21 +304,35 @@ export async function registerService(state, { service, location, useAuthService
     logger.info(`Stored timeout for "${service}":`, timeout)
   }
 
-  if (metadata && Object.keys(metadata).length > 0) {
+  const replicaKey = `${service}\0${location}`
+  const metaObj = metadata && typeof metadata === 'object' ? metadata : {}
+  const { sourceHash, configVersion, ...metadataForService } = metaObj
+
+  if (sourceHash != null || configVersion != null) {
+    const prevR = state.replicaMetadata.get(replicaKey) || {}
+    state.replicaMetadata.set(replicaKey, {
+      ...prevR,
+      ...(sourceHash != null ? { sourceHash } : {}),
+      ...(configVersion != null ? { configVersion: String(configVersion) } : {}),
+      registeredAt: Date.now()
+    })
+  }
+
+  if (Object.keys(metadataForService).length > 0) {
     // Merges with any prior row; re-registering with a subset does not remove absent keys. To
     // clear a key on re-registration, send an explicit `null` for that key in `yamf-service-metadata`.
     const prev = state.serviceMetadata.get(service) || {}
     state.serviceMetadata.set(service, {
       ...prev,
-      ...metadata,
+      ...metadataForService,
       registeredAt: prev.registeredAt || Date.now()
     })
-    logger.info(`Stored metadata for "${service}":`, metadata)
+    logger.info(`Stored metadata for "${service}":`, metadataForService)
   }
   
   // Check if this service should receive push notifications
   // Gateway and other pull-only services should not be subscribed to push events
-  const isPullOnly = metadata.pullOnly === true
+  const isPullOnly = metadataForService.pullOnly === true
   
   // Notify other services about the new registration using cache update headers
   await publishCacheUpdate(state, { service, location, contract: state.serviceContracts.get(service) })
@@ -344,7 +358,9 @@ export async function registerService(state, { service, location, useAuthService
  */
 export function unregisterService(state, { service, location }) {
   logger.info(`Service "${service}" unregistered from ${location}`)
-  
+
+  state.replicaMetadata?.delete(`${service}\0${location}`)
+
   // Remove from reverse lookup
   state.addresses.delete(location)
   

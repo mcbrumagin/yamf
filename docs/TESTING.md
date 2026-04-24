@@ -27,4 +27,5 @@ If the only goal is “registry on a different port,” prefer **no** extra `wit
 ## package placement
 
 - Core integration-style tests: `packages/core/tests/`.
+- **CLI (slow, `execSync`):** `packages/cli/src/tests/` — e.g. `cli-journey.js` (pm3 journey), `cli-rolling-commands.js` (`restart --rolling` / `drain` / `status --health`), `cli-build-deploy-tests.js` (`yamf build` + `yamf deploy --local` + `status --versions`, isolated `YAMF_HOME` and port). Run a subset: `pnpm --filter @yamf/cli run test:build-deploy` or `yamf test -d . -f cli-build-deploy` from `packages/cli`.
 - Reusable harness docs: `packages/test/README.md`.

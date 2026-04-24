@@ -120,10 +120,23 @@ export async function setupServiceWithRegistry(serviceName, serviceHome, options
  */
 export async function registerServiceWithRegistry(serviceName, location, options = {}) {
   const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService, accessControl, rateLimit, contract, serviceType, timeout, metadata } = options
-  
+  const { useAuthService, accessControl, rateLimit, contract, serviceType, timeout, metadata: metadataOpt } = options
+
+  const sourceHash = envConfig.get('YAMF_SOURCE_HASH', null)
+  const configVersion = envConfig.get('YAMF_CONFIG_VERSION', null)
+  let metadata = metadataOpt
+  if (sourceHash || configVersion) {
+    metadata = {
+      ...(metadataOpt && typeof metadataOpt === 'object' ? metadataOpt : {}),
+      ...(sourceHash ? { sourceHash: String(sourceHash) } : {}),
+      ...(configVersion != null && configVersion !== ''
+        ? { configVersion: String(configVersion) }
+        : {})
+    }
+  }
+
   logger.debug(`registerServiceWithRegistry - ${serviceName} at ${location}`)
-  
+
   // TODO build pubsubChannels header for createSubscriptionService?
   return await httpRequest(registryHost, {
     headers: buildRegisterHeaders(serviceName, location, {

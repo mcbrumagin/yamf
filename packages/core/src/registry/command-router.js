@@ -24,6 +24,7 @@ import { localState } from '../shared/local-state.js'
 import readStream from '../http-primitives/read-stream.js'
 
 import Logger from '../utils/logger.js'
+import { serializeReplicaMetadata } from './registry-state.js'
 
 // Rate limiter imports
 import { 
@@ -129,6 +130,7 @@ function handleRegistryPull(state) {
         Array.from(locations)
       ])
     ),
+    replicas: serializeReplicaMetadata(state),
     routes: Object.fromEntries(state.routes),
     controllerRoutes: Object.fromEntries(state.controllerRoutes),
     serviceAuth: Object.fromEntries(state.serviceAuth),

@@ -469,6 +469,18 @@ export class PM3 {
       )
     }
 
+    const resolveBundleSpawnPath = (entry) => {
+      const raw = options?.bundlePath || (options?.env && options.env.YAMF_BUNDLE_PATH)
+      if (raw) {
+        const abs = pathResolve(raw)
+        if (existsSync(abs)) {
+          return abs
+        }
+        logger.warn(`Bundle path not found, using existing filepath: ${abs}`)
+      }
+      return entry.filepath
+    }
+
     const results = []
     const replaced = []
     for (const key of keys) {
@@ -478,8 +490,10 @@ export class PM3 {
       const oldPid = entry.pid
       const oldKey = key
 
-      logger.info(`Rolling restart: spawning replacement for ${entry.filepath} (PID ${oldPid || '-'})`)
-      const fresh = await this.start(entry.filepath, { internal: wasInternal, ...options })
+      const spawnPath = resolveBundleSpawnPath(entry)
+      logger.info(`Rolling restart: spawning replacement for ${spawnPath} (PID ${oldPid || '-'})`)
+      const { bundlePath, ...startOpts } = options || {}
+      const fresh = await this.start(spawnPath, { internal: wasInternal, ...startOpts })
 
       // After start(), the old entry may have been renormalized (bare key → #0).
       // Re-resolve the old instance by PID so we stop the right one.
@@ -494,7 +508,7 @@ export class PM3 {
       }
 
       const updated = loadState()
-      const newKey = resolveStateKey(updated, entry.filepath)
+      const newKey = resolveStateKey(updated, spawnPath)
       if (updated.processes[newKey]) {
         updated.processes[newKey].restarts = (entry?.restarts || 0) + 1
         saveState(updated)

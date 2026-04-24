@@ -73,12 +73,14 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 3. **A** — CSP / security header defaults. Independent of the orchestrator story; small; blocks nothing.
 4. **B** — upload / path protection. Similar size to A; promote earlier if app‑side upload exposure predates remote deploy (Soundclone case).
 
-**Phase 2 — orchestrator groundwork (local only):**
+**Phase 2 — orchestrator groundwork (local only):** *implemented in-tree (C1, C2, cross‑cut 1 primitives; cross‑cut 6 is a review checklist).*
 
-5. **C1** — `yamf build` + bundle cache.
-6. **C2** — `yamf deploy --local`. Must propagate `YAMF_SOURCE_HASH` to service env so every registration records it in `metadata.sourceHash` (unlocks `yamf status --versions`, rollback data, and audit from day one).
-7. **Cross‑cut 1** — secrets / config separation (`config-service` scaffolding). **Hard gate on C3**; shipping remote deploys without config separation bakes in "secrets live in the bundle" as precedent, which is a one‑way door.
-8. **Cross‑cut 6** — dev/prod parity design review. Not a slice, a one‑time gate before C3 / D1 ship: confirm `yamf dev`, `yamf deploy --local`, and `yamf deploy --remote` reach the **same** codepath with different defaults.
+**Note:** **C3 (remote deploy, registry bundle store)** is under **Phase 3** below, not Phase 2 — naming is by slice (C*), not phase number.
+
+5. **C1** — `yamf build` + bundle cache. **Shipped:** `yamf build` / `yamf build --all`, `.yamf/build/…` layout, `yamf.config.js` (see `yamf/yamf.config.example.js`), `computeBundleHash` in `packages/cli/src/lib/bundle-hash.js`.
+6. **C2** — `yamf deploy --local`. **Shipped:** `YAMF_SOURCE_HASH` + optional `YAMF_CONFIG_VERSION` in `registerServiceWithRegistry` → `replicaMetadata` on the registry, `replicas` on `REGISTRY_PULL`, `planAndApply` in `packages/cli/src/lib/deploy-driver.js`, `yamf deploy --local <svc>`, `yamf status --versions`.
+7. **Cross‑cut 1** — secrets / config separation (`config-service` scaffolding). **Shipped (v1):** `@yamf/services-config` (AES‑256‑GCM file store, `YAMF_CONFIG_KEY`), `yamf config get|set|list`, deploy overlay when `services[].env` lists required names. **Hard gate on C3** for remote — refine encryption/rotation before `yamf deploy --remote`.
+8. **Cross‑cut 6** — dev/prod parity design review. **Not automated:** use the checklist in this file under *Cross‑cut 6* before C3 / D1; `planAndApply` is the shared entry point for local deploys today.
 
 **Phase 3 — remote rollout:**
 
@@ -197,6 +199,221 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 6. **Audit log.** `publishMessage('yamf:upload', { userId, service, bytes, mime, hash, ip })` — apps can subscribe for rate limiting / abuse signals.
 
 **Version bumps.** `@yamf/services-file-upload` 0.1.5 → 0.2.0; `@yamf/services-file-server` 0.2.0 → 0.3.0; `@yamf/shared` 0.1.2 → 0.2.0 (new `path-safety` export).
+
+### Phase 2 implementation details  `[scoping for C1, C2, cross‑cuts 1 & 6]`
+
+Consolidated snippets and contracts for the next ~month of work. These slot into slices C and the cross‑cutting concerns below but are pulled up here so phase‑2 implementers can read one block.
+
+#### `yamf.config.js` — project manifest (C1, reused by C2 and D1)
+
+New top‑level file discovered by the CLI (Node ESM, exported default). Minimum viable shape:
+
+```js
+// yamf.config.js
+export default {
+  root: '.',
+  services: [
+    { name: 'registry',         entry: 'src/registry.js',          replicas: 1, internal: true },
+    { name: 'auth-service',     entry: 'src/services/auth.js',     replicas: 1, env: ['ADMIN_USER', 'ADMIN_PASS'] },
+    { name: 'track-service',    entry: 'src/services/tracks.js',   replicas: 2, env: ['DB_URL'] }
+  ],
+  build: {
+    external: ['@yamf/*'],       // merged with CLI defaults
+    target:  'node20',
+    sourcemap: true
+  }
+}
+```
+
+- `env: [...]` lists **names** of required env vars, not values. Values come from cross‑cut 1's config‑service (or `process.env` locally). The build reads names only; it must never read values to keep bundles secret‑free.
+- `internal: true` skips the service from `--all`/`--only-changed` (registry etc. are managed separately).
+- CLI falls back to `--service <entry>` flags for bare repos without a manifest.
+
+#### Bundle cache layout (C1)
+
+```
+<repo>/.yamf/build/
+  <service-name>/
+    <sha256>.mjs
+    <sha256>.meta.json        // { entry, env, deps, nodeTarget, createdAt, builderVersion }
+    latest.json               // { hash, createdAt } — updated atomically on successful build
+  index.json                  // { services: { <name>: <hash> }, updatedAt }
+```
+
+- `latest.json` is a **pointer**; bundles are never deleted on rebuild — older hashes stay so C5's `yamf deploy --rollback <hash>` can find them.
+- **GC.** `yamf build --prune [--keep N]` (default N=5) walks each service dir, sorts by `createdAt`, removes all but the newest N hashes. Never prunes a hash currently registered on any replica (read from `REGISTRY_PULL` + `replicaMetadata`).
+- **Hash recipe (deterministic across machines):**
+
+  ```js
+  // packages/cli/src/lib/bundle-hash.js (new)
+  export function computeBundleHash(bundleBytes, meta) {
+    const normalized = {
+      entry: meta.entry,
+      env: [...(meta.env || [])].sort(),
+      deps: Object.fromEntries(Object.entries(meta.deps || {}).sort()),
+      nodeTarget: meta.nodeTarget,
+      builderVersion: meta.builderVersion
+    }
+    const h = createHash('sha256')
+    h.update(bundleBytes)
+    h.update('\0')
+    h.update(JSON.stringify(normalized))
+    return `sha256-${h.digest('hex')}`
+  }
+  ```
+
+  `meta.deps` comes from esbuild's `metafile.inputs` (path → sha256 of file content) — this makes the hash stable across machines because it hashes source content, not absolute paths.
+
+- **esbuild call:**
+
+  ```js
+  // packages/cli/src/commands/build.js (new)
+  const result = await esbuild.build({
+    entryPoints: [svc.entry],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: cfg.build.target || 'node20',
+    sourcemap: cfg.build.sourcemap !== false,
+    external: [...(cfg.build.external || []), '@yamf/*'],
+    write: false,
+    metafile: true,
+    absWorkingDir: resolve(cfg.root || '.')
+  })
+  const bytes = result.outputFiles[0].contents
+  const hash  = computeBundleHash(bytes, { entry: svc.entry, env: svc.env, deps: hashInputs(result.metafile.inputs), nodeTarget: cfg.build.target, builderVersion: BUILDER_VERSION })
+  ```
+
+#### Per‑replica metadata in the registry — **C2 prerequisite**
+
+Today `serviceMetadata` is keyed by **service name**; slice E's merge makes "last registration wins". For C2 to route `scale` vs `rolling`, the registry must track `sourceHash` **per replica**. Minimal change:
+
+```js
+// packages/core/src/registry/registry-state.js
+export function createRegistryState() {
+  return {
+    // ... existing ...
+    replicaMetadata: new Map()       // `${service}\0${location}` → { sourceHash, registeredAt, pid? }
+  }
+}
+```
+
+- `registerService(state, service, location, { metadata })` additionally does:
+
+  ```js
+  if (metadata?.sourceHash) {
+    state.replicaMetadata.set(`${service}\0${location}`, {
+      sourceHash: metadata.sourceHash,
+      registeredAt: Date.now()
+    })
+  }
+  ```
+
+- `unregisterService` clears the matching key.
+- `REGISTRY_PULL` response grows a `replicas` block (backward‑compatible; existing consumers ignore):
+
+  ```jsonc
+  {
+    "services": { "track-service": ["http://10.0.0.4:23010", "http://10.0.0.5:23010"] },
+    "replicas": {
+      "track-service": [
+        { "location": "http://10.0.0.4:23010", "sourceHash": "sha256-abc…", "registeredAt": 1713… },
+        { "location": "http://10.0.0.5:23010", "sourceHash": "sha256-abc…", "registeredAt": 1713… }
+      ]
+    }
+  }
+  ```
+
+- Per‑replica metadata is **not** broadcast via cache updates — subscribers don't need it. It's a registry‑internal index for the deploy path.
+
+#### `YAMF_SOURCE_HASH` propagation (C2, small diff)
+
+```js
+// packages/core/src/api/service-helpers.js
+// inside registerServiceWithRegistry, before buildRegisterHeaders
+const sourceHash = envConfig.get('YAMF_SOURCE_HASH', null)
+if (sourceHash) {
+  metadata = { ...(metadata || {}), sourceHash }
+}
+```
+
+That's the entire client‑side change. Every service spawned by `yamf deploy` inherits `YAMF_SOURCE_HASH`; legacy services (no env var) register with no `sourceHash` and are treated as `none` by the decision table — the upgrade path is "redeploy once".
+
+#### C2 deploy driver — decision table lives in the CLI
+
+```js
+// packages/cli/src/lib/deploy-driver.js (new; shared by --local today, --remote later)
+export async function planAndApply({ target, registryUrl, service, hash, bundlePath, replicas, pm3 }) {
+  const pull = await httpRequest(registryUrl, { headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL } })
+  const current = (pull.replicas?.[service.name] || [])
+  const sameHash = current.filter(r => r.sourceHash === hash)
+  const otherHash = current.filter(r => r.sourceHash && r.sourceHash !== hash)
+
+  const decision =
+    current.length === 0                              ? 'rollout'
+    : otherHash.length > 0                            ? 'rolling'
+    : sameHash.length < (replicas ?? 1)               ? 'scale'
+    :                                                   'noop'
+
+  if (decision === 'noop') return { decision, replicas: sameHash.length }
+
+  const env = { YAMF_SOURCE_HASH: hash, YAMF_BUNDLE_PATH: bundlePath }
+
+  if (decision === 'rollout' || decision === 'scale') {
+    const want = (replicas ?? 1) - sameHash.length
+    for (let i = 0; i < want; i++) await pm3.start(bundlePath, { env })
+    return { decision, added: want }
+  }
+
+  // rolling: restartRolling with new env, one replica at a time, drain each.
+  // pm3.restartRolling already spawns-then-stops; we only need it to carry env through.
+  const result = await pm3.restartRolling(service.name, { env })
+  return { decision, replaced: result.replaced.length }
+}
+```
+
+- **One blocker:** `pm3.restartRolling(target, options)` currently accepts `options` but doesn't forward `options.env` into the inner `this.start(entry.filepath, { internal, ...options })` in a way that merges correctly — double‑check the call site in `packages/cli/src/lib/pm3.js:482`; a `{ env: { ...options.env } }` explicit forward is cleanest and avoids `internal: wasInternal` being shadowed by a stray `internal: undefined` from the options spread.
+- `bundlePath` points at `.yamf/build/<service>/<hash>.mjs`. For C2 that's the file pm3 spawns. For C3 the registry copies bytes to remote pm3 nodes under the same path convention.
+- Decision logic is **identical** for `--local` and `--remote`; only the `pm3` object and fetch target differ. That's how cross‑cut 6 (parity) falls out naturally.
+
+#### Cross‑cut 1 — `config-service` scaffolding (hard gate on C3)
+
+Minimum viable contract so C3 can't leak secrets into bundles:
+
+- **Service**: `packages/services/config/service.js` — `createService('config-service', handler)` with commands:
+  - `get`  → `{ service, env }` → `{ values: {...}, version: N }`
+  - `set`  → `{ service, env, values: {KEY: VALUE}, expectedVersion? }` → `{ version: N+1 }` (admin token required)
+  - `list` → `{ service?, env? }` → `[{ service, env, version, keys }]` (no values)
+- **Storage**: file‑backed at `${YAMF_HOME}/config/<service>/<env>.enc`, encrypted with libsodium secretbox using `YAMF_CONFIG_KEY` (32‑byte master key persisted like auth's ed25519 keys, see `packages/services/auth/service.js:88`). In memory cache is plaintext; `dump` command refuses to print values.
+- **CLI**: `yamf config set <service> --env prod KEY=VALUE` (prompts if value omitted, never echoes); `yamf config get <service> --env prod` (masked by default, `--reveal` needs admin token). Implemented in `packages/cli/src/commands/config.js`.
+- **Integration with pm3 spawn** (the only code path where plaintext lands on disk is the child process env):
+
+  ```js
+  // inside planAndApply, just before pm3.start
+  const required = service.env || []
+  if (required.length) {
+    const resp = await httpRequest(registryUrl, {
+      headers: { [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL, [HEADERS.SERVICE_NAME]: 'config-service' },
+      body: { command: 'get', service: service.name, env: target }     // target = 'dev'|'prod'|...
+    })
+    Object.assign(env, resp.values)     // config-service values overlay build env
+    env.YAMF_CONFIG_VERSION = String(resp.version)
+  }
+  ```
+
+- **Overlay order** (least → most authoritative): defaults in code < `yamf.config.js` `env: [...]` (names only) < config‑service values < `process.env` at CLI invocation time (so an operator can override at deploy). Document this, and add a test.
+- **Rotation**: `yamf config set … KEY=newvalue` bumps `version` → next `yamf deploy` sees the bump and forces a rolling restart (even if `sourceHash` unchanged). Add `configVersion` to `replicaMetadata` alongside `sourceHash`; decision table treats differing `configVersion` like differing hash.
+
+#### Cross‑cut 6 — dev/prod parity checklist
+
+Review gate before C3 and D1 merge. Do not ship if any of these are false:
+
+- [ ] `yamf deploy --local` and `yamf deploy --remote` call the **same** `planAndApply` function; only the `pm3` adapter and `registryUrl` differ.
+- [ ] `yamf dev` drives redeploys by calling the same `planAndApply` — there is no "dev‑only" spawn path.
+- [ ] Source‑hash computation is identical across modes (same `computeBundleHash`, same esbuild config). CI asserts `yamf build` then `yamf build` produces byte‑identical hashes on two runners.
+- [ ] `config-service` is queried in all three modes; `YAMF_CONFIG_VERSION` appears in replica metadata in all three.
+- [ ] `yamf status --versions` shows identical fields for local and remote targets.
+- [ ] A single test harness (new `packages/cli/tests/integration/deploy-parity.js`) runs the same deploy against a local pm3 and a fake remote registry and asserts the resulting replica set is structurally equal.
 
 ### Slice C — CLI remote deployments + pm3 deploy service  `[large]`
 
