@@ -97,8 +97,8 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 
 **Phase 4 — polish & production hardening:**
 
-15. **D2** — `@yamf/dev-hmr` SSE + client.
-16. **D3** — Vite plugin bridge.
+15. **D2** — `@yamf/dev-hmr` SSE + client. **Shipped:** `PUBSUB_CHANNEL_YAMF_DEV_RELOAD`, `@yamf/services-dev-hmr`, `yamf dev` publish, `dev-bootstrap` + `YAMF_DEV=on`, `@yamf/client/dev-hmr`. **Optional follow-up:** `DEPLOY_TOKEN` gating for browser `EventSource`, gateway URL docs.
+16. **D3** — Vite plugin bridge. **Shipped:** `import { yamfVitePluginDev } from '@yamf/client/vite-plugin-yamf-dev'` — debounced `handleHotUpdate` → `publishMessage` to `yamf:dev-reload` (same channel as D2). Needs `YAMF_REGISTRY_URL` in the Vite process; `YAMF_VITE_DEV_LOG=1` for publish debug.
 17. **C6** — ed25519 signed bundles + admin‑auth.
 18. **Cross‑cut 5** — canary / percentage rollouts.
 19. **Cross‑cut 4** — auto‑re‑placement on replica loss.
@@ -563,7 +563,7 @@ Leverages slice 3's `createEventSourceService` + `broadcastRender` and slice C's
    - On `reload` event: by default hard‑reloads (`location.reload()`). Advanced mode (opt‑in) calls a user‑supplied `applyPatch({ service, hash })` so state‑preserving reloads are possible for apps that want them.
    - Injected only when `YAMF_DEV=on`; no‑op in production builds.
 
-4. **Vite / SPA integration.** For apps like Soundclone that use Vite: a small `vite-plugin-yamf-dev` in `packages/client/src/vite-plugin.js` that forwards Vite HMR events onto `yamf:dev-reload`. Result: **one** reload transport for both server services and SPA bundles.
+4. **Vite / SPA integration.** **`@yamf/client/vite-plugin-yamf-dev`** (`yamfVitePluginDev()`) calls `handleHotUpdate` → debounced `publishMessage` to `PUBSUB_CHANNEL_YAMF_DEV_RELOAD` so D2’s SSE path reloads all attached browsers when the SPA rebundles. Vite and `yamf dev` can run side‑by‑side (same `YAMF_REGISTRY_URL`).
 
 5. **Remote dev flow.**
    - `yamf dev --remote https://dev.example.com`.
@@ -581,7 +581,7 @@ Leverages slice 3's `createEventSourceService` + `broadcastRender` and slice C's
 8. **Sub‑slicing.**
    - **D1** — `yamf dev` + file watch + local redeploy (requires C1/C2). No client HMR yet.
    - **D2** — `@yamf/dev-hmr` SSE service + `@yamf/client/dev-hmr` client → full page reload on change.
-   - **D3** — Vite plugin bridging.
+   - **D3** — `yamfVitePluginDev` in `@yamf/client/vite-plugin-yamf-dev` (HMR → `yamf:dev-reload` pub/sub).
    - **D4** — `applyPatch` hook for state‑preserving reloads (depends on slice 3 `broadcastRender` being adopted by the app).
 
 ### Cross‑cutting concerns for the orchestrator story  `[must‑land with C/D]`

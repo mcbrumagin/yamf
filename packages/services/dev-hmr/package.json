@@ -1,0 +1,22 @@
+{
+  "name": "@yamf/services-dev-hmr",
+  "version": "0.1.0",
+  "description": "SSE dev reload fan-out for yamf dev (Phase 4 D2)",
+  "license": "ISC",
+  "type": "module",
+  "main": "service.js",
+  "scripts": {
+    "test": "yamf test -d ."
+  },
+  "files": [
+    "service.js"
+  ],
+  "peerDependencies": {
+    "@yamf/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@yamf/cli": "workspace:*",
+    "@yamf/core": "workspace:*",
+    "@yamf/test": "workspace:*"
+  }
+}

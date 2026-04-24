@@ -1,4 +1,5 @@
 import chokidar from 'chokidar'
+import { publishMessage, PUBSUB_CHANNEL_YAMF_DEV_RELOAD } from '@yamf/core'
 import { loadYamfConfig } from '../lib/load-yamf-config.js'
 import { buildServiceEntry } from './build.js'
 import { planAndApply } from '../lib/deploy-driver.js'
@@ -14,12 +15,16 @@ const ARGS = {
 
 function getHelp () {
   return `
-yamf dev — watch service entries and redeploy (Phase 3 D1 / ROADMAP)
+yamf dev — watch service entries and redeploy (Phase 3 D1; Phase 4 D2 reload pub/sub)
 
 Options:
   -r, --remote   Remote PM3 (set YAMF_REGISTRY_URL and YAMF_DEPLOY_TOKEN for upload)
   -e, --env       Config-service / deploy env key (default: dev)
   -h, --help      This help
+
+After each successful build/deploy, publishes ${PUBSUB_CHANNEL_YAMF_DEV_RELOAD} so
+@yamf/services-dev-hmr (when running with YAMF_DEV=on) can push SSE reload to browsers.
+Set YAMF_DEV_RELOAD_LOG=1 to log pub/sub errors (e.g. registry unreachable).
 `
 }
 
@@ -64,6 +69,20 @@ export async function runDevCommand (args) {
             deployToken: process.env.YAMF_DEPLOY_TOKEN
           })
           process.stdout.write(`[dev] ${svc.name} ${res.decision} ${String(hash).slice(0, 16)}\n`)
+          try {
+            await publishMessage(PUBSUB_CHANNEL_YAMF_DEV_RELOAD, {
+              service: svc.name,
+              hash: String(hash),
+              at: Date.now(),
+              source: 'yamf-dev'
+            })
+          } catch (pubErr) {
+            if (process.env.YAMF_DEV_RELOAD_LOG === '1') {
+              process.stderr.write(
+                `[dev] ${svc.name} dev-reload pub/sub: ${pubErr?.message || pubErr}\n`
+              )
+            }
+          }
         } catch (err) {
           process.stderr.write(`[dev] ${svc.name} failed: ${err?.message || err}\n`)
         }

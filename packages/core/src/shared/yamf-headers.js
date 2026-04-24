@@ -63,6 +63,12 @@ export const HEADERS = {
 }
 
 /**
+ * Well-known global pub/sub channel: `yamf dev` publishes here after a successful local/remote
+ * deploy; {@link @yamf/services-dev-hmr} subscribes and fans out SSE `reload` (ROADMAP Phase 4 D2).
+ */
+export const PUBSUB_CHANNEL_YAMF_DEV_RELOAD = 'yamf:dev-reload'
+
+/**
  * Command types (values for yamf-command header)
  */
 export const COMMANDS = {

@@ -23,6 +23,9 @@ importers:
       '@yamf/services-deploy-router':
         specifier: workspace:*
         version: link:../services/deploy-router
+      '@yamf/services-dev-hmr':
+        specifier: workspace:*
+        version: link:../services/dev-hmr
       '@yamf/services-pm3':
         specifier: workspace:*
         version: link:../services/pm3
@@ -49,6 +52,9 @@ importers:
       '@yamf/cli':
         specifier: workspace:*
         version: link:../cli
+      '@yamf/core':
+        specifier: workspace:*
+        version: link:../core
       '@yamf/test':
         specifier: workspace:*
         version: link:../test
@@ -114,6 +120,18 @@ importers:
       '@yamf/core':
         specifier: workspace:*
         version: link:../../core
+
+  packages/services/dev-hmr:
+    devDependencies:
+      '@yamf/cli':
+        specifier: workspace:*
+        version: link:../../cli
+      '@yamf/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@yamf/test':
+        specifier: workspace:*
+        version: link:../../test
 
   packages/services/file-server:
     dependencies:

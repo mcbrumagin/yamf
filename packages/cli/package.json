@@ -51,6 +51,7 @@
     "@yamf/core": "workspace:*",
     "@yamf/services-cache": "workspace:*",
     "@yamf/services-deploy-router": "workspace:*",
+    "@yamf/services-dev-hmr": "workspace:*",
     "@yamf/services-pm3": "workspace:*",
     "chokidar": "^4.0.3",
     "esbuild": "^0.25.12"

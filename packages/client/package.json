@@ -17,7 +17,9 @@
     "./event-source": "./src/event-source.js",
     "./ssr-render": "./src/ssr-render.js",
     "./ssr-hydrate": "./src/ssr-hydrate.js",
-    "./render-context": "./src/render-context.js"
+    "./render-context": "./src/render-context.js",
+    "./dev-hmr": "./src/dev-hmr.js",
+    "./vite-plugin-yamf-dev": "./src/vite-plugin-yamf-dev.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -37,8 +39,17 @@
     "@yamf/shared": "workspace:*",
     "morphdom": "^2.7.8"
   },
+  "peerDependencies": {
+    "@yamf/core": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@yamf/core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@yamf/cli": "workspace:*",
+    "@yamf/core": "workspace:*",
     "@yamf/test": "workspace:*"
   },
   "files": [

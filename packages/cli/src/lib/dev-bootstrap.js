@@ -45,6 +45,16 @@ async function bootstrap() {
     logger.warn('pm3-service (@yamf/services-pm3) not available — skipping')
   }
 
+  if (process.env.YAMF_DEV === 'on' && process.env.NODE_ENV !== 'production') {
+    try {
+      const { default: createYamfDevHmrService } = await import('@yamf/services-dev-hmr')
+      const devHmr = await createYamfDevHmrService()
+      if (devHmr) logger.info('dev-hmr (SSE reload) running — yamf dev will publish to yamf:dev-reload')
+    } catch (e) {
+      logger.warn('dev-hmr (@yamf/services-dev-hmr) not available —', e?.message || e)
+    }
+  }
+
   // Registry is already on lifecycle (priority 0). Add app pieces before exit.
   if (pm3Service) {
     lifecycle.registerTerminable(
