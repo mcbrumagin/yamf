@@ -10,8 +10,7 @@
 import {
   assert,
   assertErr,
-  terminateAfter,
-  withEnv
+  terminateAfter
 } from '@yamf/test'
 
 import {

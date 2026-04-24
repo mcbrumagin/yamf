@@ -22,37 +22,54 @@ import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
 const logger = new Logger({ logGroup: 'yamf-registry' })
 
 /**
- * Create and start the registry server
- * 
- * @param {number} [port] - Port to listen on (defaults to YAMF_REGISTRY_URL port)
- * @param {Object} [options] - Server options
- * @param {Object} [options.rateLimit] - Rate limit configuration
- * @param {Object} [options.rateLimit.default] - Default rate limit for all requests
- * @param {Object} [options.rateLimit.services] - Pre-bound service-specific rate limits
- * 
+ * @param {Record<string, unknown>} [rawOptions] - A single options object; omit or pass `{}` for env-driven defaults
+ * @param {number} [rawOptions.port] - Listen port; if omitted, taken from YAMF_REGISTRY_URL
+ * @param {boolean} [rawOptions.broadcastShutdownOnTerminate=true] - If true, broadcast shutdown to subscribers on terminate
+ * @param {Object} [rawOptions.rateLimit] - Pre-bound rate limit configuration
+ * @param {Object} [rawOptions.rateLimit.default] - Default rate limit for all requests
+ * @param {Object} [rawOptions.rateLimit.services] - Pre-bound service-specific rate limits
+ * @returns {Promise<import('node:http').Server & { terminate: function, isRegistry: boolean, _state: object }>}
  * @example
- * await registryServer(8080, {
+ * await registryServer({
+ *   port: 8080,
  *   rateLimit: {
  *     default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 10000 },
  *     services: {
- *       'auth-service': { 
- *         windowMs: 60000, 
+ *       'auth-service': {
+ *         windowMs: 60000,
  *         maxRequestsPerIp: 10,
- *         customKeyFn: (payload) => payload?.username 
+ *         customKeyFn: (payload) => payload?.username
  *       }
  *     }
  *   }
  * })
  */
-export default async function createRegistryServer(port, options = {}) {
-  const { broadcastShutdownOnTerminate = true } = options
+function normalizeRegistryServerOptions(raw) {
+  if (raw === null || raw === undefined) {
+    return {}
+  }
+  if (typeof raw === 'number') {
+    throw new TypeError(
+      'registryServer: pass a port inside the options object, e.g. registryServer({ port: 8080 })'
+    )
+  }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new TypeError('registryServer: expected a single plain options object')
+  }
+  return { ...raw }
+}
+
+export default async function createRegistryServer(rawOptions) {
+  const options = normalizeRegistryServerOptions(rawOptions)
+  const { broadcastShutdownOnTerminate = true, rateLimit: rateLimitConfig } = options
+  let { port } = options
   validateRegistryEnvironment()
   const state = createRegistryState()
   assignRegistryInstanceId(state)
   
   // Initialize rate limit configuration from options
-  if (options.rateLimit) {
-    const { default: defaultConfig, services: serviceConfigs } = options.rateLimit
+  if (rateLimitConfig) {
+    const { default: defaultConfig, services: serviceConfigs } = rateLimitConfig
     
     // Validate and store default config
     if (defaultConfig) {
@@ -103,15 +120,14 @@ export default async function createRegistryServer(port, options = {}) {
   process.on('unhandledRejection', unhandledRejectionHandler)
   process.on('uncaughtException', uncaughtExceptionHandler)
   
-  // Determine port from argument or environment
-  if (!port) {
+  // Port: explicit in options, else from YAMF_REGISTRY_URL
+  if (port == null) {
     const registryHost = envConfig.getRequired('YAMF_REGISTRY_URL')
     if (registryHost) {
       port = registryHost.split(':')[2]
       if (!port || isNaN(port)) {
         throw new Error(
-          'Please specify "port" arg or define "YAMF_REGISTRY_URL" env variable ' +
-          'including protocol and port number'
+          'Set options.port, or define YAMF_REGISTRY_URL with protocol and port (e.g. http://localhost:20000)'
         )
       }
     }

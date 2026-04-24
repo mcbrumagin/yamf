@@ -15,8 +15,7 @@ import {
   AssertionFailure,
   AssertionFailureDetail,
   MultiAssertionFailure,
-  terminateAfter,
-  withEnv
+  terminateAfter
 } from '@yamf/test'
 
 

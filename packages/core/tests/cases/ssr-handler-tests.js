@@ -14,6 +14,8 @@ import {
   COMMANDS
 } from '../../src/index.js'
 
+const registrySsrOpts = { broadcastShutdownOnTerminate: false }
+
 /**
  * createSsrHandlerRegistry: sign, verify, invoke returns patch envelope
  */
@@ -132,16 +134,10 @@ export async function testSsrHandlerMaxEviction() {
  */
 export async function testSseServiceSsrInvokeHttp() {
   await withEnv(
-    {
-      YAMF_REGISTRY_URL: 'http://127.0.0.1:4101',
-      YAMF_SERVICE_URL: 'http://127.0.0.1',
-      YAMF_GATEWAY_URL: 'http://127.0.0.1:5101',
-      YAMF_REGISTRY_TOKEN: 'tok-ssr-1',
-      YAMF_SSR_HANDLER_SECRET: '0'.repeat(32)
-    },
+    { YAMF_SSR_HANDLER_SECRET: '0'.repeat(32) },
     async () => {
       await terminateAfter(
-        () => registryServer(4101, { broadcastShutdownOnTerminate: false }),
+        () => registryServer(registrySsrOpts),
         () =>
           createEventSourceService(
             'sse-ssr-1',
@@ -173,16 +169,10 @@ export async function testSseServiceSsrInvokeHttp() {
  */
 export async function testSseSsrHandlerCallsPeerViaContext() {
   await withEnv(
-    {
-      YAMF_REGISTRY_URL: 'http://127.0.0.1:4102',
-      YAMF_SERVICE_URL: 'http://127.0.0.1',
-      YAMF_GATEWAY_URL: 'http://127.0.0.1:5102',
-      YAMF_REGISTRY_TOKEN: 'tok-ssr-2',
-      YAMF_SSR_HANDLER_SECRET: '1'.repeat(32)
-    },
+    { YAMF_SSR_HANDLER_SECRET: '1'.repeat(32) },
     async () => {
       await terminateAfter(
-        () => registryServer(4102, { broadcastShutdownOnTerminate: false }),
+        () => registryServer(registrySsrOpts),
         () => createEventSourceService('sse-ssr-2', {}, { accessControl: 'private', renderMode: 'html-handlers' }),
         () => createService('late-ssr', (p) => ({ n: p.n })),
         async (reg, svc) => {
@@ -210,16 +200,10 @@ export async function testSseSsrHandlerCallsPeerViaContext() {
  */
 export async function testSseBroadcastRenderEvent() {
   await withEnv(
-    {
-      YAMF_REGISTRY_URL: 'http://127.0.0.1:4103',
-      YAMF_SERVICE_URL: 'http://127.0.0.1',
-      YAMF_GATEWAY_URL: 'http://127.0.0.1:5103',
-      YAMF_REGISTRY_TOKEN: 'tok-ssr-3',
-      YAMF_SSR_HANDLER_SECRET: '2'.repeat(32)
-    },
+    { YAMF_SSR_HANDLER_SECRET: '2'.repeat(32) },
     async () => {
       await terminateAfter(
-        () => registryServer(4103, { broadcastShutdownOnTerminate: false }),
+        () => registryServer(registrySsrOpts),
         () => createEventSourceService('br-sse', {}, { accessControl: 'private', renderMode: 'html-handlers' }),
         async (reg, svc) => {
           const evs = []

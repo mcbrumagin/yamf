@@ -277,6 +277,8 @@ async function testWithEnv() {
 }
 ```
 
+**YAMF integration tests:** Prefer defaults from the suite’s `.env.test` and `terminateAfter` for cleanup. Use `withEnv` only when a case must *change* the environment (missing vars, feature flags, per-test secrets, etc.). See [../../docs/TESTING.md](../../docs/TESTING.md) in the YAMF repo.
+
 ## Solo and Mute Flags
 
 Focus on specific tests or skip others during development.

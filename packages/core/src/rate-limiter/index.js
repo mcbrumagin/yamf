@@ -5,7 +5,8 @@
  * 
  * @example
  * // Configure rate limiting on registry
- * await registryServer(8080, {
+ * await registryServer({
+ *   port: 8080,
  *   rateLimit: {
  *     default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 10000 },
  *     services: {

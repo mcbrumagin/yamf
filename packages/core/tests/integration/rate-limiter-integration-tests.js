@@ -53,7 +53,7 @@ async function makeMultipleRequests(url, options, count) {
  */
 export async function testRegistryDefaultRateLimit() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 5, maxTotalRequests: 100 }
       }
@@ -78,7 +78,7 @@ export async function testRegistryDefaultRateLimit() {
  */
 export async function testServiceSpecificRateLimit() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 1000 },
         services: {
@@ -129,7 +129,7 @@ export async function testRateLimitRequiredButMissing() {
  */
 export async function testRateLimitRequiredWithDefault() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 1000 }
         // No service-specific config, but default exists
@@ -151,7 +151,7 @@ export async function testRateLimitRequiredWithDefault() {
  */
 export async function testGlobalRateLimitProtection() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 5, maxTotalRequests: 5 }
       }
@@ -238,7 +238,7 @@ export async function testGatewayRateLimitHeaders() {
  */
 export async function testRateLimitWindowReset() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 1000, maxRequestsPerIp: 2, maxTotalRequests: 100 }
       }
@@ -274,7 +274,7 @@ export async function testRateLimitWindowReset() {
  */
 export async function testMultipleServicesWithDifferentLimits() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 1000 },
         services: {
@@ -345,7 +345,7 @@ export async function testGatewayServiceRouteRateLimit() {
  */
 export async function testRateLimitPerIPViaForwardedHeader() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 2, maxTotalRequests: 100 }
       }
@@ -385,7 +385,7 @@ export async function testRateLimitPerIPViaForwardedHeader() {
  */
 export async function testServiceLimitOverridesDefault() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 1, maxTotalRequests: 100 },
         services: {
@@ -420,7 +420,7 @@ export async function testServiceLimitOverridesDefault() {
  */
 export async function testGatewayOverridesRegistryDefault() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 10, maxTotalRequests: 1000 }
       }
@@ -452,7 +452,7 @@ export async function testGatewayOverridesRegistryDefault() {
  */
 export async function testCustomKeyFunctionRateLimit() {
   await terminateAfter(
-    () => registryServer(null, {
+    () => registryServer({
       rateLimit: {
         services: {
           'auth-service': {

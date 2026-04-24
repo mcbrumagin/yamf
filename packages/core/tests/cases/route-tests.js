@@ -1,8 +1,7 @@
 import {
   assert,
   assertErr,
-  terminateAfter,
-  withEnv
+  terminateAfter
 } from '@yamf/test'
 
 import {
@@ -55,9 +54,7 @@ export async function testRouteWithService() {
 
 
 export async function testRouteWithServiceThroughGateway() {
-  await withEnv({
-    YAMF_GATEWAY_URL: 'http://localhost:15000'
-  }, async () => await terminateAfter(
+  await terminateAfter(
     () => registryServer(),
     () => gatewayServer(),
     () => createService('greetingService', function greetingService(payload) {
@@ -66,12 +63,12 @@ export async function testRouteWithServiceThroughGateway() {
     async () => {
       await createRoute('/greet', 'greetingService')
 
-      let response = await fetch(`${process.env.YAMF_GATEWAY_URL}/greet`)
-      let result = await response.text()
-      
+      const response = await fetch(`${process.env.YAMF_GATEWAY_URL}/greet`)
+      const result = await response.text()
+
       await assert(result, r => r.includes('Hello World!'))
     }
-  ))
+  )
 }
 
 export async function testRouteBulkCreate() {
@@ -146,25 +143,23 @@ export async function testRouteControllerWildcard() {
 
 
 export async function testRouteControllerWildcardThroughGateway() {
-  await withEnv({
-    YAMF_GATEWAY_URL: 'http://localhost:15000'
-  }, async () => await terminateAfter(
+  await terminateAfter(
     () => registryServer(),
     () => gatewayServer(),
     () => createRoute('/api/*', async function apiController(payload, request) {
       return { path: request.url, message: 'API response' }
     }),
     async () => {
-      let response = await fetch(`${process.env.YAMF_GATEWAY_URL}/api/users`)
-      let result = await response.text()
-      let parsed = JSON.parse(result)
-      
+      const response = await fetch(`${process.env.YAMF_GATEWAY_URL}/api/users`)
+      const result = await response.text()
+      const parsed = JSON.parse(result)
+
       await assert(parsed,
         p => p.path === '/api/users',
         p => p.message === 'API response'
       )
     }
-  ))
+  )
 }
 
 export async function testRouteMissingService() {

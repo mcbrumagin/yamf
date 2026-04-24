@@ -2,7 +2,6 @@ import {
   assert,
   assertErr,
   terminateAfter,
-  withEnv,
   sleep
 } from '@yamf/test'
 
@@ -411,21 +410,17 @@ export async function testCustomContentType() {
  * Note: In dev mode, registry may return documentation instead of 404
  */
 export async function testNonExistentRoute() {
-  await withEnv({
-    YAMF_GATEWAY_URL: 'http://localhost:15000',
-  }, async () => {
-    await terminateAfter(
-      () => registryServer(),
-      async () => {
-        await sleep(100)
-        await assertErr(
-          async () => callRoute('/does-not-exist-route-test-123'),
-          err => err.status === 404,
-          err => err.message?.includes('Not found')
-        )
-      }
-    )
-  })
+  await terminateAfter(
+    () => registryServer(),
+    async () => {
+      await sleep(100)
+      await assertErr(
+        async () => callRoute('/does-not-exist-route-test-123'),
+        err => err.status === 404,
+        err => err.message?.includes('Not found')
+      )
+    }
+  )
 }
 
 /**
