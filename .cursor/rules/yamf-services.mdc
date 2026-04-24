@@ -1,0 +1,12 @@
+---
+description: YAMF @yamf/services — design and per-service docs
+globs: yamf/packages/services/**/*
+alwaysApply: false
+---
+
+# YAMF services package
+
+- **Shared design for HTTP CRUD / service shape:** `yamf/packages/services/docs/CRUD-SERVICE-DESIGN.md` before large refactors or new first-party services.
+- **Per service:** use that service’s `README.md` (e.g. `file-server`, `file-upload`, `cache`, `user`, `auth`, `postgres`).
+
+Cross-check **ROADMAP** and **LLM_ONBOARDING** if the change affects gateway routing, auth, or registry registration.

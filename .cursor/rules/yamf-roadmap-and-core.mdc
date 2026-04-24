@@ -1,0 +1,13 @@
+---
+description: YAMF core (registry, gateway) — roadmap alignment
+globs: yamf/packages/core/src/registry/**/*,yamf/packages/core/src/gateway/**/*,yamf/packages/core/src/rate-limiter/**/*
+alwaysApply: false
+---
+
+# YAMF core: registry, gateway, rate limit
+
+- **Planned and in-progress platform work:** `yamf/docs/ROADMAP.md` — read relevant sections when changing registration, pub/sub, rate limiting, or gateway behavior.
+- **Context for agents and humans:** `yamf/LLM_ONBOARDING.md` (architecture overview, not only LLMs).
+- **Tests:** `yamf/docs/TESTING.md` for integration and server lifecycle.
+
+Avoid one-off API shapes on `registryServer` or `gatewayServer` that contradict the documented options in those modules and the roadmap.

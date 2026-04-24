@@ -60,7 +60,7 @@ YAMF is organized as a monorepo with independently versioned packages:
 
 ### Development Tools
 
-- **[@yamf/test](./packages/test/)** - Custom testing framework with multi-assertion support
+- **[@yamf/test](./packages/test/)** - Custom testing framework with multi-assertion support. See [Testing conventions](./docs/TESTING.md) for YAMF-specific `withEnv` and `.env.test` usage.
 
 ## 🎯 Use Cases
 
