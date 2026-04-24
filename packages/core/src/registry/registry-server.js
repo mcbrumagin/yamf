@@ -15,11 +15,73 @@ import { preRegisterGatewayIfItExists, broadcastShutdown } from './service-regis
 import { performRegistryDrainHandshake, assignRegistryInstanceId } from './registry-drain-handshake.js'
 import { notifyGatewayOfUpdate, drainCacheUpdateQueues } from './pubsub-manager.js'
 import { registerCommand, unregisterCommand } from './command-router.js'
+import { getReplicasFor, listServiceLocations } from './replica-helpers.js'
+import { createBundleStore } from './bundle-store.js'
+import { validateDeployToken } from './registry-auth.js'
+import { createReadStream, existsSync, statSync } from 'node:fs'
 import { lifecycle } from '../shared/process-lifecycle.js'
 import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
 import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
+
+/**
+ * @param {import('http').IncomingMessage} request
+ * @param {import('http').ServerResponse} response
+ * @param {ReturnType<import('./bundle-store.js').createBundleStore>} bundleStore
+ * @returns {boolean} true if the request was handled
+ */
+function serveBundleFile (request, response, bundleStore) {
+  if (request.method !== 'GET') {
+    return false
+  }
+  const u = new URL(request.url || '/', 'http://127.0.0.1')
+  const p = u.pathname
+  if (!p.startsWith('/bundles/')) {
+    return false
+  }
+  try {
+    validateDeployToken(request)
+  } catch (e) {
+    if (!response.writableEnded) {
+      const st = e.status || 500
+      response.writeHead(st, { 'content-type': 'text/plain' })
+      response.end(e.message)
+    }
+    return true
+  }
+  const id = p.slice('/bundles/'.length).replace(/\.mjs$/, '')
+  if (!/^sha256-[a-f0-9]+$/i.test(id)) {
+    if (!response.writableEnded) {
+      response.writeHead(400, { 'content-type': 'text/plain' })
+      response.end('Invalid bundle id')
+    }
+    return true
+  }
+  let filePath
+  try {
+    filePath = bundleStore.pathFor(id)
+  } catch {
+    if (!response.writableEnded) {
+      response.writeHead(400, { 'content-type': 'text/plain' })
+      response.end('Invalid bundle id')
+    }
+    return true
+  }
+  if (!existsSync(filePath)) {
+    response.writeHead(404, { 'content-type': 'text/plain' })
+    response.end('Not found')
+    return true
+  }
+  const st = statSync(filePath)
+  response.writeHead(200, {
+    'content-type': 'application/javascript; charset=utf-8',
+    'content-length': st.size,
+    'cache-control': 'public, max-age=31536000, immutable'
+  })
+  createReadStream(filePath).pipe(response)
+  return true
+}
 
 /**
  * @param {Record<string, unknown>} [rawOptions] - A single options object; omit or pass `{}` for env-driven defaults
@@ -61,8 +123,14 @@ function normalizeRegistryServerOptions(raw) {
 
 export default async function createRegistryServer(rawOptions) {
   const options = normalizeRegistryServerOptions(rawOptions)
-  const { broadcastShutdownOnTerminate = true, rateLimit: rateLimitConfig } = options
+  const { broadcastShutdownOnTerminate = true, rateLimit: rateLimitConfig, bundleDir } = options
   let { port } = options
+  /** @type {null | ReturnType<import('./bundle-store.js').createBundleStore>} */
+  let bundleStore = 'bundleStore' in options ? options.bundleStore : undefined
+  if (bundleStore === undefined) {
+    const customRoot = envConfig.get('YAMF_BUNDLE_DIR', null)
+    bundleStore = createBundleStore(customRoot != null && customRoot !== '' ? String(customRoot) : bundleDir)
+  }
   validateRegistryEnvironment()
   const state = createRegistryState()
   assignRegistryInstanceId(state)
@@ -147,23 +215,27 @@ export default async function createRegistryServer(rawOptions) {
   // This allows streaming proxy for routes and service calls
   // Commands that need the body (like PUBSUB_PUBLISH) will parse it themselves
   const server = await createProxyServer(port, async function registryServer(request, response) {
+    if (bundleStore && serveBundleFile(request, response, bundleStore)) {
+      return
+    }
     let payload = null
     try {
       // Determine if we need to parse the body
       // - PUBSUB_PUBLISH always needs body parsed
       // - SERVICE_CALL needs body parsed if target service has customKeyFn for rate limiting
+      // - slice F plugins: `parseJsonBody: false` streams raw body to the handler (e.g. deploy-bundle)
       // TODO we should create a new deployable built-in service to offload customKeyFn processing for rate limits
       const command = request.headers['yamf-command']
       const serviceName = request.headers['yamf-service-name']
-      
+      const pluginForCmd = command && state.pluginCommands?.get(command)
       let needsBodyParsing = command === 'pubsub-publish'
-      
-      // Check if SERVICE_CALL needs body parsing for custom key rate limiting
       if (command === 'service-call' && serviceName) {
         const serviceConfig = state.rateLimitConfig.services.get(serviceName)
         if (serviceConfig?.customKeyFn) {
           needsBodyParsing = true
         }
+      } else if (pluginForCmd) {
+        needsBodyParsing = pluginForCmd.parseJsonBody !== false
       }
       
       if (needsBodyParsing) {
@@ -207,11 +279,16 @@ export default async function createRegistryServer(rawOptions) {
         logger.debugErr('Registry command failed:', err)
       }
       const status = err.status || 500
-      
+
       if (!response.writableEnded) {
-        const extra = err.responseHeaders && typeof err.responseHeaders === 'object' ? err.responseHeaders : {}
-        response.writeHead(status, { 'content-type': 'text/plain', ...extra })
-        response.end(err.stack || err.message)
+        if (err.code === 'BUNDLE_HASH_MISMATCH' || (status === 422 && (err.message || '').includes('bundle'))) {
+          response.writeHead(422, { 'content-type': 'application/json' })
+          response.end(JSON.stringify({ code: 'bundle-hash-mismatch', message: err.message || 'bundle-hash-mismatch' }))
+        } else {
+          const extra = err.responseHeaders && typeof err.responseHeaders === 'object' ? err.responseHeaders : {}
+          response.writeHead(status, { 'content-type': 'text/plain', ...extra })
+          response.end(err.stack || err.message)
+        }
       }
     }
   })
@@ -240,6 +317,9 @@ export default async function createRegistryServer(rawOptions) {
   // Expose state for testing
   // Note: In production, access to state should be restricted
   server._state = state
+  server._bundleStore = bundleStore
+  server.getReplicasFor = (name) => getReplicasFor(state, name)
+  server.listHealthyLocations = (name) => listServiceLocations(state, name)
   server.registerCommand = (name, handler, opts) => registerCommand(state, name, handler, opts)
   server.unregisterCommand = (name) => unregisterCommand(state, name)
 

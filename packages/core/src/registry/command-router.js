@@ -17,7 +17,7 @@ import { registerRoute, unregisterRoute, findControllerRoute } from './route-reg
 import { resolvePossibleRoute } from './http-route-handler.js'
 import { HEADERS,COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/yamf-headers.js'
 import HttpError from '../http-primitives/http-error.js'
-import { validateRegistryToken } from './registry-auth.js'
+import { validateRegistryToken, validateDeployToken } from './registry-auth.js'
 import envConfig from '../shared/env-config.js'
 
 import { localState } from '../shared/local-state.js'
@@ -475,7 +475,9 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     default: {
       const plugin = state.pluginCommands?.get(command)
       if (plugin) {
-        if (plugin.requireRegistryToken !== false) {
+        if (plugin.requireDeployToken) {
+          validateDeployToken(request)
+        } else if (plugin.requireRegistryToken !== false) {
           validateRegistryToken(request)
         }
         const requesterLocation =
@@ -495,7 +497,7 @@ const RESERVED_YAMF_COMMANDS = new Set(Object.values(COMMANDS))
  * Register a custom `yamf-command` handler (slice F). Built-in COMMANDS values are reserved.
  * Cleared when the owning service+location unregisters (see service-registry).
  */
-export function registerCommand(state, name, handler, { service, location, requireRegistryToken = true } = {}) {
+export function registerCommand(state, name, handler, { service, location, requireRegistryToken = true, requireDeployToken = false, parseJsonBody = true } = {}) {
   if (!name || typeof name !== 'string' || !handler) {
     throw new Error('registerCommand(name, handler, { service, location }): name and handler are required')
   }
@@ -511,7 +513,7 @@ export function registerCommand(state, name, handler, { service, location, requi
   if (state.pluginCommands.has(name)) {
     throw new HttpError(409, `Command "${name}" is already registered`)
   }
-  state.pluginCommands.set(name, { handler, service, location, requireRegistryToken })
+  state.pluginCommands.set(name, { handler, service, location, requireRegistryToken, requireDeployToken, parseJsonBody })
   logger.debug('registerCommand', name, service, location)
 }
 

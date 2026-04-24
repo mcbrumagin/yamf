@@ -6,6 +6,7 @@ import { loadYamfConfig } from '../lib/load-yamf-config.js'
 import { getServiceBuildDir, getYamfHome } from '../lib/yamf-paths.js'
 import { planAndApply } from '../lib/deploy-driver.js'
 import { PM3 } from '../lib/pm3.js'
+import { createRemotePm3 } from '../lib/remote-pm3-adapter.js'
 
 const logger = new Logger()
 
@@ -15,28 +16,33 @@ const ARGS = {
   remote: { flags: ['-r', '--remote'], type: 'string' },
   hash: { flags: ['--hash'], type: 'string' },
   env: { flags: ['-e', '--env'], type: 'string' },
-  replicas: { flags: ['-i', '--replicas'], type: 'number' }
+  replicas: { flags: ['-i', '--replicas'], type: 'number' },
+  rollback: { flags: ['--rollback'], type: 'string' },
+  force: { flags: ['--force'] }
 }
 
 function getDeployHelp () {
   return `
-yamf deploy - Plan and apply a deploy (local in Phase 2; remote in Phase 3 / C3)
+  yamf deploy - Plan and apply a deploy (local or remote, slice C3)
 
 Usage:
-  yamf deploy --local <service-name> [options]
+  yamf deploy --local <service> [options]
+  yamf deploy --remote <service> [options]
 
 Requires:
   - yamf.config.js with the service
-  - A prior \`yamf build <name>\` (or --hash pointing at an existing .mjs under .yamf/build)
-  - YAMF_REGISTRY_URL (registry must be reachable)
+  - A prior \`yamf build <name>\` (or --hash / --rollback to an existing .mjs under .yamf/build)
+  - YAMF_REGISTRY_URL (registry must be reachable; remote also needs YAMF_DEPLOY_TOKEN to upload the bundle)
 
 Options:
-  --local          Local deploy via pm3 (Phase 2; default path today)
-  -r, --remote H   Not implemented — remote rollout is **Phase 3 / slice C3** (see yamf/docs/ROADMAP.md)
+  --local          Local deploy via pm3
+  -r, --remote     Remote deploy: upload bundle to registry, drive pm3-service
   -e, --env NAME   Config-service environment key (default: local)
-  --hash HASH      Use this content hash (default: read .yamf/build/<name>/latest.json)
-  -i, --replicas N Override replica count from the manifest
-  -h, --help       Show this help
+  --hash HASH      Content hash (default: read .yamf/build/<name>/latest.json)
+  --rollback HASH  Shorthand: deploy that hash; fails if the bundle file is missing locally
+  -i, --replicas N Override replica count
+  --force          Reserved for non-noop when hashes match
+  -h, --help
 `
 }
 
@@ -46,14 +52,9 @@ export async function runDeployCommand (args) {
     console.log(getDeployHelp())
     return
   }
-  if (options.remote) {
-    throw new Error(
-      '`yamf deploy --remote` is not implemented. Remote deploy is **Phase 3 / slice C3** (pm3-service + registry bundle store). ' +
-        'Use `yamf deploy --local <service>` for now. See yamf/docs/ROADMAP.md.'
-    )
-  }
-  if (!options.local) {
-    throw new Error('Specify `--local` for a local deploy, or see ROADMAP Phase 3 for future `--remote`.')
+  const remote = !!options.remote
+  if (!options.local && !remote) {
+    throw new Error('Specify `--local` or `--remote` (see yamf deploy --help).')
   }
   const name = options._positional[0]
   if (!name) {
@@ -73,7 +74,17 @@ export async function runDeployCommand (args) {
   const cwd = process.cwd()
   getYamfHome(cwd)
 
-  let hash = options.hash
+  let hash = options.rollback || options.hash
+  if (options.rollback) {
+    const bundlePath = join(getServiceBuildDir(name, cwd), `${options.rollback}.mjs`)
+    if (!existsSync(bundlePath)) {
+      const code = 'no-bundle-for-rollback-hash'
+      throw new Error(
+        `${code}: missing ${bundlePath}. Build or copy that hash before rollback.`
+      )
+    }
+    hash = options.rollback
+  }
   if (!hash) {
     const latestPath = join(getServiceBuildDir(name, cwd), 'latest.json')
     if (!existsSync(latestPath)) {
@@ -91,7 +102,7 @@ export async function runDeployCommand (args) {
     throw new Error('YAMF_REGISTRY_URL is required')
   }
 
-  const pm3 = new PM3()
+  const pm3 = remote ? createRemotePm3({ registryUrl }) : new PM3()
   const result = await planAndApply({
     yamfService,
     hash,
@@ -100,8 +111,13 @@ export async function runDeployCommand (args) {
     registryToken: process.env.YAMF_REGISTRY_TOKEN || '',
     envTarget: options.env || 'local',
     replicas: options.replicas,
-    cwd
+    cwd,
+    remote,
+    deployToken: process.env.YAMF_DEPLOY_TOKEN
   })
+  if (options.rollback) {
+    result.rollback = true
+  }
   logger.info('Deploy result:', result)
   console.log(JSON.stringify(result, null, 2))
 }

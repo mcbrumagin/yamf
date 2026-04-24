@@ -79,7 +79,11 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 
 5. **C1** — `yamf build` + bundle cache. **Shipped:** `yamf build` / `yamf build --all`, `.yamf/build/…` layout, `yamf.config.js` (see `yamf/yamf.config.example.js`), `computeBundleHash` in `packages/cli/src/lib/bundle-hash.js`.
 6. **C2** — `yamf deploy --local`. **Shipped:** `YAMF_SOURCE_HASH` + optional `YAMF_CONFIG_VERSION` in `registerServiceWithRegistry` → `replicaMetadata` on the registry, `replicas` on `REGISTRY_PULL`, `planAndApply` in `packages/cli/src/lib/deploy-driver.js`, `yamf deploy --local <svc>`, `yamf status --versions`.
-7. **Cross‑cut 1** — secrets / config separation (`config-service` scaffolding). **Shipped (v1):** `@yamf/services-config` (AES‑256‑GCM file store, `YAMF_CONFIG_KEY`), `yamf config get|set|list`, deploy overlay when `services[].env` lists required names. **Hard gate on C3** for remote — refine encryption/rotation before `yamf deploy --remote`.
+7. **Cross‑cut 1** — secrets / config separation (`config-service` scaffolding). **Shipped (v1):** `@yamf/services-config` (AES‑256‑GCM file store via `@yamf/core/crypto`, scrypt‑derived key from `YAMF_CONFIG_KEY`), `yamf config get|set|list`, deploy overlay when `services[].env` lists required names. **Hard gate on C3** for remote. **Refinements to land before `yamf deploy --remote`:**
+   - Atomic save — `packages/services/config/storage.js` `save()` should write to `store.enc.tmp` and `renameSync` (mirrors pm3 state persistence). A truncated write on crash currently throws on next `load()`.
+   - Random per‑install salt — replace the hard‑coded `KEY_SALT = 'yamf-config-v1'` with a 16‑byte random salt persisted to `${baseDir}/salt` on first run. Keeps derived keys unique per deployment even when the passphrase is reused.
+   - Passphrase entropy hint — README + error message should point at `openssl rand -base64 32`; current message only says "passphrase".
+   - Optional: `delete` command on `config-service` for rotation‑by‑removal (today `set` can only add/overwrite).
 8. **Cross‑cut 6** — dev/prod parity design review. **Not automated:** use the checklist in this file under *Cross‑cut 6* before C3 / D1; `planAndApply` is the shared entry point for local deploys today.
 
 **Phase 3 — remote rollout:**
@@ -601,6 +605,253 @@ If slices C and D push YAMF toward "system‑agnostic small orchestrator", these
 5. **Canary / percentage rollouts.** Natural extension of the decision table once same‑hash replicas are a load‑balance pool: `yamf deploy --canary 10%` keeps `N * 0.9` of hash `X` and `N * 0.1` of hash `Y`, auto‑advances on time or explicit `yamf promote`. Rollback is just re‑scaling `X` and draining `Y` — already supported by C5.
 
 6. **Dev/prod parity.**  **Design review gate before C3 and D1 ship**, not a standalone slice. `yamf dev` (slice D), `yamf deploy --local` (C2) and `yamf deploy --remote` (C3+) must resolve to the **same** code path with different defaults (token, remote URL, watch mode). If they diverge, the "works locally, breaks on remote" bug class comes back — and it comes back *in production*, not in tests.
+
+### Phase 3 implementation details  `[scoping for D1, C3, C4, C5, cross‑cuts 2 & 3]`
+
+Consolidated snippets for the remote‑rollout work. Mirrors the Phase 2 block's format. Phase 2's `planAndApply` stays the single entry point — everything below adds capabilities behind it, it does not fork it.
+
+#### D1 — `yamf dev` (watch + debounce on top of Phase 2)
+
+```js
+// packages/cli/src/commands/dev.js (new)
+import chokidar from 'chokidar'
+import { loadYamfConfig } from '../lib/load-yamf-config.js'
+import { buildServiceEntry } from './build.js'
+import { planAndApply } from '../lib/deploy-driver.js'
+import { PM3 } from '../lib/pm3.js'
+
+export async function runDevCommand () {
+  const cfg = await loadYamfConfig()
+  const registryUrl = process.env.YAMF_REGISTRY_URL
+  const debounceMs  = Number(process.env.YAMF_DEV_DEBOUNCE_MS || 200)
+  const pm3 = new PM3()                                // swap for remote adapter when `--remote` lands
+  const timers = new Map()                             // per‑service debounce — parallel deploys
+
+  const trigger = (svc) => {
+    clearTimeout(timers.get(svc.name))
+    timers.set(svc.name, setTimeout(async () => {
+      try {
+        const { hash } = await buildServiceEntry(cfg, svc)
+        const res = await planAndApply({ yamfService: svc, hash, pm3, registryUrl, envTarget: 'dev' })
+        process.stdout.write(`[dev] ${svc.name} ${res.decision} ${hash.slice(0, 16)}\n`)
+      } catch (err) {
+        // failed build/deploy MUST NOT stop the watcher — previous replicas keep serving
+        process.stderr.write(`[dev] ${svc.name} failed: ${err.message}\n`)
+      }
+    }, debounceMs))
+  }
+
+  const entries = cfg.services.filter(s => !s.internal).map(s => s.entry)
+  const watcher = chokidar.watch(entries, { ignored: ['**/node_modules/**', '**/.yamf/**'], ignoreInitial: true })
+  watcher.on('all', (_e, p) => {
+    for (const svc of cfg.services) if (!svc.internal && p.endsWith(svc.entry)) trigger(svc)
+  })
+  for (const svc of cfg.services) if (!svc.internal) trigger(svc)   // initial pass
+}
+```
+
+Key design choices:
+
+- **Per‑service debounce**, not global — saves in two service files deploy in parallel.
+- **Failed build never stops the watcher.** Previous replicas keep serving; next edit re‑triggers.
+- `--remote` is the same code path with `pm3` swapped for a remote adapter (C4) and `registryUrl` pointing at the dev cluster. That's cross‑cut 6's parity contract in action.
+
+#### C3 — deploy router, bundle store, and pm3‑service `deploy`
+
+**Deploy router is a Slice‑F plugin, not core.** Keeps the kernel minimal and is the first real‑world validation of the plugin model.
+
+```js
+// packages/services/deploy-router/service.js (new)
+// Depends on @yamf/core registry + Slice F registerCommand.
+import { createHash } from 'node:crypto'
+import { pipeline } from 'node:stream/promises'
+import { createWriteStream, renameSync, unlinkSync, existsSync } from 'node:fs'
+import { HttpError, publishMessage } from '@yamf/core'
+
+export function attachDeployRouter (registry, { bundleStore, deployToken }) {
+  // deploy-plan: CLI → registry decision. Same table as Phase 2 `planAndApply`, but server‑side.
+  registry.registerCommand('deploy-plan', async ({ body }) => {
+    const decisions = []
+    for (const s of body.services || []) {
+      const reps  = registry.getReplicasFor(s.name)           // thin wrapper over replicaMetadata
+      const same  = reps.filter(r => r.sourceHash === s.hash)
+      const other = reps.filter(r => r.sourceHash && r.sourceHash !== s.hash)
+      const d = reps.length === 0 ? 'rollout'
+        : other.length > 0                ? 'rolling'
+        : same.length < (s.replicas ?? 1) ? 'scale'
+        :                                   'noop'
+      decisions.push({ service: s.name, hash: s.hash, decision: d })
+    }
+    return { decisions }
+  }, { requireDeployToken: true })
+
+  // deploy-bundle: streaming PUT with on‑the‑fly sha256, 422 on mismatch.
+  registry.registerCommand('deploy-bundle', async ({ request, headers }) => {
+    const hash = headers['yamf-deploy-hash']
+    if (!hash) throw new HttpError(400, 'yamf-deploy-hash required')
+    if (existsSync(bundleStore.pathFor(hash))) return { stored: hash, deduped: true }
+    const h = createHash('sha256')
+    const tmp = bundleStore.pathFor(hash) + '.part'
+    await pipeline(
+      request,
+      async function* (src) { for await (const c of src) { h.update(c); yield c } },
+      createWriteStream(tmp)
+    )
+    if (`sha256-${h.digest('hex')}` !== hash) {
+      try { unlinkSync(tmp) } catch { /* */ }
+      throw new HttpError(422, 'bundle-hash-mismatch')
+    }
+    renameSync(tmp, bundleStore.pathFor(hash))
+    return { stored: hash }
+  }, { requireDeployToken: true })
+}
+```
+
+**Slice‑F follow‑up required.** `registerCommand` today accepts `{ requireRegistryToken }`. Add `requireDeployToken` to `packages/core/src/registry/command-router.js` (check `yamf-deploy-token` against `envConfig.get('YAMF_DEPLOY_TOKEN')`, 401 on mismatch). This is ~10 lines; better than reusing the registry token so the blast radius of a leaked deploy token is one command family, not the whole registry.
+
+**Bundle store** is content‑addressed at `${YAMF_BUNDLE_DIR}/<hash>.mjs` (default `${YAMF_HOME}/bundles/`). Writes via tmp+rename; reads are idempotent; GC is the same "never prune a hash listed in `replicaMetadata`" rule that guards `yamf build --prune`.
+
+**`pm3-service` `deploy` case.** Extends `packages/services/pm3/service.js` inside the existing `switch (command)`:
+
+```js
+case 'deploy': {
+  const { service, hash, env } = payload
+  const bundlePath = join(managedServicePath, `${hash}.mjs`)
+  if (!existsSync(bundlePath)) {
+    const resp = await fetch(`${registryUrl}/bundles/${hash}`, {
+      headers: { 'yamf-deploy-token': deployToken }
+    })
+    if (!resp.ok) throw new HttpError(502, `bundle fetch failed: ${resp.status}`)
+    const tmp = bundlePath + '.part'
+    await pipeline(Readable.fromWeb(resp.body), createWriteStream(tmp))
+    renameSync(tmp, bundlePath)
+  }
+  return pm3.start(bundlePath, {
+    env: {
+      ...env,
+      YAMF_SOURCE_HASH: hash,
+      YAMF_BUNDLE_PATH: bundlePath,
+      YAMF_NODE_ID: process.env.YAMF_SERVICE_URL      // see C4
+    }
+  })
+}
+```
+
+**Remote `pm3` adapter for `planAndApply`.** The Phase 2 driver takes `pm3` as a duck‑typed `{ start, restartRolling }`. For remote, implement the same surface against `pm3-service`:
+
+```js
+// packages/cli/src/lib/remote-pm3-adapter.js (new)
+import { httpRequest, HEADERS, COMMANDS } from '@yamf/core'
+export function createRemotePm3 ({ registryUrl, deployToken }) {
+  const call = (payload) => httpRequest(registryUrl, {
+    headers: {
+      [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
+      [HEADERS.SERVICE_NAME]: 'pm3-service',
+      'yamf-deploy-token': deployToken
+    }, body: payload
+  })
+  return {
+    start:           (bundlePath, { env }) => call({ command: 'deploy', hash: env.YAMF_SOURCE_HASH, service: env.YAMF_SERVICE_NAME, env }),
+    restartRolling:  (service, { env, bundlePath }) => call({ command: 'rolling-deploy', service, hash: env.YAMF_SOURCE_HASH, env })
+  }
+}
+```
+
+Crucially, **Phase 2's `planAndApply` is unchanged**. Only the injected adapter differs. That's how cross‑cut 6 parity is enforced by construction.
+
+#### C4 — multi‑node placement
+
+**Registry needs to know which node a replica is on.** Smallest possible change: `pm3-service` stamps its own location into every spawned service's env, and the service's existing Phase 2 metadata propagation picks it up.
+
+```js
+// packages/core/src/api/service-helpers.js — registerServiceWithRegistry
+const nodeId = envConfig.get('YAMF_NODE_ID', null)
+if (nodeId) metadata = { ...(metadata || {}), node: nodeId }
+```
+
+```js
+// packages/core/src/registry/service-registry.js — registerService
+const { sourceHash, configVersion, node, ...metadataForService } = metaObj
+if (sourceHash != null || configVersion != null || node != null) {
+  state.replicaMetadata.set(replicaKey, {
+    ...(prevR || {}),
+    ...(sourceHash    != null ? { sourceHash }    : {}),
+    ...(configVersion != null ? { configVersion } : {}),
+    ...(node          != null ? { node }          : {}),
+    registeredAt: Date.now()
+  })
+}
+```
+
+No separate placement tracking table — the registry learns placement at the same moment it learns the replica exists. `serializeReplicaMetadata` already passes through arbitrary fields, so `yamf status --versions` surfaces `node` automatically.
+
+**Placement selector** (least‑loaded by replica count; pluggable later):
+
+```js
+// packages/services/deploy-router/placement.js
+export function pickNode (registry, { excludeNodes = [] } = {}) {
+  const nodes = registry.listHealthyLocations('pm3-service')
+  const load = new Map(nodes.map(n => [n, 0]))
+  for (const [, meta] of registry.state.replicaMetadata) {
+    if (meta.node && load.has(meta.node)) load.set(meta.node, load.get(meta.node) + 1)
+  }
+  const candidates = [...load.entries()].filter(([n]) => !excludeNodes.includes(n)).sort((a, b) => a[1] - b[1])
+  if (!candidates.length) throw new HttpError(503, 'no-placement')
+  return candidates[0][0]
+}
+```
+
+**Rolling across nodes.** For each old replica, `pickNode({ excludeNodes: [oldReplica.node] })` prefers a different host so the rolling step also tolerates a node going away. Drain the old replica only after the new one registers on its new node.
+
+#### C5 — rollback‑by‑hash
+
+CLI wiring only; decision table already handles it.
+
+```js
+// packages/cli/src/commands/deploy.js — new flag
+--rollback <hash>   // shorthand for --hash <hash> --force, audited as decision: 'rollback'
+```
+
+**Semantic guard** worth adding up front: if the target hash has no bundle in `.yamf/build/<svc>/` **and** no entry in the registry bundle store, fail fast with `no-bundle-for-rollback-hash` instead of starting a rollout that errors mid‑way. One filesystem check, saves an operator a rollback‑of‑a‑rollback.
+
+Phase 2 already ships `configVersion` in `replicaMetadata`; `yamf config set` bumps `configVersion`, and `planAndApply`'s `otherHash` check catches version drift too — so "rotate secret, roll replicas" just works, no separate code path.
+
+#### Cross‑cut 2 — contract‑aware rolling
+
+Tie to the runtime contracts work tracked in `.cursor/plans/runtime_service_contracts_*.plan.md`.
+
+- `yamf deploy --dry-run` diffs current vs. incoming contract (already on `REGISTRY_PULL`), prints added/removed/changed fields, exits non‑zero on incompatibilities unless `--allow-breaking`.
+- Registry refuses to promote a rolling replica to `healthy` if `isBackwardCompatible(current, incoming) === false`. Hook point is wherever the registry transitions a replica out of "warming" — today that's implicit in first‑call success; add an explicit `markReplicaHealthy(service, location)` step in `service-registry.js` so the contract gate has a single place to live.
+
+#### Cross‑cut 3 — deploy audit events
+
+One event, emitted from the deploy router on every decision transition:
+
+```js
+// packages/services/deploy-router/service.js — at the end of each decision branch
+publishMessage('yamf:deploy', {
+  service,
+  fromHash, toHash,
+  decision,                                      // rollout | scale | rolling | noop | rollback
+  node,                                          // C4
+  configVersion,                                 // Phase 2
+  deployer: headers['yamf-deployer'] || null,    // "user@host" or API key id; opaque
+  at: Date.now()
+})
+```
+
+- Apps subscribe via `createSubscriptionService('…', { channels: ['yamf:deploy'] })`; no new wire primitive.
+- Registry `/health` gains `deploy: { queueDepth, last50: [{ service, toHash, decision, at }] }` — a ring buffer on the registry process, cheaper than scanning the pub/sub log and enough for operator "what just happened" questions.
+- `yamf status --versions --since <duration>` reads the same ring buffer via a new `deploy-events` registry command (also a Slice‑F plugin extension — keeps core tiny).
+
+#### Prerequisites summary for Phase 3
+
+Before starting C3, the following need to land:
+
+1. Cross‑cut 1 refinements listed in the execution order (atomic save, random salt, entropy doc) — none are large.
+2. `registerCommand` gains `requireDeployToken` option + `yamf-deploy-token` header handling in `command-router.js` (~10 lines in core; Slice F extension).
+3. `registerService` learns to strip `node` into `replicaMetadata` alongside `sourceHash`/`configVersion` (1‑line destructure change, shown above).
+4. `registry.getReplicasFor(name)` and `registry.listHealthyLocations(name)` helpers exposed on the server object — today both require reaching into `state`; the deploy router plugin shouldn't need to.
 
 ### Lower‑priority cleanup (tracked, not blocked on slices A–E)
 

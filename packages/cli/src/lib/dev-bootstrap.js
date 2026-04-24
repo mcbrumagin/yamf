@@ -14,6 +14,15 @@ async function bootstrap() {
   const registry = await registryServer()
   logger.info('Registry running')
 
+  try {
+    const { attachDeployRouter } = await import('@yamf/services-deploy-router/service.js')
+    const regUrl = process.env.YAMF_REGISTRY_URL || 'http://127.0.0.1:20000'
+    attachDeployRouter(registry, { location: regUrl, bundleStore: registry._bundleStore })
+    logger.info('Deploy router attached (deploy-plan, deploy-bundle)')
+  } catch (err) {
+    logger.warn('Deploy router not available —', err?.message || err)
+  }
+
   let cacheService = null
   try {
     const { default: createCacheService } = await import('@yamf/services-cache')

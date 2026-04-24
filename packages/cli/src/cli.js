@@ -158,6 +158,11 @@ async function main() {
       await runDeployCommand(subcommandArgs)
       break
     }
+    case 'dev': {
+      const { runDevCommand } = await import('./commands/dev.js')
+      await runDevCommand(subcommandArgs)
+      break
+    }
     case 'config': {
       const { runConfigCommand } = await import('./commands/config.js')
       await runConfigCommand(subcommandArgs)
@@ -220,10 +225,12 @@ Utilities:
   run <filename>      Run a script directly with Node
   test                Run tests (requires @yamf/test)
 
-Deploy (Phase 2):
+Deploy:
   build [name]        Bundle services with esbuild into .yamf/build/ (needs yamf.config.js)
-  deploy --local SVC   Plan/apply a local deploy (YAMF_SOURCE_HASH + pm3)
-  config get|set|list  Control config-service (optional; for deploy env overlay)
+  deploy --local SVC  Plan/apply a local deploy (YAMF_SOURCE_HASH + pm3)
+  deploy --remote SVC  Remote deploy (registry bundle + pm3-service; needs YAMF_DEPLOY_TOKEN)
+  dev                 Watch and redeploy (see yamf dev --help)
+  config get|set|list  Config-service overlay for deploys
 
 Options:
   --help, -h          Show this help

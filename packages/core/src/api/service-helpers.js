@@ -124,14 +124,16 @@ export async function registerServiceWithRegistry(serviceName, location, options
 
   const sourceHash = envConfig.get('YAMF_SOURCE_HASH', null)
   const configVersion = envConfig.get('YAMF_CONFIG_VERSION', null)
+  const nodeId = envConfig.get('YAMF_NODE_ID', null)
   let metadata = metadataOpt
-  if (sourceHash || configVersion) {
+  if (sourceHash || configVersion || nodeId) {
     metadata = {
       ...(metadataOpt && typeof metadataOpt === 'object' ? metadataOpt : {}),
       ...(sourceHash ? { sourceHash: String(sourceHash) } : {}),
       ...(configVersion != null && configVersion !== ''
         ? { configVersion: String(configVersion) }
-        : {})
+        : {}),
+      ...(nodeId != null && nodeId !== '' ? { node: String(nodeId) } : {})
     }
   }
 

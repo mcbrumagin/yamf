@@ -22,6 +22,12 @@ export const HEADERS = {
   // Authentication // TODO Authorization: Bearer <token>
   AUTH_TOKEN: 'yamf-auth-token',           // User auth token for service calls
   REGISTRY_TOKEN: 'yamf-registry-token',   // Internal registry/service token
+  /** Separate blast radius for deploy plan/bundle (slice C3) */
+  DEPLOY_TOKEN: 'yamf-deploy-token',
+  /** Content hash for streamed bundle (sha256-…) */
+  DEPLOY_HASH: 'yamf-deploy-hash',
+  /** Opaque deploy actor (e.g. user@host) */
+  DEPLOYER: 'yamf-deployer',
   
   // TODO VERIFY
   // Route operations (for registration only - routes use request.url for routing)

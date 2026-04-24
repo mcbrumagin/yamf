@@ -1,8 +1,13 @@
 import {
   createService,
   Logger,
-  HttpError
+  HttpError,
+  envConfig
 } from '@yamf/core'
+import { createWriteStream, existsSync, mkdirSync, renameSync } from 'node:fs'
+import { join } from 'node:path'
+import { pipeline } from 'node:stream/promises'
+import { Readable } from 'node:stream'
 
 import { PM3 } from '@yamf/cli'
 
@@ -57,9 +62,56 @@ export default async function createPm3Service({
         if (!filepath) throw new HttpError(400, 'filepath is required for delete')
         return pm3.delete(filepath)
       }
-      // future: 'deploy' command for receiving esbuild bundles
+      case 'deploy': {
+        const { service, hash, env: spawnEnv = {} } = payload || {}
+        if (!hash) {
+          throw new HttpError(400, 'hash is required (YAMF_SOURCE_HASH from deploy)')
+        }
+        mkdirSync(managedServicePath, { recursive: true })
+        const bundlePath = join(managedServicePath, `${hash}.mjs`)
+        if (!existsSync(bundlePath)) {
+          const registryUrl = envConfig.get('YAMF_REGISTRY_URL', '')
+          if (!registryUrl) {
+            throw new HttpError(500, 'YAMF_REGISTRY_URL required to fetch bundle')
+          }
+          const base = registryUrl.replace(/\/$/, '')
+          const u = new URL(`${base}/bundles/${String(hash).replace(/\.mjs$/, '')}`)
+          const token = envConfig.get('YAMF_DEPLOY_TOKEN', '')
+          const res = await fetch(u, { headers: { ...(token ? { 'yamf-deploy-token': token } : {}) } })
+          if (!res.ok) {
+            throw new HttpError(502, `bundle fetch failed: ${res.status}`)
+          }
+          const tmp = bundlePath + '.part'
+          await pipeline(Readable.fromWeb(res.body), createWriteStream(tmp))
+          renameSync(tmp, bundlePath)
+        }
+        const nodeId = process.env.YAMF_SERVICE_URL || null
+        return pm3.start(bundlePath, {
+          env: {
+            ...spawnEnv,
+            YAMF_SOURCE_HASH: hash,
+            YAMF_BUNDLE_PATH: bundlePath,
+            ...(service ? { YAMF_SERVICE_NAME: service } : {}),
+            ...(nodeId ? { YAMF_NODE_ID: nodeId } : {})
+          }
+        })
+      }
+      case 'rolling-deploy': {
+        const { service, hash, env } = payload || {}
+        if (!service) {
+          throw new HttpError(400, 'service is required for rolling-deploy')
+        }
+        if (!hash) {
+          throw new HttpError(400, 'hash is required for rolling-deploy')
+        }
+        const bundlePath = join(managedServicePath, `${hash}.mjs`)
+        if (!existsSync(bundlePath)) {
+          throw new HttpError(400, `Bundle not on disk: ${bundlePath}. Fetch the bundle on this node first.`)
+        }
+        return pm3.restartRolling(service, { env, bundlePath })
+      }
       default:
-        throw new HttpError(400, `Unknown command: ${command}. Valid: start, stop, restart, list, status, logs, delete`)
+        throw new HttpError(400, `Unknown command: ${command}. Valid: start, stop, restart, list, status, logs, delete, deploy, rolling-deploy`)
     }
   })
 

@@ -38,6 +38,23 @@ export function validateRegistryToken(request) {
 }
 
 /**
+ * Validate deploy token (slice C3). When `YAMF_DEPLOY_TOKEN` is unset, no check (local/dev).
+ * @param {import('node:http').IncomingMessage} request
+ * @throws {HttpError} 401 on mismatch
+ */
+export function validateDeployToken (request) {
+  const expected = envConfig.get('YAMF_DEPLOY_TOKEN', '')
+  if (!expected) {
+    return true
+  }
+  const provided = request.headers?.[HEADERS.DEPLOY_TOKEN]
+  if (provided !== expected) {
+    throw new HttpError(401, 'Invalid or missing deploy token')
+  }
+  return true
+}
+
+/**
  * Validate environment configuration for registry security
  * Prevents registry from starting in production/staging without proper security
  * @throws {Error} If environment is prod/staging without token configured

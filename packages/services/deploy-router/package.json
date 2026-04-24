@@ -1,0 +1,19 @@
+{
+  "name": "@yamf/services-deploy-router",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Registry plugin: deploy-plan + deploy-bundle (slice C3)",
+  "main": "service.js",
+  "files": [
+    "service.js",
+    "placement.js"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@yamf/core": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcbrumagin/yamf"
+  }
+}

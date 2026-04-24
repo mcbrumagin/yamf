@@ -306,14 +306,15 @@ export async function registerService(state, { service, location, useAuthService
 
   const replicaKey = `${service}\0${location}`
   const metaObj = metadata && typeof metadata === 'object' ? metadata : {}
-  const { sourceHash, configVersion, ...metadataForService } = metaObj
+  const { sourceHash, configVersion, node, ...metadataForService } = metaObj
 
-  if (sourceHash != null || configVersion != null) {
+  if (sourceHash != null || configVersion != null || node != null) {
     const prevR = state.replicaMetadata.get(replicaKey) || {}
     state.replicaMetadata.set(replicaKey, {
       ...prevR,
       ...(sourceHash != null ? { sourceHash } : {}),
       ...(configVersion != null ? { configVersion: String(configVersion) } : {}),
+      ...(node != null ? { node: String(node) } : {}),
       registeredAt: Date.now()
     })
   }

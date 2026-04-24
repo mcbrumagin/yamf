@@ -1,5 +1,5 @@
 import { createDecipheriv } from 'node:crypto'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { envConfig } from '@yamf/core/env-config'
 import { deriveKeyScrypt32, sealJsonAesGcm256, openJsonAesGcm256 } from '@yamf/core/crypto'
@@ -61,7 +61,10 @@ export function createConfigStore (baseDir) {
     mkdirSync(baseDir, { recursive: true })
     const all = Object.fromEntries(mem)
     const text = sealJsonAesGcm256(key, all)
-    writeFileSync(filePath(), text, { mode: 0o600, encoding: 'utf8' })
+    const p = filePath()
+    const tmp = `${p}.${process.pid}.tmp`
+    writeFileSync(tmp, text, { mode: 0o600, encoding: 'utf8' })
+    renameSync(tmp, p)
   }
   load()
 
