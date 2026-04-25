@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { relative } from 'node:path'
+import { readFileSync, existsSync } from 'node:fs'
+import { join, relative } from 'node:path'
 
 /**
  * @param {string} absolutePath
@@ -9,6 +9,24 @@ import { relative } from 'node:path'
 function sha256File (absolutePath) {
   const buf = readFileSync(absolutePath)
   return createHash('sha256').update(buf).digest('hex')
+}
+
+/** Lockfiles in project root; included in `deps` when `packages: 'external'` so hash tracks dependency-only changes. */
+const LOCKFILE_NAMES = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock', 'bun.lockb']
+
+/**
+ * @param {string} absRoot
+ * @returns {Record<string, string>}
+ */
+export function hashLockfilesAtProjectRoot (absRoot) {
+  const out = {}
+  for (const n of LOCKFILE_NAMES) {
+    const p = join(absRoot, n)
+    if (existsSync(p)) {
+      out[n] = `sha256-${sha256File(p)}`
+    }
+  }
+  return out
 }
 
 /**

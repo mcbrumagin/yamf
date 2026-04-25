@@ -1,6 +1,7 @@
+import { existsSync, statSync } from 'node:fs'
 import chokidar from 'chokidar'
 import { fileURLToPath } from 'node:url'
-import { dirname, join, resolve as pathResolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve as pathResolve, sep } from 'node:path'
 import {
   publishMessage,
   PUBSUB_CHANNEL_YAMF_DEV_RELOAD,
@@ -30,6 +31,30 @@ async function isRegistryReachable (registryUrl) {
   } catch {
     return false
   }
+}
+
+/** After dev-bootstrap (or on cold start), ensure REGISTRY_PULL succeeds before build/deploy. */
+async function waitUntilDevRegistryResponds (registryUrl) {
+  const step = 200
+  const maxMs = Number(process.env.YAMF_DEV_REGISTRY_READY_MS || 20_000)
+  const n = Math.ceil(maxMs / step)
+  for (let i = 0; i < n; i++) {
+    if (await isRegistryReachable(registryUrl)) {
+      if (i > 0) {
+        process.stdout.write(
+          `[dev] Registry at ${registryUrl} is ready (after ~${(i + 1) * step}ms).\n`
+        )
+      }
+      return
+    }
+    if (i === 0) {
+      process.stdout.write(`[dev] Waiting for registry at ${registryUrl}…\n`)
+    }
+    await new Promise((r) => setTimeout(r, step))
+  }
+  throw new Error(
+    `[dev] Registry at ${registryUrl} is not accepting requests after ${maxMs}ms. Check .yamf/pm3/logs for dev-bootstrap.`
+  )
 }
 
 const ARGS = {
@@ -77,8 +102,16 @@ Local: if the registry is not reachable (e.g. after yamf stop --all), the same d
 yamf init --dev is started automatically so you can re-run yamf dev without re-initializing.
 
 After each successful build/deploy, publishes ${PUBSUB_CHANNEL_YAMF_DEV_RELOAD} so
-@yamf/services-dev-hmr (when running with YAMF_DEV=on) can push SSE reload to browsers.
-Set YAMF_DEV_RELOAD_LOG=1 to log pub/sub errors (e.g. registry unreachable).
+@yamf/services-dev-hmr (dev-bootstrap) can push SSE reload to browsers. Dev-bootstrap is started
+with YAMF_DEV=on when yamf dev starts the stack, so the yamf-dev service registers.
+
+If you import from outside the service entry tree (e.g. ../lib next to src/app), set per-service
+\`watch: ['src/lib', …]\` in yamf.config.js so \`yamf dev\` rebuilds on those file changes.
+
+Browser full reload (Vite): set VITE_YAMF_DEV_HMR=1 and point SOUNCLONE_VITE_DEV_HMR_TARGET (in .env)
+at the yamf-dev base URL from \`yamf list\`. For the Vite plugin to publish the same channel on HMR,
+run Vite with YAMF_REGISTRY_URL and YAMF_DEV=on. Set YAMF_DEV_RELOAD_LOG=1 to log pub/sub errors; YAMF_DEV_WATCH_LOG=1 to log which files trigger rebuilds;
+YAMF_DEV_CHOKIDAR_POLL=1 to poll the filesystem (e.g. bind mounts) if changes are not detected.
 `
 }
 
@@ -93,6 +126,7 @@ export async function runDevCommand (args) {
     throw new Error('yamf.config.js not found')
   }
   const cwd = process.cwd()
+  const projectRoot = pathResolve(cwd, cfg.root || '.')
   const targetToken = options._positional?.[0]
   const targetSvc = resolveDevServiceTarget(cfg, targetToken, cwd)
   if (targetToken && !targetSvc) {
@@ -128,8 +162,15 @@ export async function runDevCommand (args) {
       process.stdout.write(
         `[dev] Registry not reachable at ${registryUrl}; starting dev stack (same as yamf init --dev)…\n`
       )
-      await pm3.start(DEV_BOOTSTRAP_PATH, { env: { YAMF_REGISTRY_URL: registryUrl } })
+      await pm3.start(DEV_BOOTSTRAP_PATH, {
+        env: {
+          YAMF_REGISTRY_URL: registryUrl,
+          // Enable @yamf/services-dev-hmr in bootstrap even if the parent shell has no YAMF_DEV=on
+          YAMF_DEV: 'on'
+        }
+      })
     }
+    await waitUntilDevRegistryResponds(registryUrl)
   }
   const timers = new Map()
 
@@ -149,9 +190,16 @@ export async function runDevCommand (args) {
             registryToken: process.env.YAMF_REGISTRY_TOKEN || '',
             envTarget,
             remote,
-            deployToken: process.env.YAMF_DEPLOY_TOKEN
+            deployToken: process.env.YAMF_DEPLOY_TOKEN,
+            fromYamfDev: true,
+            configRoot: projectRoot
           })
           process.stdout.write(`[dev] ${svc.name} ${res.decision} ${String(hash).slice(0, 16)}\n`)
+          if (res.decision === 'noop' && process.env.YAMF_DEV_NOOP_HINT !== '0') {
+            process.stdout.write(
+              '[dev] noop: if your edits are not live, run `yamf delete --all` from the project root before `rm -rf .yamf`, or `pkill -f .yamf/build/` (removing .yamf alone does not stop Node).\n'
+            )
+          }
           try {
             await publishMessage(PUBSUB_CHANNEL_YAMF_DEV_RELOAD, {
               service: svc.name,
@@ -173,16 +221,73 @@ export async function runDevCommand (args) {
     )
   }
 
-  const entries = devServices.map((s) => s.entry)
-  const watcher = chokidar.watch(entries, {
-    ignored: ['**/node_modules/**', '**/.yamf/**'],
+  /** chokidar may emit relative paths; always resolve from project cwd. */
+  function toAbsolutePath (rawPath) {
+    const s = String(rawPath)
+    return isAbsolute(s) ? pathResolve(s) : pathResolve(cwd, s)
+  }
+  /** A file change belongs to a service: same tree as entry, or (optional) `watch` path/dir. */
+  function fileTriggersService (rawPath, svc) {
+    const abs = toAbsolutePath(rawPath)
+    const entryAbs = pathResolve(projectRoot, svc.entry)
+    if (abs === entryAbs) return true
+    const d = dirname(entryAbs) + sep
+    if (abs.length > d.length && abs.startsWith(d)) return true
+    if (Array.isArray(svc.watch)) {
+      for (const w of svc.watch) {
+        if (w.includes('*') || w.includes('?')) continue
+        const wAbs = pathResolve(projectRoot, w)
+        if (abs === wAbs) return true
+        if (existsSync(wAbs)) {
+          const st = statSync(wAbs)
+          if (st.isDirectory() && (abs === wAbs || abs.startsWith(wAbs + sep))) return true
+        }
+      }
+    }
+    return false
+  }
+
+  // Watch the entry's directory tree (and optional `watch` paths) as real paths, not only **/*.ext globs —
+  // chokidar can miss some glob patterns; recursive directory watch is the most reliable.
+  const watchPaths = new Set()
+  for (const svc of devServices) {
+    const entryDir = dirname(pathResolve(projectRoot, svc.entry))
+    watchPaths.add(entryDir)
+    if (Array.isArray(svc.watch)) {
+      for (const w of svc.watch) {
+        if (w.includes('*') || w.includes('?')) {
+          watchPaths.add(pathResolve(projectRoot, w))
+        } else {
+          const wAbs = pathResolve(projectRoot, w)
+          if (existsSync(wAbs)) {
+            watchPaths.add(wAbs)
+          } else {
+            process.stderr.write(`[dev] yamf.config watch path missing (skipping): ${wAbs}\n`)
+          }
+        }
+      }
+    }
+  }
+  const watchList = [...watchPaths]
+  const watcher = chokidar.watch(watchList, {
+    ignored: (pathStr) => {
+      const s = String(pathStr).replace(/\\/g, '/')
+      return s.includes('/node_modules/') || s.includes('/.yamf/') || s.endsWith('/node_modules') || s.endsWith('/.yamf')
+    },
     ignoreInitial: true,
-    // Avoid double-billing builds from editor atomic save (tmp → rename) or rapid writes
-    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
+    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 },
+    ...(process.env.YAMF_DEV_CHOKIDAR_POLL === '1' ? { usePolling: true, interval: 1000 } : {})
   })
+  process.stdout.write(
+    `[dev] File watcher on (${watchList.length} path(s)): ${watchList.join(', ')}\n`
+  )
   watcher.on('all', (_e, p) => {
+    const ap = toAbsolutePath(p)
     for (const svc of devServices) {
-      if (p.endsWith(svc.entry)) {
+      if (fileTriggersService(ap, svc)) {
+        if (process.env.YAMF_DEV_WATCH_LOG === '1') {
+          process.stdout.write(`[dev] watch → ${svc.name} (${ap})\n`)
+        }
         trigger(svc)
       }
     }

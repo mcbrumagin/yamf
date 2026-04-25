@@ -6,7 +6,7 @@ import esbuild from 'esbuild'
 import { Logger } from '@yamf/core'
 import parseArgs from '../lib/parse-args.js'
 import { loadYamfConfig } from '../lib/load-yamf-config.js'
-import { computeBundleHash, hashInputsFromMetafile } from '../lib/bundle-hash.js'
+import { computeBundleHash, hashInputsFromMetafile, hashLockfilesAtProjectRoot } from '../lib/bundle-hash.js'
 import { getServiceBuildDir, getYamfHome, getBuildIndexPath } from '../lib/yamf-paths.js'
 
 const logger = new Logger()
@@ -47,6 +47,8 @@ export async function buildServiceEntry (cfg, svc, cwd = process.cwd()) {
     throw new Error(`Entry not found: ${entryAbs} (service "${svc.name}")`)
   }
   const external = [...new Set([...(cfg.build?.external || []), '@yamf/*'])]
+  /** CJS in node_modules (e.g. @smithy, aws-sdk) uses `require('buffer')`; bundling it into ESM throws from esbuild's `__require` shim. */
+  const packages = cfg.build?.packages ?? 'external'
   const result = await esbuild.build({
     entryPoints: [entryAbs],
     bundle: true,
@@ -55,6 +57,7 @@ export async function buildServiceEntry (cfg, svc, cwd = process.cwd()) {
     target: cfg.build?.target || 'node20',
     sourcemap: cfg.build?.sourcemap !== false,
     external,
+    packages,
     write: false,
     metafile: true,
     absWorkingDir: root
@@ -63,7 +66,9 @@ export async function buildServiceEntry (cfg, svc, cwd = process.cwd()) {
     throw new Error(`esbuild produced no output for ${svc.name}`)
   }
   const bytes = result.outputFiles[0].contents
-  const deps = hashInputsFromMetafile(result.metafile?.inputs, root)
+  const inputs = hashInputsFromMetafile(result.metafile?.inputs, root)
+  const deps =
+    packages === 'external' ? { ...inputs, ...hashLockfilesAtProjectRoot(root) } : inputs
   const hash = computeBundleHash(bytes, {
     entry: svc.entry,
     env: svc.env || [],

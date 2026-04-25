@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve as pathResolve } from 'node:path'
 import { Logger } from '@yamf/core'
 import parseArgs from '../lib/parse-args.js'
 import { loadYamfConfig } from '../lib/load-yamf-config.js'
@@ -106,6 +106,7 @@ export async function runDeployCommand (args) {
   }
 
   const pm3 = remote ? createRemotePm3({ registryUrl }) : new PM3()
+  const configRoot = pathResolve(cwd, cfg.root || '.')
   const result = await planAndApply({
     yamfService,
     hash,
@@ -116,7 +117,8 @@ export async function runDeployCommand (args) {
     replicas: options.replicas,
     cwd,
     remote,
-    deployToken: process.env.YAMF_DEPLOY_TOKEN
+    deployToken: process.env.YAMF_DEPLOY_TOKEN,
+    configRoot
   })
   if (options.rollback) {
     result.rollback = true

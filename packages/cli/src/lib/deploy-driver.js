@@ -12,8 +12,86 @@ import {
   signDeployHashWithEd25519Pem
 } from '@yamf/core'
 import { readFileSync, createReadStream } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, resolve as pathResolve, sep } from 'node:path'
 import { getServiceBuildDir } from './yamf-paths.js'
+
+/**
+ * yamf dev: REGISTRY_PULL may have no replica rows, but a Node process from an older .mjs in
+ * .yamf/build/&lt;service&gt; can still be running and holding the port (e.g. `rm -rf .yamf` does not
+ * SIGTERM). Before rollout `pm3.start`, remove PM3-managed other bundles in that directory.
+ * @param {import('./pm3.js').PM3} pm3
+ * @param {string} serviceName
+ * @param {string} cwd
+ * @param {string} keepBundlePath
+ */
+export async function pruneStalePm3BundlesInServiceDir (pm3, serviceName, cwd, keepBundlePath) {
+  if (!pm3 || typeof pm3.list !== 'function' || !keepBundlePath) return
+  const outDir = pathResolve(getServiceBuildDir(serviceName, cwd))
+  const keep = pathResolve(String(keepBundlePath))
+  const prefix = outDir + sep
+  let entries
+  try {
+    entries = await pm3.list({ all: true })
+  } catch {
+    return
+  }
+  for (const e of entries) {
+    if (e?.status !== 'running' || e?.stateKey == null || e?.internal) continue
+    if (!e.filepath) continue
+    if (!String(e.filepath).endsWith('.mjs')) continue
+    const fp = pathResolve(String(e.filepath))
+    if (!fp.startsWith(prefix)) continue
+    if (fp === keep) continue
+    try {
+      await pm3.delete(e.stateKey)
+      process.stdout.write(
+        `[yamf] Stopped previous bundle in ${outDir} before rollout: ${fp}\n`
+      )
+    } catch (err) {
+      process.stderr.write(
+        `[yamf] Could not stop stale bundle ${fp}: ${err?.message || err}\n`
+      )
+    }
+  }
+}
+
+/**
+ * `restartRolling(replicaKey)` needs PM3 state with `entry.services[replicaKey]` set by
+ * post-start registry polling, which can time out. Resolve the running bundle path under
+ * `.yamf/build/{serviceName}/` instead so rolling works in `yamf dev` regardless.
+ * @param {import('./pm3.js').PM3} pm3
+ * @param {string} serviceName
+ * @param {string} cwd
+ * @param {string} newBundlePath
+ * @param {string} replicaKey
+ * @param {boolean} [remote]
+ */
+export async function resolveLocalRollingTarget (pm3, serviceName, cwd, newBundlePath, replicaKey, remote = false) {
+  if (remote || !pm3) return replicaKey
+  if (pm3.filepathForService) {
+    try {
+      const byName = pm3.filepathForService(replicaKey)
+      if (byName) return byName
+    } catch { /* */ }
+  }
+  if (typeof pm3.list !== 'function' || !newBundlePath) return replicaKey
+  const outDir = pathResolve(getServiceBuildDir(serviceName, cwd)) + sep
+  const keep = pathResolve(String(newBundlePath))
+  let entries
+  try {
+    entries = await pm3.list({ all: true })
+  } catch {
+    return replicaKey
+  }
+  for (const e of entries) {
+    if (e?.status !== 'running' || e?.internal || !e?.filepath) continue
+    const fp = pathResolve(String(e.filepath))
+    if (!fp.startsWith(outDir) || !fp.endsWith('.mjs')) continue
+    if (fp === keep) continue
+    return e.filepath
+  }
+  return replicaKey
+}
 
 /**
  * Stream local bundle to registry `deploy-bundle` (slice C3).
@@ -113,6 +191,9 @@ export function mergeRequiredEnvFromProcess (requiredNames, overlay) {
  * @param {string} [args.cwd]
  * @param {boolean} [args.remote] - If true, stream bundle to registry before pm3; uses {@link createRemotePm3} transport.
  * @param {string} [args.deployToken]
+ * @param {boolean} [args.fromYamfDev] - yamf dev: ignore noop if no PM3 process runs the bundle (stale replica row)
+ * @param {string} [args.configRoot] - Absolute project root (yamf `root` + cwd). Sets {@code YAMF_ENTRY_DIR} so bundled
+ *   entries can resolve `public/` and other paths next to the source entry, not under `.yamf/build/`.
  */
 export async function planAndApply ({
   yamfService,
@@ -124,7 +205,9 @@ export async function planAndApply ({
   replicas: replicasOverride,
   cwd = process.cwd(),
   remote = false,
-  deployToken = process.env.YAMF_DEPLOY_TOKEN || ''
+  deployToken = process.env.YAMF_DEPLOY_TOKEN || '',
+  fromYamfDev = false,
+  configRoot
 }) {
   const pull = await httpRequest(registryUrl, {
     headers: {
@@ -133,10 +216,34 @@ export async function planAndApply ({
     }
   })
   const serviceName = yamfService.name
-  const current = pull.replicas?.[serviceName] || []
+  /** @see {import('./load-yamf-config.js').YamfConfigService#replicaKey} */
+  const replicaKey = yamfService.replicaKey || yamfService.name
+  let current = pull.replicas?.[replicaKey] || []
   const wantReplicas = replicasOverride ?? yamfService.replicas ?? 1
 
-  const { decision, sameHash } = deployDecisionFromReplicas(current, hash, wantReplicas)
+  let { decision, sameHash, otherHash } = deployDecisionFromReplicas(current, hash, wantReplicas)
+
+  if (decision === 'noop' && fromYamfDev && !remote && pm3 && typeof pm3.list === 'function') {
+    const bundlePathSanity = join(getServiceBuildDir(serviceName, cwd), `${hash}.mjs`)
+    let hasRunning = false
+    try {
+      const entries = await pm3.list({ all: true })
+      hasRunning = entries.some(
+        (e) => e?.status === 'running' && e?.filepath
+          && pathResolve(String(e.filepath)) === pathResolve(bundlePathSanity)
+      )
+    } catch { /* */ }
+    if (!hasRunning) {
+      process.stderr.write(
+        '[dev] Registry says replica(s) for this hash exist, but no running PM3 process has this bundle; redeploying.\n'
+      )
+      const r2 = deployDecisionFromReplicas([], hash, wantReplicas)
+      decision = r2.decision
+      sameHash = r2.sameHash
+      otherHash = r2.otherHash
+      current = r2.current
+    }
+  }
 
   if (decision === 'noop') {
     return { decision, replicas: sameHash.length }
@@ -159,6 +266,9 @@ export async function planAndApply ({
     YAMF_SOURCE_HASH: hash,
     YAMF_BUNDLE_PATH: bundlePath,
     YAMF_SERVICE_NAME: serviceName
+  }
+  if (configRoot && yamfService.entry) {
+    env.YAMF_ENTRY_DIR = pathResolve(configRoot, dirname(yamfService.entry))
   }
 
   const required = yamfService.env || []
@@ -189,13 +299,21 @@ export async function planAndApply ({
     if (want <= 0) {
       return { decision: 'noop', replicas: sameHash.length }
     }
+    if (decision === 'rollout' && fromYamfDev && !remote && pm3) {
+      await pruneStalePm3BundlesInServiceDir(pm3, serviceName, cwd, bundlePath)
+    }
     for (let i = 0; i < want; i++) {
       await pm3.start(bundlePath, { env })
     }
     return { decision, added: want }
   }
 
-  // rolling — pm3 must spawn the new bundle path, not the old mjs, while carrying env
-  const result = await pm3.restartRolling(serviceName, { env, bundlePath })
+  // rolling — default target is replicaKey, but local PM3 only finds it if `entry.services[replicaKey]`
+  // was filled by post-start poll (unreliable). Fall back to the running .mjs path under
+  // .yamf/build/{serviceName}/.
+  const rollingTarget = await resolveLocalRollingTarget(
+    pm3, serviceName, cwd, bundlePath, replicaKey, remote
+  )
+  const result = await pm3.restartRolling(rollingTarget, { env, bundlePath })
   return { decision, replaced: result.replaced?.length ?? 0, pm3: result }
 }

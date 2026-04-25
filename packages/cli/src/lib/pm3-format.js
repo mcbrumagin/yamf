@@ -129,6 +129,37 @@ function formatLocationsView (entries) {
  * @param {Array<Record<string, unknown>>} entries rows from `PM3#list` or the remote `list` wire call
  * @param {{ view?: 'processes' | 'services' | 'locations' }} [options]
  */
+/**
+ * @param {string} registryUrl
+ * @param {Record<string, unknown>} pull - result of REGISTRY_PULL
+ */
+export function formatRegistryPullSection (registryUrl, pull) {
+  if (!pull || typeof pull !== 'object') {
+    return '(empty response)'
+  }
+  const services = pull.services && typeof pull.services === 'object' ? pull.services : {}
+  const names = Object.keys(services).sort()
+  const header =
+    `--- Live registry (REGISTRY_PULL) at ${String(registryUrl).replace(/\s/g, '')} — ` +
+    `${names.length} service name(s) ---`
+  if (names.length === 0) {
+    return `${header}\n(no services registered.)`
+  }
+  const lines = [header, '']
+  for (const name of names) {
+    const locs = Array.isArray(services[name]) ? services[name] : []
+    lines.push(name)
+    for (let i = 0; i < locs.length; i++) {
+      lines.push(treeBranch(i === locs.length - 1) + String(locs[i]))
+    }
+  }
+  if (pull.timestamp != null) {
+    lines.push('')
+    lines.push(`(pull timestamp: ${pull.timestamp})`)
+  }
+  return lines.join('\n')
+}
+
 export function formatPm3List (entries, { view = 'processes' } = {}) {
   if (entries.length === 0) {
     return 'No processes running.'

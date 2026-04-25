@@ -342,6 +342,20 @@ async function routeCommandByHeaders(state, payload, request, response) {
   
   logger.debug('command:', command)
 
+  if (command === COMMANDS.REGISTRY_BROADCAST_SHUTDOWN) {
+    validateRegistryToken(request)
+    const registryUrl = envConfig.getRequired('YAMF_REGISTRY_URL')
+    const reason = headers[HEADERS.SHUTDOWN_REASON] || 'yamf-stop'
+    const regTok = process.env.YAMF_REGISTRY_TOKEN || envConfig.get('YAMF_REGISTRY_TOKEN', '')
+    return await httpRequest(registryUrl, {
+      headers: {
+        [HEADERS.COMMAND]: COMMANDS.REGISTRY_BROADCAST_SHUTDOWN,
+        [HEADERS.SHUTDOWN_REASON]: String(reason),
+        ...(regTok && { [HEADERS.REGISTRY_TOKEN]: regTok })
+      }
+    })
+  }
+
   if (PROTECTED_COMMANDS.has(command)) {
     validateRegistryToken(request)
   }

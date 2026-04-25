@@ -15,8 +15,9 @@
  *   yamf stop <filename>
  *   yamf restart <filename>
  *   yamf logs <filename>
- *   yamf list [--all]
+ *   yamf list [--all] [-L]
  *   yamf delete <filename>
+ *   yamf clean
  *   yamf lookup <service-filter>
  *   yamf state <state-property>
  *   yamf test [options]
@@ -146,7 +147,11 @@ async function main() {
       await runDeleteCommand(subcommandArgs)
       break
     }
-
+    case 'clean': {
+      const { runCleanCommand } = await import('./commands/clean.js')
+      await runCleanCommand(subcommandArgs)
+      break
+    }
 
     case 'test': {
       const { runTestCommand } = await import('./commands/test.js')
@@ -226,6 +231,7 @@ Process Management (pm3):
   describe <target>   JSON state for one process (same as --remote list + other commands)
   logs <filename>     View logs for a managed process
   delete <filename>   Stop and remove from process list
+  clean               Stop all processes and remove .yamf/ (same as delete --all + rm)
 
 Utilities:
   run <filename>      Run a script directly with Node

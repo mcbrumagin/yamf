@@ -1,18 +1,19 @@
-import { Logger } from '@yamf/core'
+import { Logger, httpRequest, HEADERS, COMMANDS } from '@yamf/core'
 import { PM3 } from '../lib/pm3.js'
-import { formatPm3List } from '../lib/pm3-format.js'
+import { formatPm3List, formatRegistryPullSection } from '../lib/pm3-format.js'
 import parseArgs from '../lib/parse-args.js'
 import { createRemotePm3Cli, requireRegistryUrlForRemote } from '../lib/remote-pm3-adapter.js'
 
 const logger = new Logger()
 
 const ARGS = {
-  help:      { flags: ['-h', '--help'] },
-  all:       { flags: ['-a', '--all'] },
-  verbose:   { flags: ['-v', '--verbose'] },
-  services:  { flags: ['-s', '--services'] },
-  locations: { flags: ['-l', '--locations'] },
-  remote:    { flags: ['-r', '--remote'] }
+  help:         { flags: ['-h', '--help'] },
+  all:          { flags: ['-a', '--all'] },
+  verbose:      { flags: ['-v', '--verbose'] },
+  services:     { flags: ['-s', '--services'] },
+  locations:    { flags: ['-l', '--locations'] },
+  remote:       { flags: ['-r', '--remote'] },
+  liveRegistry: { flags: ['-L', '--live-registry'] }
 }
 
 // TODO list --routes
@@ -31,6 +32,11 @@ Views:
 Options:
   -a, --all             Include stopped and internal processes
   -v, --verbose         Show filepath and log file location (for copy-paste to other --remote commands)
+  -L, --live-registry   After the PM3 table, query REGISTRY_PULL at YAMF_REGISTRY_URL and show all
+                        registered service names and locations (source of truth; not PM3’s cached
+                        per-process list, which is only updated when a process starts and can be
+                        empty if the poll missed or a worker died — use -a to see stopped PIDs).
+                        Same if YAMF_LIST_LIVE=1 (no flag).
   -r, --remote          List processes on the node reached via YAMF_REGISTRY_URL → pm3-service
   -h, --help            Show this help
 
@@ -83,6 +89,30 @@ export async function runListCommand(args) {
     for (const entry of entries) {
       if (entry.logFile) {
         console.log(`  ${entry.filepath} -> ${entry.logFile}`)
+      }
+    }
+  }
+
+  const wantLiveRegistry =
+    options.liveRegistry || (!options.remote && process.env.YAMF_LIST_LIVE === '1')
+
+  if (wantLiveRegistry) {
+    const u = process.env.YAMF_REGISTRY_URL
+    if (!u) {
+      process.stderr.write('yamf list (live registry): YAMF_REGISTRY_URL is not set; skipping.\n')
+    } else {
+      try {
+        const token = process.env.YAMF_REGISTRY_TOKEN || ''
+        const pull = await httpRequest(u, {
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+            ...(token && { [HEADERS.REGISTRY_TOKEN]: token })
+          }
+        })
+        console.log('')
+        console.log(formatRegistryPullSection(u, pull))
+      } catch (e) {
+        process.stderr.write(`yamf list (live registry): ${e?.message || e}\n`)
       }
     }
   }
