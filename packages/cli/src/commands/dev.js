@@ -1,6 +1,6 @@
 import chokidar from 'chokidar'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve as pathResolve } from 'node:path'
 import {
   publishMessage,
   PUBSUB_CHANNEL_YAMF_DEV_RELOAD,
@@ -38,9 +38,35 @@ const ARGS = {
   env: { flags: ['-e', '--env'], type: 'string' }
 }
 
+/**
+ * Optional first positional: service name (from yamf.config.js) or path to a service entry file.
+ * @param {import('../lib/load-yamf-config.js').YamfConfig} cfg
+ * @param {string} [token]
+ * @param {string} cwd
+ * @returns {import('../lib/load-yamf-config.js').YamfConfigService | null}
+ */
+function resolveDevServiceTarget (cfg, token, cwd) {
+  if (!token) return null
+  const list = (cfg.services || []).filter((s) => !s.internal)
+  const byName = list.find((s) => s.name === token)
+  if (byName) return byName
+  const root = pathResolve(cwd, cfg.root || '.')
+  const asPath = pathResolve(cwd, token)
+  for (const s of list) {
+    const abs = pathResolve(root, s.entry)
+    if (abs === asPath || s.entry === token || abs.endsWith(token.replace(/^\.\//, ''))) {
+      return s
+    }
+  }
+  return null
+}
+
 function getHelp () {
   return `
 yamf dev — watch service entries and redeploy (Phase 3 D1; Phase 4 D2 reload pub/sub)
+
+  yamf dev [name-or-entry.mjs]   Watch only the matching service (name from yamf.config.js, or
+                                   path to its entry file — same idea as yamf start path).
 
 Options:
   -r, --remote   Remote PM3 (set YAMF_REGISTRY_URL and YAMF_DEPLOY_TOKEN for upload)
@@ -66,6 +92,16 @@ export async function runDevCommand (args) {
   if (!cfg) {
     throw new Error('yamf.config.js not found')
   }
+  const cwd = process.cwd()
+  const targetToken = options._positional?.[0]
+  const targetSvc = resolveDevServiceTarget(cfg, targetToken, cwd)
+  if (targetToken && !targetSvc) {
+    throw new Error(
+      `yamf dev: no service in yamf.config.js matches "${targetToken}". ` +
+        'Use a service name, or a path to the entry (e.g. src/app/app.js).'
+    )
+  }
+  const devServices = targetSvc ? [targetSvc] : (cfg.services || []).filter((s) => !s.internal)
   const debounceMs = Number(process.env.YAMF_DEV_DEBOUNCE_MS || 200)
   const envTarget = options.env || 'dev'
   const remote = !!options.remote
@@ -79,6 +115,9 @@ export async function runDevCommand (args) {
     throw new Error('YAMF_REGISTRY_URL is required for yamf dev')
   }
   process.env.YAMF_REGISTRY_URL = registryUrl
+  if (targetSvc) {
+    process.stdout.write(`[dev] Watching only: ${targetSvc.name} (${targetSvc.entry})\n`)
+  }
 
   let pm3
   if (remote) {
@@ -134,7 +173,7 @@ export async function runDevCommand (args) {
     )
   }
 
-  const entries = cfg.services.filter((s) => !s.internal).map((s) => s.entry)
+  const entries = devServices.map((s) => s.entry)
   const watcher = chokidar.watch(entries, {
     ignored: ['**/node_modules/**', '**/.yamf/**'],
     ignoreInitial: true,
@@ -142,13 +181,13 @@ export async function runDevCommand (args) {
     awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
   })
   watcher.on('all', (_e, p) => {
-    for (const svc of cfg.services) {
-      if (!svc.internal && p.endsWith(svc.entry)) {
+    for (const svc of devServices) {
+      if (p.endsWith(svc.entry)) {
         trigger(svc)
       }
     }
   })
-  for (const svc of cfg.services) {
+  for (const svc of devServices) {
     trigger(svc)
   }
 }

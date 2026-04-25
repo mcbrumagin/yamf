@@ -2,6 +2,10 @@
 
 Command-line interface for yamf.
 
+**Packaging (longer-term):** `PM3` and related helpers live in this package so the CLI, tests, and
+`pm3-service` share one implementation. A dedicated `@yamf/pm3` (or similar) may make sense if the
+core grows further; the edge CLI shape can stay version‑flexible for v1.
+
 ## Usage
 
 ```bash

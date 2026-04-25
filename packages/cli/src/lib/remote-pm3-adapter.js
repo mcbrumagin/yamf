@@ -23,13 +23,24 @@ function callPm3Service ({ registryUrl, registryToken = process.env.YAMF_REGISTR
 
 /**
  * All pm3-service wire commands (CLI `--remote`). Does not use deploy / rolling-deploy.
+ *
+ * **Naming vs `createRemotePm3`:** `startFile` sends wire `command: 'start'` — run a script path
+ * that already exists on the node. That is the same as local `PM3#start` / `yamf start ./app.js`.
+ * The object returned by {@link createRemotePm3} also has a `start` function, but that one sends
+ * `command: 'deploy'` (hash + env + optional bundle download on the node) for
+ * `planAndApply` — it is *not* `startFile`. Use `startFile` for remote process start; use
+ * `createRemotePm3` only for deploy/rolling.
+ *
  * @param {{ registryUrl: string, registryToken?: string, preferLocation?: string }} p
  */
 export function createRemotePm3Cli (p) {
   const c = (body) => callPm3Service(p, body)
   return {
     list: (options) => c({ command: 'list', options: options != null ? options : {} }),
-    /** Raw `start` on the node (path must exist on the remote host). */
+    /**
+     * Wire `start`: run `filepath` on the remote host (path must exist there).
+     * @see createRemotePm3 for the different `start` (deploy) used by `yamf deploy --remote`.
+     */
     startFile: (filepath, options) => c({ command: 'start', filepath, options }),
     stop: (filepath) => c({ command: 'stop', filepath }),
     restart: (filepath, options) => c({ command: 'restart', filepath, options }),

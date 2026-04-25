@@ -235,7 +235,7 @@ Deploy:
   build [name]        Bundle services with esbuild into .yamf/build/ (needs yamf.config.js)
   deploy --local SVC  Plan/apply a local deploy (YAMF_SOURCE_HASH + pm3)
   deploy --remote SVC  Remote deploy (registry bundle + pm3-service; needs YAMF_DEPLOY_TOKEN)
-  dev                 Watch and redeploy (see yamf dev --help)
+  dev [name|entry.js] Watch and redeploy; optional one service (see yamf dev --help)
   config get|set|list  Config-service overlay for deploys
 
 Options:

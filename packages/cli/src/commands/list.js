@@ -1,5 +1,6 @@
 import { Logger } from '@yamf/core'
 import { PM3 } from '../lib/pm3.js'
+import { formatPm3List } from '../lib/pm3-format.js'
 import parseArgs from '../lib/parse-args.js'
 import { createRemotePm3Cli, requireRegistryUrlForRemote } from '../lib/remote-pm3-adapter.js'
 
@@ -49,8 +50,6 @@ export async function runListCommand(args) {
     return
   }
 
-  const pm3 = new PM3()
-
   if (options.remote) {
     const registryUrl = requireRegistryUrlForRemote()
     const remote = createRemotePm3Cli({ registryUrl })
@@ -58,7 +57,7 @@ export async function runListCommand(args) {
     let view = 'processes'
     if (options.services) view = 'services'
     if (options.locations) view = 'locations'
-    console.log(pm3.formatList(entries, { view }))
+    console.log(formatPm3List(entries, { view }))
     if (options.verbose) {
       for (const entry of entries) {
         if (entry.logFile) {
@@ -71,13 +70,14 @@ export async function runListCommand(args) {
     return
   }
 
+  const pm3 = new PM3()
   const entries = await pm3.list({ all: options.all })
 
   let view = 'processes'
   if (options.services) view = 'services'
   if (options.locations) view = 'locations'
 
-  console.log(pm3.formatList(entries, { view }))
+  console.log(formatPm3List(entries, { view }))
 
   if (options.verbose) {
     for (const entry of entries) {
