@@ -10,7 +10,7 @@ await createService(
   'minimal-api',
   async function minimalApi (payload) {
     if (payload && typeof payload === 'object' && payload.op === 'ping') {
-      return { ok: 'HOLY CRAP BRO', t: Date.now() }
+      return { ok: 'HOLY CRAP YES', t: Date.now() }
     }
     return { ok: 'YES', service: 'minimal-api' }
   },

@@ -16,12 +16,18 @@ const YAMF_HOME = join(__dirname, '..', '.yamf-rolling-commands')
 const CLI_CWD = join(__dirname, '..')
 const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
 
+// Tighter than production defaults: this suite is integration-heavy; keeps exec timeouts sane.
+// Production remains unchanged; override here for faster feedback when tuning PM3/registry polling.
 const ENV = {
   ...process.env,
   YAMF_REGISTRY_URL: 'http://localhost:18011',
   YAMF_HOME,
   LOG_LEVEL: 'info',
-  MUTE_LOG_GROUP_OUTPUT: 'true'
+  MUTE_LOG_GROUP_OUTPUT: 'true',
+  YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
+  YAMF_PM3_STOP_GRACE_MS: '5000',
+  YAMF_PM3_POLL_INTERVAL_MS: '80',
+  YAMF_PM3_POLL_STABLE_CHECKS: '2'
 }
 
 function cli(cmd, { timeout = 20000 } = {}) {

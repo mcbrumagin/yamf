@@ -105,6 +105,8 @@ export const COMMANDS = {
 
   // Registry rolling handoff
   REGISTRY_DRAIN: 'registry-drain',
+  /** CLI/orchestrator: fan out {@link COMMANDS.SERVICE_SHUTDOWN} to all registered HTTP services (registry still up). */
+  REGISTRY_BROADCAST_SHUTDOWN: 'registry-broadcast-shutdown',
 
   // Server-rendered / signed handler round-trip (SSR invoke)
   SSR_INVOKE_HANDLER: 'ssr-invoke-handler'

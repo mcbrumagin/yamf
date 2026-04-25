@@ -69,6 +69,10 @@ export async function runStopCommand(args) {
     throw new Error('Filename or service name is required. Usage: yamf stop <target> or yamf stop --all')
   }
 
+  for (const line of await pm3.getPureServiceStopWarnings(target)) {
+    logger.warn(line)
+  }
+
   const result = await pm3.stop(target)
   if (options.verbose) {
     console.log(result)

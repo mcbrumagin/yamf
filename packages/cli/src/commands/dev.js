@@ -1,11 +1,36 @@
 import chokidar from 'chokidar'
-import { publishMessage, PUBSUB_CHANNEL_YAMF_DEV_RELOAD } from '@yamf/core'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+import {
+  publishMessage,
+  PUBSUB_CHANNEL_YAMF_DEV_RELOAD,
+  httpRequest,
+  HEADERS,
+  COMMANDS
+} from '@yamf/core'
 import { loadYamfConfig } from '../lib/load-yamf-config.js'
 import { buildServiceEntry } from './build.js'
 import { planAndApply } from '../lib/deploy-driver.js'
 import { createRemotePm3 } from '../lib/remote-pm3-adapter.js'
 import { PM3 } from '../lib/pm3.js'
 import parseArgs from '../lib/parse-args.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const DEV_BOOTSTRAP_PATH = join(__dirname, '..', 'lib', 'dev-bootstrap.js')
+
+/** Align with dev-bootstrap default so `yamf dev` works without a prior `yamf init --dev` when the stack was stopped. */
+const DEFAULT_LOCAL_REGISTRY_URL = 'http://127.0.0.1:20000'
+
+async function isRegistryReachable (registryUrl) {
+  try {
+    await httpRequest(registryUrl, {
+      headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL }
+    })
+    return true
+  } catch {
+    return false
+  }
+}
 
 const ARGS = {
   help: { flags: ['-h', '--help'] },
@@ -21,6 +46,9 @@ Options:
   -r, --remote   Remote PM3 (set YAMF_REGISTRY_URL and YAMF_DEPLOY_TOKEN for upload)
   -e, --env       Config-service / deploy env key (default: dev)
   -h, --help      This help
+
+Local: if the registry is not reachable (e.g. after yamf stop --all), the same dev stack as
+yamf init --dev is started automatically so you can re-run yamf dev without re-initializing.
 
 After each successful build/deploy, publishes ${PUBSUB_CHANNEL_YAMF_DEV_RELOAD} so
 @yamf/services-dev-hmr (when running with YAMF_DEV=on) can push SSE reload to browsers.
@@ -38,16 +66,32 @@ export async function runDevCommand (args) {
   if (!cfg) {
     throw new Error('yamf.config.js not found')
   }
-  const registryUrl = process.env.YAMF_REGISTRY_URL
-  if (!registryUrl) {
-    throw new Error('YAMF_REGISTRY_URL is required for yamf dev')
-  }
   const debounceMs = Number(process.env.YAMF_DEV_DEBOUNCE_MS || 200)
   const envTarget = options.env || 'dev'
   const remote = !!options.remote
-  const pm3 = remote
-    ? createRemotePm3({ registryUrl })
-    : new PM3()
+
+  if (remote && !process.env.YAMF_REGISTRY_URL) {
+    throw new Error('YAMF_REGISTRY_URL is required for yamf dev --remote')
+  }
+  const registryUrl =
+    process.env.YAMF_REGISTRY_URL || (!remote ? DEFAULT_LOCAL_REGISTRY_URL : null)
+  if (!registryUrl) {
+    throw new Error('YAMF_REGISTRY_URL is required for yamf dev')
+  }
+  process.env.YAMF_REGISTRY_URL = registryUrl
+
+  let pm3
+  if (remote) {
+    pm3 = createRemotePm3({ registryUrl })
+  } else {
+    pm3 = new PM3()
+    if (!(await isRegistryReachable(registryUrl))) {
+      process.stdout.write(
+        `[dev] Registry not reachable at ${registryUrl}; starting dev stack (same as yamf init --dev)…\n`
+      )
+      await pm3.start(DEV_BOOTSTRAP_PATH, { env: { YAMF_REGISTRY_URL: registryUrl } })
+    }
+  }
   const timers = new Map()
 
   const trigger = (svc) => {

@@ -366,7 +366,7 @@ export class PM3 {
     let lastN = -1
     let consecutiveChecks = 0
     for (let i = 0; i < maxAttempts; i++) {
-      await sleep(intervalMs)
+      if (i > 0) await sleep(intervalMs)
       try {
         const afterSnapshot = await getServiceStateSnapshot(this.registryUrl)
         const services = detectNewServices(beforeSnapshot, afterSnapshot)
@@ -396,6 +396,110 @@ export class PM3 {
       if (Number.isFinite(n) && n >= 10) return Math.min(500, n)
     }
     return 100
+  }
+
+  /** @returns {false} to skip; env `YAMF_PM3_STOP_REGISTRY_BROADCAST=0` disables. */
+  shouldUseRegistryBroadcastStop () {
+    return envConfig.get('YAMF_PM3_STOP_REGISTRY_BROADCAST', '1') !== '0'
+  }
+
+  /**
+   * Ask a reachable registry to fan out {@link COMMANDS#REGISTRY_BROADCAST_SHUTDOWN} (HTTP
+   * SERVICE_SHUTDOWN to all registered non-pure services). No-op if no URL. Used by `stop --all`
+   * and by `stop` when the target includes a registry process (same idea as `restart` + registry).
+   */
+  async tryRegistryBroadcastShutdown (reason = 'yamf-stop') {
+    const st = loadState()
+    const registryUrl = process.env.YAMF_REGISTRY_URL || st.registryUrl
+    if (!registryUrl) {
+      return false
+    }
+    const headers = {
+      [HEADERS.COMMAND]: COMMANDS.REGISTRY_BROADCAST_SHUTDOWN,
+      [HEADERS.SHUTDOWN_REASON]: String(reason)
+    }
+    if (process.env.YAMF_REGISTRY_TOKEN) {
+      headers[HEADERS.REGISTRY_TOKEN] = process.env.YAMF_REGISTRY_TOKEN
+    }
+    try {
+      await httpRequest(registryUrl, { headers })
+      logger.info(`Registry accepted broadcast shutdown (${reason})`)
+      return true
+    } catch (e) {
+      logger.warn(`Registry broadcast shutdown skipped or failed: ${e.message || e}`)
+      return false
+    }
+  }
+
+  /**
+   * When stopping by name or filepath, warn if a registered service on that process is **pure**
+   * (in-process) — `SERVICE_SHUTDOWN` is not used for pure; only stopping the host PM3 process applies.
+   * @param {string} target
+   * @returns {Promise<string[]>} lines to show with logger.warn
+   */
+  async getPureServiceStopWarnings (target) {
+    const state = this.pruneDeadProcesses()
+    const { keys: rawKeys } = resolveTarget(state, target)
+    const keys = filterActiveProcessKeys(state, rawKeys)
+    if (keys.length === 0) {
+      return []
+    }
+    const registryUrl = process.env.YAMF_REGISTRY_URL || state.registryUrl
+    if (!registryUrl) {
+      return []
+    }
+    let pull
+    try {
+      pull = await httpRequest(registryUrl, { headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL } })
+    } catch {
+      return []
+    }
+    const access = pull?.serviceAccess && typeof pull.serviceAccess === 'object' ? pull.serviceAccess : {}
+    const lines = new Set()
+    for (const key of keys) {
+      const entry = state.processes[key]
+      if (!entry?.services || typeof entry.services !== 'object') {
+        continue
+      }
+      for (const svc of Object.keys(entry.services)) {
+        if (access[svc] === 'pure') {
+          lines.add(
+            `Service "${svc}" is registered with access "pure" (in-process, no HTTP). ` +
+              `Stopping ${entry.filepath} terminates the whole host process; yamf does not send a separate SERVICE_SHUTDOWN to pure. ` +
+              'To stop a co-hosted bundle explicitly, use: yamf stop <path-to-host>.'
+          )
+        }
+      }
+    }
+    return [...lines]
+  }
+
+  /**
+   * `yamf stop` when the resolution includes a registry-tagged process: like restart-with-registry,
+   * ask the registry to broadcast first, then PM3-signal remaining PIDs.
+   */
+  async stopWithRegistryBroadcast (state, keys) {
+    if (this.shouldUseRegistryBroadcastStop()) {
+      const ok = await this.tryRegistryBroadcastShutdown('yamf-stop')
+      if (ok) {
+        const settle = Number(envConfig.get('YAMF_PM3_BROADCAST_SETTLE_MS', 1500))
+        await sleep(settle)
+      }
+    }
+    let st = this.pruneDeadProcesses()
+    const ordered = [...keys].sort((a, b) => {
+      const ar = st.processes[a]?.isRegistry ? 1 : 0
+      const br = st.processes[b]?.isRegistry ? 1 : 0
+      return ar - br
+    })
+    const results = []
+    for (const key of ordered) {
+      st = this.pruneDeadProcesses()
+      if (st.processes[key]?.pid && isProcessAlive(st.processes[key].pid)) {
+        results.push(await this.stopOneFromState(st, key))
+      }
+    }
+    return results.length === 1 ? results[0] : results
   }
 
   /**
@@ -460,6 +564,10 @@ export class PM3 {
           ? `No running process for "${target}" (${rawKeys.length} stopped/orphan key(s) in state — use yamf delete <target> to clear)`
           : `No managed process found for "${target}"`
       )
+    }
+
+    if (keys.some((k) => state.processes[k]?.isRegistry)) {
+      return this.stopWithRegistryBroadcast(state, keys)
     }
 
     const results = []
@@ -578,7 +686,8 @@ export class PM3 {
         .find(k => afterStart.processes[k]?.pid === oldPid) || oldKey
 
       try {
-        await this.stopOne(stopKey)
+        const st = this.pruneDeadProcesses()
+        await this.stopOneFromState(st, stopKey)
       } catch (err) {
         logger.warn(`Rolling restart: failed to stop old instance ${stopKey}: ${err.message}`)
       }
@@ -774,19 +883,106 @@ export class PM3 {
     return state.processes[keys[0]].filepath
   }
 
-  async stopAll() {
+  /**
+   * SIGTERM every process in `keys` that is still running, then wait on a *shared* grace window
+   * (wall time ≈ one `getStopGraceAfterSigtermMs()` slice, not N × slice). Stragglers get SIGKILL.
+   * Non-registry and registry are handled in two phases so bootstrap can outlast app shutdown.
+   */
+  async _stopKeyGroupSharedGrace (state, keys) {
+    const active = []
+    for (const key of keys) {
+      const entry = state.processes[key]
+      if (entry?.pid && isProcessAlive(entry.pid)) {
+        active.push({ key, pid: entry.pid, filepath: entry.filepath })
+      }
+    }
+    if (active.length === 0) return
+
+    for (const { pid } of active) {
+      try {
+        process.kill(pid, 'SIGTERM')
+      } catch {
+        logger.warn(`Process ${pid} already dead`)
+      }
+    }
+
+    const maxWaitMs = getStopGraceAfterSigtermMs()
+    const termSleep = this.getStopSigtermPollMs()
+    const deadline = Date.now() + maxWaitMs
+    let pending = active.map((a) => ({ ...a }))
+
+    while (pending.length > 0 && Date.now() < deadline) {
+      await sleep(termSleep)
+      pending = pending.filter(({ pid, key }) => {
+        if (!isProcessAlive(pid)) {
+          const e = state.processes[key]
+          if (e) {
+            e.pid = null
+            e.status = 'stopped'
+          }
+          return false
+        }
+        return true
+      })
+    }
+
+    for (const { pid } of pending) {
+      logger.warn(`Process ${pid} did not exit after SIGTERM, sending SIGKILL`)
+      try { process.kill(pid, 'SIGKILL') } catch { /* already dead */ }
+    }
+    if (pending.length > 0) {
+      await sleep(100)
+    }
+    for (const { key } of pending) {
+      const e = state.processes[key]
+      if (e) {
+        e.pid = null
+        e.status = 'stopped'
+      }
+    }
+
+    saveState(state)
+
+    for (const { pid, filepath } of active) {
+      logger.info(`Stopped ${filepath} (PID: ${pid})`)
+    }
+  }
+
+  /**
+   * Stops all managed processes: dependents first (parallel grace — see `_stopKeyGroupSharedGrace`),
+   * then registry-tagged row(s) last, matching previous registry-last ordering.
+   * When a registry URL is available, asks it to `REGISTRY_BROADCAST_SHUTDOWN` first (same as
+   * `restart` when the target is the registry): HTTP SERVICE_SHUTDOWN to registered services while
+   * the registry is still up, then PM3 OS-level stop for any remaining PIDs.
+   */
+  async stopAll () {
+    const s0 = this.pruneDeadProcesses()
+    const hasRunning = Object.values(s0.processes).some(
+      (e) => e?.pid && isProcessAlive(e.pid)
+    )
+    if (hasRunning && this.shouldUseRegistryBroadcastStop()) {
+      const ok = await this.tryRegistryBroadcastShutdown('yamf-stop-all')
+      if (ok) {
+        const settle = Number(envConfig.get('YAMF_PM3_BROADCAST_SETTLE_MS', 1500))
+        await sleep(settle)
+      }
+    }
     const state = this.pruneDeadProcesses()
     const keys = Object.keys(state.processes).sort((a, b) => {
       const aReg = state.processes[a]?.isRegistry ? 1 : 0
       const bReg = state.processes[b]?.isRegistry ? 1 : 0
       return aReg - bReg
     })
-    for (const key of keys) {
-      const entry = state.processes[key]
-      if (entry.pid && isProcessAlive(entry.pid)) {
-        try { await this.stopOneFromState(state, key) } catch { /* best effort */ }
-      }
-    }
+    const nonRegKeys = keys.filter((k) => !state.processes[k]?.isRegistry)
+    const regKeys = keys.filter((k) => state.processes[k]?.isRegistry)
+
+    try {
+      await this._stopKeyGroupSharedGrace(state, nonRegKeys)
+    } catch { /* best effort; continue to registry */ }
+    const state2 = this.pruneDeadProcesses()
+    try {
+      await this._stopKeyGroupSharedGrace(state2, regKeys)
+    } catch { /* best effort */ }
   }
 
   async deleteAll() {

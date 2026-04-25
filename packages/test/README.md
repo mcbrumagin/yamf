@@ -363,7 +363,7 @@ function TODOtestNewFeature() {
 ✔ testDirectValue (1ms)
 ✔ testFunctionResult (0ms)
 ✔ testAsyncFunction (15ms)
-✘ testFailingAssertion
+✘ testFailingAssertion (12ms)
 
 ----- Testing Complete -----
 ✔ ✔ ✔  Success Report  ✔ ✔ ✔
@@ -386,6 +386,8 @@ testFailingAssertion failed with error: AssertionFailure: ...
 ℹ todo 0
 ℹ duration_ms 42
 ```
+
+Each `✔` / `✘` line includes wall time for that test. For a **slowest-first table** (e.g. profiling), run `yamf test --timings` or set `YAMF_TEST_TIMINGS=1`, then use `-f` / `-n` to focus one file or test: `yamf test -d packages/cli -f cli-rolling --timings -n testRestart`.
 
 ## API Reference
 

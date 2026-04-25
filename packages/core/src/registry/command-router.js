@@ -6,12 +6,13 @@
  */
 
 import { publish, subscribe, unsubscribe, notifyGatewayOfUpdate } from './pubsub-manager.js'
-import { 
-  allocateServicePort, 
-  registerService, 
-  unregisterService, 
+import {
+  allocateServicePort,
+  registerService,
+  unregisterService,
   findServiceLocation,
-  streamProxyServiceCall
+  streamProxyServiceCall,
+  broadcastShutdown
 } from './service-registry.js'
 import { registerRoute, unregisterRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
@@ -94,7 +95,7 @@ const PROTECTED_COMMANDS = new Set([
   COMMANDS.PUBSUB_PUBLISH,
   COMMANDS.PUBSUB_SUBSCRIBE,
   COMMANDS.PUBSUB_UNSUBSCRIBE,
-  COMMANDS.REGISTRY_PULL  // Gateway pulls registry state
+  COMMANDS.REGISTRY_PULL // Gateway pulls registry state
 ])
 
 /**
@@ -370,6 +371,13 @@ async function routeCommandByHeaders(state, payload, request, response, options)
   if (command === COMMANDS.REGISTRY_DRAIN) {
     validateRegistryToken(request)
     return await handleRegistryDrainRequest(state, request, response)
+  }
+
+  if (command === COMMANDS.REGISTRY_BROADCAST_SHUTDOWN) {
+    validateRegistryToken(request)
+    const reason = headers[HEADERS.SHUTDOWN_REASON] || 'registry-broadcast-shutdown'
+    await broadcastShutdown(state, { reason: String(reason) })
+    return { ok: true, reason: String(reason) }
   }
 
   if (PROTECTED_COMMANDS.has(command)) {
