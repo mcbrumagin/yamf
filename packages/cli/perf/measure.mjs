@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ad-hoc CLI timing helper for PM3 / yamf (see perf/CLI-PERF-PLAN.md).
+ * Ad-hoc CLI timing helper for PM3 / yamf (see perf/README.md).
  */
 import { execSync, spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -291,7 +291,7 @@ async function runBaseline0 (cwd) {
 }
 
 function printHelp () {
-  console.log(`yamf perf measurement (Phase 0 / ad-hoc)
+  console.log(`yamf perf measurement (ad-hoc JSON)
 
   node measure.mjs [scenario ...]
   node measure.mjs --baseline0
@@ -303,7 +303,7 @@ Scenarios (fixed + env-driven):
   YAMF_PERF_CWD          Working directory for yamf (default: process.cwd)
   YAMF_PERF_DANGER_STOP_ALL=1  — with --baseline0 or --phase1, add "yamf stop --all" (kills the stack)
   YAMF_PERF_BASELINE0_EXTRAS=build,deploy,start,restart  — append to --baseline0 if envs set
-  --phase1               Combinatorial list/state/oneStop per poll env (see perf/CLI-PERF-PLAN.md Phase 1)
+  --phase1               Combinatorial list/state/oneStop per poll env (poll variants; see perf/README.md)
 
 Examples:
   YAMF_PERF_CWD=examples/minimal-hmr node measure.mjs list state

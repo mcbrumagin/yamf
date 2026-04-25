@@ -152,7 +152,7 @@ export async function testYamfBuildAndDeployLocalRolloutWithSourceHashInRegistry
   cleanup(env)
   try {
     cli('init --dev', { timeout: 45000, env })
-    await sleep(2000)
+    await sleep(1000)
 
     cli('build deploy-int-svc', { timeout: 120000, cwd: HARNESS, env })
 
@@ -164,7 +164,7 @@ export async function testYamfBuildAndDeployLocalRolloutWithSourceHashInRegistry
     )
     await assert(r.added, (a) => a === 1)
 
-    await sleep(2000)
+    await sleep(1000)
     const pull = await pullReplicas(env)
     const rep = pull.replicas?.['deploy-int-svc']
     await assert(Array.isArray(rep), (x) => x === true)
@@ -185,14 +185,14 @@ export async function testYamfDeployNoopWhenSameHashAndRollingWhenBundleChanges 
   cleanup(env)
   try {
     cli('init --dev', { timeout: 45000, env })
-    await sleep(2000)
+    await sleep(1000)
     writeFileSync(SERVICE_FILE, V1_SOURCE, 'utf8')
 
     cli('build deploy-int-svc', { timeout: 120000, cwd: HARNESS, env })
     const out1 = cli('deploy --local deploy-int-svc', { timeout: 90000, cwd: HARNESS, env })
     const r1 = parseLastJson(out1)
     await assert(r1.added, (a) => a === 1)
-    await sleep(2000)
+    await sleep(1000)
     const hash1 = (await pullReplicas(env)).replicas['deploy-int-svc'][0].sourceHash
 
     const outNoop = cli('deploy --local deploy-int-svc', { timeout: 60000, cwd: HARNESS, env })
@@ -205,7 +205,7 @@ export async function testYamfDeployNoopWhenSameHashAndRollingWhenBundleChanges 
     const r2 = parseLastJson(out2)
     await assert(r2.decision, (d) => d === 'rolling')
 
-    await sleep(2000)
+    await sleep(1000)
     const afterRoll = await pullReplicas(env)
     const hash2 = afterRoll.replicas['deploy-int-svc'][0].sourceHash
     await assert(hash1, (a) => a !== hash2)

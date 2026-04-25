@@ -8,7 +8,7 @@
  *   init --dev -> start services -> list -> logs -> stop -> delete
  */
 
-import { assert, assertErr, sleep } from '@yamf/test'
+import { assert, assertErr } from '@yamf/test'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -19,14 +19,21 @@ const CLI = join(__dirname, '..', 'cli.js')
 const EXAMPLES = join(__dirname, '..', 'example')
 const YAMF_HOME = join(__dirname, '..', '.yamf-test')
 const CLI_CWD = join(__dirname, '..')
-const DEBUG = true
+const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
 
 const ENV = {
   ...process.env,
   YAMF_REGISTRY_URL: 'http://localhost:18001',
   YAMF_HOME,
   LOG_LEVEL: 'info',
-  MUTE_LOG_GROUP_OUTPUT: 'true'
+  MUTE_LOG_GROUP_OUTPUT: 'true',
+  YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
+  YAMF_PM3_STOP_GRACE_MS: '5000',
+  YAMF_PM3_POLL_INTERVAL_MS: '80',
+  YAMF_PM3_POLL_STABLE_CHECKS: '2',
+  YAMF_PM3_BROADCAST_SETTLE_MS: '400',
+  YAMF_PM3_REGISTRY_CHECK_ATTEMPTS: '6',
+  YAMF_PM3_REGISTRY_CHECK_MS: '50'
 }
 
 function cli(cmd) {

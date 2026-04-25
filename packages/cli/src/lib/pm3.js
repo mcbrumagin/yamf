@@ -192,10 +192,11 @@ export class PM3 {
   }
 
   async checkRegistryRunning() {
-    let maxAttempts = 10
+    const maxAttempts = Math.max(2, Number(envConfig.get('YAMF_PM3_REGISTRY_CHECK_ATTEMPTS', 10)))
+    const intervalMs = Math.max(20, Number(envConfig.get('YAMF_PM3_REGISTRY_CHECK_MS', 100)))
     let attempts = 0
     while (++attempts < maxAttempts) {
-      await sleep(100)
+      await sleep(intervalMs)
       if (!this.registryUrl) {
         this.registryRunning = false
         return false

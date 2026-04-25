@@ -29,7 +29,6 @@
     "src/index.js",
     "src/lib",
     "perf/measure.mjs",
-    "perf/CLI-PERF-PLAN.md",
     "perf/README.md",
     "perf/baselines/README.md"
   ],
