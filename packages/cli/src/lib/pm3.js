@@ -385,8 +385,24 @@ export class PM3 {
     return {}
   }
 
-  async stopOne(stateKey) {
-    const state = this.pruneDeadProcesses()
+  /**
+   * How often to poll the PID after SIGTERM (ms). Finer than `YAMF_PM3_SIGTERM_MS` legacy meaning;
+   * does not change total max wait (`getStopGraceAfterSigtermMs()`).
+   */
+  getStopSigtermPollMs () {
+    const p = envConfig.get('YAMF_PM3_STOP_POLL_MS', null)
+    if (p != null && p !== '') {
+      const n = Number(p)
+      if (Number.isFinite(n) && n >= 10) return Math.min(500, n)
+    }
+    return 100
+  }
+
+  /**
+   * Stop one process; `state` must be current (e.g. from `pruneDeadProcesses` or a prior pass).
+   * Mutates and persists `state`.
+   */
+  async stopOneFromState (state, stateKey) {
     const entry = state.processes[stateKey]
     if (!entry) throw new Error(`No managed process found for ${stateKey}`)
 
@@ -404,7 +420,7 @@ export class PM3 {
     }
 
     const maxWaitMs = getStopGraceAfterSigtermMs()
-    const termSleep = Number(envConfig.get('YAMF_PM3_SIGTERM_MS', 250))
+    const termSleep = this.getStopSigtermPollMs()
     const termGrace = Math.max(1, Math.ceil(maxWaitMs / termSleep))
     let dead = false
     for (let i = 0; i < termGrace; i++) {
@@ -426,11 +442,15 @@ export class PM3 {
     return entry
   }
 
+  async stopOne (stateKey) {
+    const state = this.pruneDeadProcesses()
+    return this.stopOneFromState(state, stateKey)
+  }
+
   async stop(target) {
     if (!target) throw new Error('target is required')
 
-    this.pruneDeadProcesses()
-    const state = loadState()
+    const state = this.pruneDeadProcesses()
     const { keys: rawKeys } = resolveTarget(state, target)
     const keys = filterActiveProcessKeys(state, rawKeys)
 
@@ -444,7 +464,7 @@ export class PM3 {
 
     const results = []
     for (const key of keys) {
-      results.push(await this.stopOne(key))
+      results.push(await this.stopOneFromState(state, key))
     }
     return results.length === 1 ? results[0] : results
   }
@@ -679,7 +699,7 @@ export class PM3 {
 
   async delete(target) {
     if (!target) throw new Error('target is required')
-    const state = loadState()
+    const state = this.pruneDeadProcesses()
     const { keys } = resolveTarget(state, target)
 
     if (keys.length === 0) {
@@ -688,7 +708,7 @@ export class PM3 {
 
     for (const key of keys) {
       if (state.processes[key]?.pid && isProcessAlive(state.processes[key].pid)) {
-        await this.stopOne(key)
+        await this.stopOneFromState(state, key)
       }
     }
 
@@ -755,7 +775,7 @@ export class PM3 {
   }
 
   async stopAll() {
-    const state = loadState()
+    const state = this.pruneDeadProcesses()
     const keys = Object.keys(state.processes).sort((a, b) => {
       const aReg = state.processes[a]?.isRegistry ? 1 : 0
       const bReg = state.processes[b]?.isRegistry ? 1 : 0
@@ -764,7 +784,7 @@ export class PM3 {
     for (const key of keys) {
       const entry = state.processes[key]
       if (entry.pid && isProcessAlive(entry.pid)) {
-        try { await this.stopOne(key) } catch { /* best effort */ }
+        try { await this.stopOneFromState(state, key) } catch { /* best effort */ }
       }
     }
   }

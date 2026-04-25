@@ -17,14 +17,21 @@
   "scripts": {
     "test": "yamf test -d .",
     "test:hash": "yamf test -d . -f bundle-hash",
-    "test:build-deploy": "yamf test -d . -f cli-build-deploy"
+    "test:build-deploy": "yamf test -d . -f cli-build-deploy",
+    "perf:measure": "node ./perf/measure.mjs",
+    "perf:baseline0": "node ./perf/measure.mjs --baseline0",
+    "perf:phase1": "node ./perf/measure.mjs --phase1"
   },
   "files": [
     "src/cli.js",
     "src/commands",
     "src/example",
     "src/index.js",
-    "src/lib"
+    "src/lib",
+    "perf/measure.mjs",
+    "perf/CLI-PERF-PLAN.md",
+    "perf/README.md",
+    "perf/baselines/README.md"
   ],
   "keywords": [
     "yamf",

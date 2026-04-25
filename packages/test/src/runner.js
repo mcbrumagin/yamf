@@ -91,6 +91,8 @@ export async function runTestFnsSequentially(testFns) {
   let failedCases = []
   let todoCases = []
   let testSuites = {}
+  /** @type {{ name: string, durationMs: number, ok: boolean }[]} */
+  let testTimings = []
 
   // Support arrays or objects
   testFns = Array.isArray(testFns) ? testFns : Object.values(testFns)
@@ -122,10 +124,11 @@ export async function runTestFnsSequentially(testFns) {
       if (fn.suite && !testSuites[fn.suite]) {
         testSuites[fn.suite] = true
       }
+      const startTime = Date.now()
       try {
-        let startTime = Date.now()
         await fn()
-        let durationMs = Date.now() - startTime
+        const durationMs = Date.now() - startTime
+        testTimings.push({ name: fn.name, durationMs, ok: true })
         logger.info(logger.writeColor('green', `✔ ${fn.name}`) + logger.writeColor('gray', ` (${durationMs}ms)`))
         testSuccess++
         successCases.push(fn.name)
@@ -134,7 +137,9 @@ export async function runTestFnsSequentially(testFns) {
           todoCases.push(fn.name)
           return
         }
-        logger.error(logger.writeColor('red', `✘ ${fn.name}`))
+        const durationMs = Date.now() - startTime
+        testTimings.push({ name: fn.name, durationMs, ok: false })
+        logger.error(logger.writeColor('red', `✘ ${fn.name}`) + logger.writeColor('gray', ` (${durationMs}ms)`))
         if (err.message.includes('terminateAfter')) {
           logger.error(logger.writeColor('magenta', 'Exiting early due to failure in terminateAfter: ', err.stack))
           process.exit(1)
@@ -165,11 +170,23 @@ export async function runTestFnsSequentially(testFns) {
     durationMs,
     isSoloRun,
     isMuteRun,
-    testSuitesCount: Object.keys(testSuites).length
+    testSuitesCount: Object.keys(testSuites).length,
+    testTimings
   }
 }
 
-function reportTestResults({
+function printTimingTable (testTimings) {
+  if (!testTimings || testTimings.length === 0) return
+  const sorted = [...testTimings].sort((a, b) => b.durationMs - a.durationMs)
+  logger.info('----- Per-test timing (slowest first) -----')
+  for (const t of sorted) {
+    const tag = t.ok ? '✔' : '✘'
+    logger.info(`  ${tag} ${t.name}  ${t.durationMs}ms`)
+  }
+  logger.info('')
+}
+
+function reportTestResults ({
   testSuccess, successCases,
   testFail, failedCases,
   testSuitesCount = 0,
@@ -177,9 +194,9 @@ function reportTestResults({
   todoCases = [],
   isSoloRun = false,
   isMuteRun = false,
-  durationMs
+  durationMs,
+  testTimings
 }) {
-
   logger.info('\n')
   logger.info(`----- Testing Complete -----`)
 
@@ -207,6 +224,10 @@ function reportTestResults({
 
   if (isSoloRun) logger.warn(logger.writeColor('magenta', 'This was a solo test run, remove "solo" flags for a full test run'))
   if (isMuteRun) logger.warn(logger.writeColor('magenta', 'This was a partially muted test run, remove "mute" flags for a full test run'))
+
+  if (process.env.YAMF_TEST_TIMINGS === '1' && testTimings && testTimings.length > 0) {
+    printTimingTable(testTimings)
+  }
 }
 
 // ============================================================================

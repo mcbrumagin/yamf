@@ -1,103 +1,124 @@
-# CLI performance: measurement, combinations, and improvement plan
+# CLI performance: baseline → combinatorial → improve → cleanup
 
-## Problem trace (what we fixed / what to watch)
+## Initial setup (repo)
 
-### 1) Rolling replace multiplied every stopped PM3 row (fixed in PM3)
+- `packages/cli/perf/baselines/` — drop Phase 0 JSON here (`*.json` is gitignored).
+- `packages/cli/perf/measure.mjs` — runner; `perf/README.md` has copy-paste commands.
+- **Scripts** on `@yamf/cli`: `pnpm run perf:measure -- …`, `pnpm run perf:baseline0` (from `packages/cli` or via `pnpm --filter @yamf/cli` from the yamf root).
 
-`resolveByServiceName` returned **all** state keys with that service, including `status: 'stopped'`
-and dead PIDs. `restartRolling` then ran **one spawn + stop** per key. Stale keys (e.g. an old
-bundle hash `60e9c277` already stopped) still had `services['minimal-api']` set, so every deploy
-tried to "replace" them — `stopOne` logged "already stopped" while a **new** `de6f40` process
-was still created each time. That is **O(stale keys)** per edit, not O(running replicas).
+## Goals
 
-**Mitigation:** `filterActiveProcessKeys` — only PIDs that are still alive are used for
-`stop` / `restart` / `restartRolling` / `filepathForService`. Stale rows: `yamf delete` or
-strip from state. Each rolling iteration reloads `state` so the loop does not use a stale
-`state` snapshot.
+1. **Measure before changing** (Phase 0): numeric baselines for small, representative CLI work—especially
+   **PM3** paths (`yamf list`, `yamf stop`, `yamf stop --all`, `yamf restart` …), plus anything that
+   blocks on child lifecycle or I/O.
+2. **Then** design **combinatorial** cases (Phase 1) from those baselines—not the other way around.
+3. **Improve** the slowest, most impact-heavy commands first, using: measure → instrument (if
+   needed) → patch → re-measure, until we reach **~10×** in the hot path or see clear diminishing
+   returns.
+4. **Decommission** ad-hoc logging/timers: remove, or keep behind `logger.debug` / a perf flag so
+   normal runs stay quiet (final phase).
 
-### 2) SIGTERM wait vs lifecycle (aligned earlier)
+## Background (already fixed; keep in mind for interpretation)
 
-`YAMF_GRACEFUL_SHUTDOWN_MS` (per-terminable) can exceed the old 5s PM3 wait, causing SIGKILL and
-repeated work. `YAMF_PM3_STOP_GRACE_MS` and defaults were aligned in `pm3.js#stopOne`.
+- **Rolling storm:** only **active** PIDs in PM3 for stop/restart/rolling; stale `state.json` rows
+  are not “replaced” repeatedly.
+- **502 after deploy:** `unregisterService` now notifies the **gateway** (same as register) so
+  pull-only gateways do not keep a dead second location for round-robin.
+- **SIGTERM vs PM3 wait:** `YAMF_PM3_STOP_GRACE_MS` is aligned with `YAMF_GRACEFUL_SHUTDOWN_MS` in
+  `pm3.js#stopOne`. Stop is **correct** but can be **slow** (sequential `stopOne`, grace per
+  process). Improving *speed* is the main open PM3/CLI goal.
 
-### 3) `yamf dev` double triggers
+**Stop-all wall time** is still roughly `Σ` over children of “SIGTERM + wait until exit,” with
+`stopAll` ordering **dependents first, registry last**. Parallel fan-out is not safe with today’s
+unsynchronized `state.json` writes; any batching needs a design pass (lock or single-writer wait
+loop).
 
-Editors often emit multiple fs events. **Chokidar** `awaitWriteFinish` (stability ~200ms) was added
-to `dev` to reduce double builds. Tune `YAMF_DEV_DEBOUNCE_MS` (default 200) if still hot.
+---
 
-### 4) `stop --all` slowness (still structural)
+## Phase 0 — Baseline captures (no combinatorial matrix yet)
 
-- **Sequential** `stopOne` × N processes.
-- **Each** `stopOne` waits up to `YAMF_PM3_STOP_GRACE_MS` (≈ `YAMF_GRACEFUL_SHUTDOWN_MS + 2s` by
-  default) for exit after SIGTERM.
-- So wall time is roughly **N × (child shutdown time)**, often **>10s per “heavy” service** in the
-  worst case.
+**Intent:** one JSON blob per “lab session” you can file next to a git SHA: same host, same env,
+so before/after diffs are meaningful.
 
-**Parallel `Promise.all(stops)`** is *not* safe with the current `saveState` pattern without
-serialization or a file lock: concurrent `loadState`/`writeFile` in `stopOne` can race. A proper
-faster path is: **(a)** one SIGTERM fan-out to all children, then **(b)** a single wait loop
-polling all PIDs, or **(c)** a small mutex around state updates.
+**What to record every time**
 
-**Registry order:** `stopAll` keeps **registry last**; any parallel work must still stop dependents
-first, then registry, as today.
+| Field | |
+|--------|--|
+| `git rev-parse HEAD` (short) | |
+| Node version, OS | |
+| `YAMF_HOME` / `cwd` (e.g. `examples/minimal-hmr`) | |
+| `YAMF_PM3_STOP_GRACE_MS`, `YAMF_GRACEFUL_SHUTDOWN_MS` | (if set) |
+| `state.json` summary | process count, not full secrets |
 
-## Metrics (define before optimizing)
+**Commands to time (light → heavy)**
 
-| Metric | How to get | Initial target (iterate) |
-|--------|------------|-------------------------|
-| `stop:one:ms` | time `yamf stop <one bundle path#i>` (running child) | baseline |
-| `stop:all:ms` | time `yamf stop --all` in a known fixture | **< 0.5 × current** (your “half”) |
-| `rolling:1:ms` | one `planAndApply` rolling with 1 running replica | stable, no N× |
-| `dev:rebuild:ms` | one save → `[dev] … rollout/rolling` line | no duplicate line for single save |
-| `pm3:stale:count` | keys in `state.json` with `!pid` or stopped but `services` set | 0 or documented cleanup |
+| # | Command | Load model |
+|---|---------|----------------|
+| 1 | `yamf list` | PM3 read + format only |
+| 2 | `yamf state` (or minimal pull) | registry HTTP |
+| 3 | `yamf stop <single filepath#i>` | one child, one grace window |
+| 4 | `yamf stop <service-name>` (one running target) | same as 3 if one replica |
+| 5 | `yamf stop --all` | full stack (e.g. dev-bootstrap + 2× same bundle = ~26s observed) — **destructive** |
+| 6 | `yamf build <svc>` | via harness scenario `build` + `YAMF_PERF_BUILD_SERVICE` |
+| 7 | `yamf deploy --local <svc>` | `deploy` + `YAMF_PERF_DEPLOY_LOCAL_SERVICE` (needs registry, bundle) |
+| 8 | `yamf start <path\|name>` | `start` + `YAMF_PERF_START_TARGET` |
+| 9 | `yamf restart [–rolling] <target>` | `restart` + `YAMF_PERF_RESTART_TARGET` |
 
-**Environment (record in output):** `YAMF_PM3_STOP_GRACE_MS`, `YAMF_GRACEFUL_SHUTDOWN_MS`,
-`YAMF_DEV_DEBOUNCE_MS`, Node version, OS.
+**Harness** — [perf/README.md](./README.md) has pnpm commands from the yamf root; `measure.mjs`
+strips a leading `--` so `pnpm run perf:measure -- list` works.
 
-## Combinatorial matrix (commands × conditions)
+`--baseline0` runs: `list`, `state`, optional `oneStop` / `stop --all` (same env flags as before).
+Optional **`YAMF_PERF_BASELINE0_EXTRAS=build,deploy,start,restart`** appends those steps when each
+step’s env is set; otherwise a **`skipped`** row records why (so a stopped stack still yields a
+valid JSON).
 
-Run the harness (or a spreadsheet from the same matrix) and save JSON before/after each change.
+**Deliverable:** JSON under `packages/cli/perf/baselines/` (`*.json` gitignored), e.g.
+`local-YYYYMMDDTHHMMSS.json`, plus your git SHA in the commit message or a one-line note.
 
-**Rows: scenarios**
+---
 
-1. Single minimal service, 1 replica — `stop` / `restart` / `restartRolling` (via `yamf deploy` or dev).
-2. Same with **2 running** replicas (same hash).
-3. **Stale PM3 only:** stopped keys + 1 running (simulates pre-fix) — `restartRolling` must touch **1** only.
-4. `stop --all` with: registry + gateway + N API workers (e.g. minimal-hmr `yamf init --dev` stack).
-5. **Cold** vs **warm** (second `stop` after `start` with no work).
+## Phase 1 — Combinatorial cases + improvement loop (recursive until ~10× or “done”)
 
-**Columns: levers**
+**When:** after Phase 0 baselines exist for at least one **representative** stack (e.g. minimal-hmr
+dev) and a **trivial** stack (1 fake child) if you add a fixture later.
 
-- Default grace vs `YAMF_PM3_STOP_GRACE_MS=5000` (faster but more SIGKILL risk).
-- `YAMF_GRACEFUL_SHUTDOWN_MS` 15000 vs 5000 in the **child** (if we add integration tests for children).
+**Combinatorial matrix (draft)** — add rows/columns as needed from real baselines.
 
-**Order-dependent**
+| Dimension | Examples |
+|------------|----------|
+| Process count | 1, 2 (same hash), 5+ |
+| stack shape | “API only” vs “dev-bootstrap (registry+gateway+pm3+app)” |
+| child behavior | long vs short graceful shutdown; `YAMF_GRACEFUL_SHUTDOWN_MS` in child |
+| env | min / default / aggressive `YAMF_PM3_STOP_GRACE_MS` |
+| order | `stopAll` (registry last) vs future batched-signal design |
 
-- `stopAll` (registry last), vs parallel experiment branch (future).
+**Loop (repeat for each high-impact target, usually **slowest first** unless a cheaper win is
+obvious):**
 
-## Harness
+1. Run the **target** scenario (from matrix + Phase 0 harness).
+2. If the hotspot is unclear, **instrument** (temporary `performance.now` or `logger.debug` around
+   `loadState` / `stopOne` / `sleep` in `pm3.js`—*remove or demote in final phase*).
+3. **Analyze** (profile: where does wall time go—grace wait, JSON I/O, serial waits?).
+4. **Patch** (e.g. batched SIGTERM + single wait loop with one writer, or a lock—only after design).
+5. **Re-measure**; compare to Phase 0 JSON at same `cwd` and env.
+6. Stop this command when: **~10×** improvement on that scenario, or no further low-risk wins.
 
-- `perf/measure.mjs` — runs a short menu of `node <cli> …` and prints `duration_ms` per step.
-- **Prerequisite:** a directory with `yamf.config.js`, services built, and `YAMF_REGISTRY_URL` in
-  env (or use `.env.test` from integration tests as a template).
+Then move to the **next** slowest command or scenario from the matrix.
 
-**Integration tests**
+---
 
-- Extend `cli-build-deploy-tests` or add `cli-pm3-perf-smoke` that:
-  - Asserts `restartRolling` with 1 active + 2 stopped keys in **mocked** or **temp** `state.json`
-    runs **1** `start` (mock PM3) if we inject a fake `PM3` — *optional* follow-up.
-- Simpler: **assertion on log line count** / child spawn count in a subprocess test (heavier).
+## Final phase — Cleanup
 
-## Phased work
+- Remove one-off `console.log` / inline timers from hot paths, **or** gate with `debug` and document
+  `YAMF_*` for perf.
+- Keep `perf/measure.mjs` and this doc as the **durable** harness; no requirement to run in CI
+  unless you add a non-destructive smoke (e.g. `list` + `state` only, tight timeout).
 
-1. **Done (this round):** active-key filter for rolling, chokidar `awaitWriteFinish`, this plan + harness.
-2. **Next:** Batched or parallel-signal `stop` / single wait loop; mutex on `state.json` if still serializing writes.
-3. **Next:** `yamf delete --stopped` (gc PM3 dead rows) to reduce operator confusion.
-4. **Optional:** `yamf dev` self-bootstrap (`init --dev` if no manifest) as separate UX work.
+## Success (project-level)
 
-## Success criteria (revisit)
-
-- After one source edit, **at most one** deploy line per service per save (no duplicate rolling storm).
-- `yamf stop --all` in the minimal-hmr stack: **≥ 50% wall-time reduction** from the baseline you
-  record with `measure.mjs` on this branch, *without* increasing SIGKILL rate above an acceptable
-  threshold in CI logs (define threshold, e.g. 0 in default grace).
+- Phase 0 baselines on disk for the stacks you care about.
+- **Stop / stop-all** measurably faster on the same hardware (start with **2×** as a first internal
+  milestone; **10×** as stretch where architecture allows) **without** turning clean shutdown into
+  mass SIGKILL at default env.
+- Combinatorial cases documented and re-runable from `measure.mjs` + env flags, not ad-hoc shell
+  one-liners only.

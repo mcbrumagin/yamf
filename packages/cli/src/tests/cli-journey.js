@@ -36,7 +36,8 @@ function cli(cmd) {
       env: ENV,
       cwd: CLI_CWD,
       encoding: 'utf8',
-      timeout: 15000
+      // PM3 stop can wait for YAMF_GRACEFUL_SHUTDOWN_MS + headroom; 15s was too short.
+      timeout: 120_000
     })
     const out = stdout.trim()
     if (DEBUG) console.log(out)

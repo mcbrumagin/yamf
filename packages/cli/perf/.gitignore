@@ -1,0 +1,3 @@
+# Local Phase 0 captures (name them gitignored or move under baselines/local-*)
+baselines/*.json
+!baselines/.gitkeep
