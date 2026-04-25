@@ -14,6 +14,28 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const logger = new Logger()
 
+/**
+ * How long to wait after SIGTERM for the child to exit before SIGKILL.
+ * Must cover `@yamf/core` `process-lifecycle`: each `registerTerminable` may run up to
+ * `YAMF_GRACEFUL_SHUTDOWN_MS` (registry unregister + `server.close()`). The old fixed
+ * 20×250ms = 5s window routinely expired first, so PM3 sent SIGKILL while SIGTERM
+ * shutdown was still in progress.
+ *
+ * Set `YAMF_PM3_STOP_GRACE_MS` to override (total milliseconds after SIGTERM).
+ */
+function getStopGraceAfterSigtermMs () {
+  const explicit = envConfig.get('YAMF_PM3_STOP_GRACE_MS')
+  if (explicit != null && explicit !== '') {
+    const n = Number(explicit)
+    if (Number.isFinite(n) && n >= 0) return n
+  }
+  const retries = Number(envConfig.get('YAMF_PM3_SIGTERM_RETRIES', 20))
+  const waitMs = Number(envConfig.get('YAMF_PM3_SIGTERM_MS', 250))
+  const legacyTotal = retries * waitMs
+  const graceful = Number(envConfig.get('YAMF_GRACEFUL_SHUTDOWN_MS', 15000))
+  return Math.max(legacyTotal, graceful + 2000)
+}
+
 function getYamfHome() {
   const home = process.env.YAMF_HOME || join(process.cwd(), '.yamf')
   const pm3Dir = join(home, 'pm3')
@@ -373,8 +395,9 @@ export class PM3 {
       logger.warn(`Process ${pid} already dead`)
     }
 
-    const termGrace = Number(envConfig.get('YAMF_PM3_SIGTERM_RETRIES', 20))
+    const maxWaitMs = getStopGraceAfterSigtermMs()
     const termSleep = Number(envConfig.get('YAMF_PM3_SIGTERM_MS', 250))
+    const termGrace = Math.max(1, Math.ceil(maxWaitMs / termSleep))
     let dead = false
     for (let i = 0; i < termGrace; i++) {
       await sleep(termSleep)
