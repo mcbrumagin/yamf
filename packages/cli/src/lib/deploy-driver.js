@@ -16,6 +16,33 @@ import { dirname, join, resolve as pathResolve, sep } from 'node:path'
 import { getServiceBuildDir } from './yamf-paths.js'
 
 /**
+ * Local helper for identifying running PM3 bundles under `.yamf/build/{serviceName}`.
+ * Keeps pruning and rolling-target lookup aligned.
+ * @param {import('./pm3.js').PM3} pm3
+ * @param {string} serviceName
+ * @param {string} cwd
+ * @param {string} [excludeBundlePath]
+ */
+async function listRunningLocalBundlesInServiceDir (pm3, serviceName, cwd, excludeBundlePath) {
+  if (!pm3 || typeof pm3.list !== 'function') return []
+  const outDir = pathResolve(getServiceBuildDir(serviceName, cwd)) + sep
+  const keep = excludeBundlePath ? pathResolve(String(excludeBundlePath)) : ''
+  let entries
+  try {
+    entries = await pm3.list({ all: true })
+  } catch {
+    return []
+  }
+  return entries.filter((e) => {
+    if (e?.status !== 'running' || e?.internal || !e?.filepath) return false
+    const fp = pathResolve(String(e.filepath))
+    if (!fp.startsWith(outDir) || !fp.endsWith('.mjs')) return false
+    if (keep && fp === keep) return false
+    return true
+  })
+}
+
+/**
  * yamf dev: REGISTRY_PULL may have no replica rows, but a Node process from an older .mjs in
  * .yamf/build/&lt;service&gt; can still be running and holding the port (e.g. `rm -rf .yamf` does not
  * SIGTERM). Before rollout `pm3.start`, remove PM3-managed other bundles in that directory.
@@ -25,23 +52,12 @@ import { getServiceBuildDir } from './yamf-paths.js'
  * @param {string} keepBundlePath
  */
 export async function pruneStalePm3BundlesInServiceDir (pm3, serviceName, cwd, keepBundlePath) {
-  if (!pm3 || typeof pm3.list !== 'function' || !keepBundlePath) return
+  if (!pm3 || !keepBundlePath) return
   const outDir = pathResolve(getServiceBuildDir(serviceName, cwd))
-  const keep = pathResolve(String(keepBundlePath))
-  const prefix = outDir + sep
-  let entries
-  try {
-    entries = await pm3.list({ all: true })
-  } catch {
-    return
-  }
+  const entries = await listRunningLocalBundlesInServiceDir(pm3, serviceName, cwd, keepBundlePath)
   for (const e of entries) {
-    if (e?.status !== 'running' || e?.stateKey == null || e?.internal) continue
-    if (!e.filepath) continue
-    if (!String(e.filepath).endsWith('.mjs')) continue
+    if (e?.stateKey == null) continue
     const fp = pathResolve(String(e.filepath))
-    if (!fp.startsWith(prefix)) continue
-    if (fp === keep) continue
     try {
       await pm3.delete(e.stateKey)
       process.stdout.write(
@@ -74,22 +90,9 @@ export async function resolveLocalRollingTarget (pm3, serviceName, cwd, newBundl
       if (byName) return byName
     } catch { /* */ }
   }
-  if (typeof pm3.list !== 'function' || !newBundlePath) return replicaKey
-  const outDir = pathResolve(getServiceBuildDir(serviceName, cwd)) + sep
-  const keep = pathResolve(String(newBundlePath))
-  let entries
-  try {
-    entries = await pm3.list({ all: true })
-  } catch {
-    return replicaKey
-  }
-  for (const e of entries) {
-    if (e?.status !== 'running' || e?.internal || !e?.filepath) continue
-    const fp = pathResolve(String(e.filepath))
-    if (!fp.startsWith(outDir) || !fp.endsWith('.mjs')) continue
-    if (fp === keep) continue
-    return e.filepath
-  }
+  if (!newBundlePath) return replicaKey
+  const entries = await listRunningLocalBundlesInServiceDir(pm3, serviceName, cwd, newBundlePath)
+  if (entries[0]?.filepath) return entries[0].filepath
   return replicaKey
 }
 

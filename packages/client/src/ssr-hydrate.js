@@ -44,7 +44,7 @@ export function installSsrInvoke (opts = {}) {
   }
   const yamf = getYamf()
   const prev = yamf.invoke
-  yamf.invoke = async function ssrInvoke (signedId, event) {
+  const ssrInvoke = async function (signedId, event) {
     const endpoint = opts.endpoint || readMeta('yamf-ssr-endpoint') || window.location.pathname
     const headers = {
       'content-type': 'application/json',
@@ -81,6 +81,7 @@ export function installSsrInvoke (opts = {}) {
     }
     return data
   }
+  yamf.invoke = ssrInvoke
   return function uninstall () {
     if (yamf.invoke === ssrInvoke) {
       yamf.invoke = prev

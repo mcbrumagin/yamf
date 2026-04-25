@@ -7,6 +7,7 @@
  */
 
 import { registryServer, Logger, lifecycle } from '@yamf/core'
+import { DEFAULT_LOCAL_REGISTRY_URL } from './registry-url.js'
 
 const logger = new Logger({ logGroup: 'yamf-dev' })
 
@@ -16,7 +17,7 @@ async function bootstrap() {
 
   try {
     const { attachDeployRouter } = await import('@yamf/services-deploy-router/service.js')
-    const regUrl = process.env.YAMF_REGISTRY_URL || 'http://127.0.0.1:20000'
+    const regUrl = process.env.YAMF_REGISTRY_URL || DEFAULT_LOCAL_REGISTRY_URL
     attachDeployRouter(registry, { location: regUrl, bundleStore: registry._bundleStore })
     logger.info('Deploy router attached (deploy-plan, deploy-bundle)')
   } catch (err) {

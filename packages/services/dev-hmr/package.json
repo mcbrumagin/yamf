@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@yamf/cli": "workspace:*",
+    "@yamf/client": "workspace:*",
     "@yamf/core": "workspace:*",
     "@yamf/test": "workspace:*"
   }

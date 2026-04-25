@@ -11,10 +11,17 @@ Living document. Framework‑level plans (YAMF) live here; product roadmaps for 
 ## Index
 
 - **This doc** — YAMF framework plan (what shipped + active slices + deferred).
+- **Test coverage follow-up (near-term debt)** — [TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md): optional tests and coverage not covered by the main gap plan (e.g. `replica-helpers`, browser-only `patch-dom` paths, gateway e2e SSR). **Earlier than horizon** R&D; pick up alongside related slices.
 - **SoundClone product roadmaps** (under `soundclone-deployment/docs/`):
   - [Immediate & near‑term (alpha → ~6 months)](../../soundclone-deployment/docs/ROADMAP-IMMEDIATE-NEAR-TERM.md)
   - [Cloud‑hosted & community release (~6 months → later)](../../soundclone-deployment/docs/ROADMAP-CLOUD-HOSTED.md)
   - [Reliable background playback / HLS design notes](../../soundclone-deployment/docs/ROADMAP-BACKGROUND-PLAYBACK-HLS.md)
+
+---
+
+## Test coverage follow-up (near-term)
+
+The [under-50% gap plan](./TEST-PLAN-UNDER-50.md) and the first passes on CLI, `@yamf/client`, and `@yamf/services-dev-hmr` are **not** meant to exhaust every surface. Consolidated **remaining** test work (core helpers, optional CLI dispatch refactor, browser/e2e client paths, optional dev-hmr assertions) lives in **[TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md)**. Track it as **near-term debt** before long-horizon items in the Deferred section below.
 
 ---
 

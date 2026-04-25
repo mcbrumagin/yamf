@@ -11,8 +11,12 @@ function sha256File (absolutePath) {
   return createHash('sha256').update(buf).digest('hex')
 }
 
-/** Lockfiles in project root; included in `deps` when `packages: 'external'` so hash tracks dependency-only changes. */
+/**
+ * Lockfiles in project root; included in `deps` when `packages: 'external'` so hash tracks
+ * dependency-only changes.
+ */
 const LOCKFILE_NAMES = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'bun.lock', 'bun.lockb']
+const PACKAGE_JSON_NAME = 'package.json'
 
 /**
  * @param {string} absRoot
@@ -24,6 +28,14 @@ export function hashLockfilesAtProjectRoot (absRoot) {
     const p = join(absRoot, n)
     if (existsSync(p)) {
       out[n] = `sha256-${sha256File(p)}`
+    }
+  }
+  // Fallback for repos without a lockfile: still include dependency manifest changes in the
+  // bundle identity when build.packages === 'external'.
+  if (Object.keys(out).length === 0) {
+    const packageJsonPath = join(absRoot, PACKAGE_JSON_NAME)
+    if (existsSync(packageJsonPath)) {
+      out[PACKAGE_JSON_NAME] = `sha256-${sha256File(packageJsonPath)}`
     }
   }
   return out

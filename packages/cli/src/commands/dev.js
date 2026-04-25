@@ -14,13 +14,17 @@ import { buildServiceEntry } from './build.js'
 import { planAndApply } from '../lib/deploy-driver.js'
 import { createRemotePm3 } from '../lib/remote-pm3-adapter.js'
 import { PM3 } from '../lib/pm3.js'
+import {
+  DEFAULT_LOCAL_REGISTRY_URL,
+  resolveLocalRegistryUrl,
+  checkLocalRegistryBootstrapTarget
+} from '../lib/registry-url.js'
 import parseArgs from '../lib/parse-args.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DEV_BOOTSTRAP_PATH = join(__dirname, '..', 'lib', 'dev-bootstrap.js')
 
-/** Align with dev-bootstrap default so `yamf dev` works without a prior `yamf init --dev` when the stack was stopped. */
-const DEFAULT_LOCAL_REGISTRY_URL = 'http://127.0.0.1:20000'
+let printedNoopHint = false
 
 async function isRegistryReachable (registryUrl) {
   try {
@@ -100,6 +104,8 @@ Options:
 
 Local: if the registry is not reachable (e.g. after yamf stop --all), the same dev stack as
 yamf init --dev is started automatically so you can re-run yamf dev without re-initializing.
+Default local registry URL is ${DEFAULT_LOCAL_REGISTRY_URL}.
+If YAMF_REGISTRY_URL is unset, yamf dev will first try the last local PM3 registry URL from state.
 
 After each successful build/deploy, publishes ${PUBSUB_CHANNEL_YAMF_DEV_RELOAD} so
 @yamf/services-dev-hmr (dev-bootstrap) can push SSE reload to browsers. Dev-bootstrap is started
@@ -143,12 +149,15 @@ export async function runDevCommand (args) {
   if (remote && !process.env.YAMF_REGISTRY_URL) {
     throw new Error('YAMF_REGISTRY_URL is required for yamf dev --remote')
   }
-  const registryUrl =
-    process.env.YAMF_REGISTRY_URL || (!remote ? DEFAULT_LOCAL_REGISTRY_URL : null)
+  const resolvedRegistry = remote ? null : resolveLocalRegistryUrl({ cwd })
+  const registryUrl = process.env.YAMF_REGISTRY_URL || (!remote ? resolvedRegistry?.registryUrl : null)
   if (!registryUrl) {
     throw new Error('YAMF_REGISTRY_URL is required for yamf dev')
   }
   process.env.YAMF_REGISTRY_URL = registryUrl
+  if (!remote && resolvedRegistry?.source === 'pm3-state') {
+    process.stdout.write(`[dev] Using registry URL from PM3 state: ${registryUrl}\n`)
+  }
   if (targetSvc) {
     process.stdout.write(`[dev] Watching only: ${targetSvc.name} (${targetSvc.entry})\n`)
   }
@@ -159,6 +168,19 @@ export async function runDevCommand (args) {
   } else {
     pm3 = new PM3()
     if (!(await isRegistryReachable(registryUrl))) {
+      const probe = await checkLocalRegistryBootstrapTarget(registryUrl)
+      if (!probe.local) {
+        throw new Error(
+          `[dev] Registry URL "${registryUrl}" is not loopback, so yamf dev cannot auto-start local dev-bootstrap for it. ` +
+          'Set YAMF_REGISTRY_URL to a local URL (for example http://127.0.0.1:20000), or start that remote registry yourself.'
+        )
+      }
+      if (probe.available === false) {
+        throw new Error(
+          `[dev] ${registryUrl} is not responding and the port is already in use. ` +
+          'Likely orphan process or wrong service on that port. Run `yamf clean` (or stop the holder), then retry.'
+        )
+      }
       process.stdout.write(
         `[dev] Registry not reachable at ${registryUrl}; starting dev stack (same as yamf init --dev)…\n`
       )
@@ -195,7 +217,12 @@ export async function runDevCommand (args) {
             configRoot: projectRoot
           })
           process.stdout.write(`[dev] ${svc.name} ${res.decision} ${String(hash).slice(0, 16)}\n`)
-          if (res.decision === 'noop' && process.env.YAMF_DEV_NOOP_HINT !== '0') {
+          if (
+            res.decision === 'noop' &&
+            process.env.YAMF_DEV_NOOP_HINT !== '0' &&
+            !printedNoopHint
+          ) {
+            printedNoopHint = true
             process.stdout.write(
               '[dev] noop: if your edits are not live, run `yamf delete --all` from the project root before `rm -rf .yamf`, or `pkill -f .yamf/build/` (removing .yamf alone does not stop Node).\n'
             )
