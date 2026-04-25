@@ -4,7 +4,13 @@
  * Cross-cut 6 (dev/prod parity): keep decision logic here; only `registryUrl` / process transport should differ.
  */
 
-import { httpRequest, HEADERS, COMMANDS, deployDecisionFromReplicas } from '@yamf/core'
+import {
+  httpRequest,
+  HEADERS,
+  COMMANDS,
+  deployDecisionFromReplicas,
+  signDeployHashWithEd25519Pem
+} from '@yamf/core'
 import { readFileSync, createReadStream } from 'node:fs'
 import { join } from 'node:path'
 import { getServiceBuildDir } from './yamf-paths.js'
@@ -18,14 +24,23 @@ export async function uploadDeployBundleToRegistry ({ registryUrl, hash, bundleP
     throw new Error('YAMF_DEPLOY_TOKEN is required to upload a bundle to the registry')
   }
   const base = String(registryUrl).replace(/\/$/, '')
+  const deployHeaders = {
+    [HEADERS.COMMAND]: 'deploy-bundle',
+    [HEADERS.DEPLOY_TOKEN]: deployToken,
+    [HEADERS.DEPLOY_HASH]: hash,
+    'content-type': 'application/javascript; charset=utf-8'
+  }
+  const signPath = process.env.YAMF_DEPLOY_PRIVATE_KEY
+  if (signPath) {
+    try {
+      deployHeaders[HEADERS.BUNDLE_ED25519_SIG] = signDeployHashWithEd25519Pem(hash, signPath)
+    } catch (e) {
+      throw new Error(`YAMF_DEPLOY_PRIVATE_KEY sign failed: ${e?.message || e}`)
+    }
+  }
   const res = await fetch(base, {
     method: 'POST',
-    headers: {
-      [HEADERS.COMMAND]: 'deploy-bundle',
-      [HEADERS.DEPLOY_TOKEN]: deployToken,
-      [HEADERS.DEPLOY_HASH]: hash,
-      'content-type': 'application/javascript; charset=utf-8'
-    },
+    headers: deployHeaders,
     body: createReadStream(bundlePath),
     // @ts-ignore Node stream upload
     duplex: 'half'

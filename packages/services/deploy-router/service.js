@@ -3,7 +3,8 @@ import {
   HEADERS,
   HttpError,
   publishMessage,
-  streamBundleToFileWithHashCheck
+  streamBundleToFileWithHashCheck,
+  enforceDeployBundleEd25519Policy
 } from '@yamf/core'
 import { existsSync } from 'node:fs'
 import { pickNode } from './placement.js'
@@ -82,6 +83,13 @@ export function attachDeployRouter (registry, { bundleStore, location, pm3Servic
           throw err
         }
         throw e
+      }
+      const policy = enforceDeployBundleEd25519Policy({
+        hash,
+        headers: request?.headers || {}
+      })
+      if (policy && 'status' in policy) {
+        throw new HttpError(policy.status, policy.message)
       }
       return { stored: hash }
     },

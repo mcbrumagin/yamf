@@ -32,6 +32,12 @@ export * from './shared/crypto.js'
 // Registry helpers (C3 / deploy)
 export { deployDecisionFromReplicas } from './registry/deploy-decision.js'
 export { createBundleStore, streamBundleToFileWithHashCheck } from './registry/bundle-store.js'
+export {
+  loadDeployAuthorizedPublicKeyObjectsFromDisk,
+  verifyEd25519SignatureOnDeployHash,
+  enforceDeployBundleEd25519Policy,
+  signDeployHashWithEd25519Pem
+} from './registry/deploy-bundle-signature.js'
 export { getReplicasFor, listServiceLocations } from './registry/replica-helpers.js'
 
 // Rate Limiter

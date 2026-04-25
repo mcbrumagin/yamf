@@ -30,6 +30,8 @@ export const HEADERS = {
   DEPLOY_HASH: 'yamf-deploy-hash',
   /** Opaque deploy actor (e.g. user@host) */
   DEPLOYER: 'yamf-deployer',
+  /** base64(64-byte Ed25519 signature) over the UTF-8 content hash string (C6 / ROADMAP Tier 2) */
+  BUNDLE_ED25519_SIG: 'yamf-bundle-ed25519-sig',
   
   // TODO VERIFY
   // Route operations (for registration only - routes use request.url for routing)

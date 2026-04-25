@@ -35,7 +35,7 @@ Example:
 Requires:
   - yamf.config.js with the service
   - A prior \`yamf build <name>\` (or --hash / --rollback to an existing .mjs under .yamf/build)
-  - YAMF_REGISTRY_URL (remote also: YAMF_DEPLOY_TOKEN to upload; optional YAMF_PM3_SERVICE_LOCATION to pin pm3-service for SERVICE_CALL)
+  - YAMF_REGISTRY_URL (remote: YAMF_DEPLOY_TOKEN to upload; optional YAMF_DEPLOY_PRIVATE_KEY for Ed25519 \`yamf-bundle-ed25519-sig\` when registry has authorized_keys; optional YAMF_PM3_SERVICE_LOCATION to pin pm3-service for SERVICE_CALL)
 
 Options:
   --local          Local deploy via pm3

@@ -513,6 +513,8 @@ const headerWhitelist = [
   'yamf-auth-token',
   'yamf-registry-token',
   'yamf-deploy-token',
+  'yamf-deploy-hash',
+  'yamf-bundle-ed25519-sig',
   'yamf-prefer-service-location'
 ]
 

@@ -99,10 +99,10 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 
 15. **D2** — `@yamf/dev-hmr` SSE + client. **Shipped:** `PUBSUB_CHANNEL_YAMF_DEV_RELOAD`, `@yamf/services-dev-hmr`, `yamf dev` publish, `dev-bootstrap` + `YAMF_DEV=on`, `@yamf/client/dev-hmr`. **Optional follow-up:** `DEPLOY_TOKEN` gating for browser `EventSource`, gateway URL docs.
 16. **D3** — Vite plugin bridge. **Shipped:** `import { yamfVitePluginDev } from '@yamf/client/vite-plugin-yamf-dev'` — debounced `handleHotUpdate` → `publishMessage` to `yamf:dev-reload` (same channel as D2). Needs `YAMF_REGISTRY_URL` in the Vite process; `YAMF_VITE_DEV_LOG=1` for publish debug.
-17. **C6** — ed25519 signed bundles + admin‑auth.
-18. **Cross‑cut 5** — canary / percentage rollouts.
-19. **Cross‑cut 4** — auto‑re‑placement on replica loss.
-20. **D4** — `applyPatch` state‑preserving HMR.
+17. **C6** — ed25519 signed bundles + admin‑auth. **Shipped (Tier 2, registry):** `${YAMF_HOME}/deploy/authorized_keys` (or `YAMF_DEPLOY_AUTHORIZED_KEYS`) with one line per base64 **32‑byte raw** public key; `deploy-bundle` requires `yamf-bundle-ed25519-sig` (base64) over the **UTF‑8 hash string** when the file is non‑empty. **CLI remote upload:** set `YAMF_DEPLOY_PRIVATE_KEY` to a PEM PKCS8 Ed25519 private key to sign automatically. **Not shipped:** separate admin auth service + deploy tokens bound only to that issuer (still `YAMF_DEPLOY_TOKEN` + HMAC for Tier 1).
+18. **Cross‑cut 5** — canary / percentage rollouts. **Not shipped** in this pass: needs replica‑aware placement, promote/drain, and CLI grammar (`yamf deploy --canary`); the decision table in `deploy-decision.js` is the intended hook.
+19. **Cross‑cut 4** — auto‑re‑placement on replica loss. **Not shipped** in this pass: needs sustained health/FLAP signals from pm3 or registry, then placement + drain; `HEALTH` + `replicaMetadata` are prerequisites.
+20. **D4** — `applyPatch` state‑preserving HMR. **Framework done:** `connectYamfDevHmr({ applyPatch, onReload })` — return `false` from `applyPatch` to skip full reload. **App work:** re‑hydrate or call `broadcastRender` where the app adopts slice 3 HTML handlers; not a framework one‑liner.
 
 ### Slice E — Coalesced bulk cache updates  `[small/medium]`
 
@@ -535,7 +535,7 @@ sequenceDiagram
 - **C3** — `pm3-service deploy` command + registry bundle store + single‑node remote deploy with `DEPLOY_TOKEN`.
 - **C4** — Multi‑node placement + rolling using the existing drain primitives.
 - **C5** — Hash‑same‑as‑scale, hash‑diff‑as‑rollout, rollback by hash.
-- **C6** — ed25519 signed bundles + admin‑auth instance.
+- **C6** — ed25519 signed bundles + admin‑auth instance. *Tier 2 bundle signatures + `authorized_keys` shipped; admin‑only auth service not yet.*
 
 ### Slice D — Dev client hot‑reload over SSE  `[medium/large]`
 
