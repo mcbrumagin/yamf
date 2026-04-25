@@ -91,7 +91,12 @@ export async function runDevCommand (args) {
   }
 
   const entries = cfg.services.filter((s) => !s.internal).map((s) => s.entry)
-  const watcher = chokidar.watch(entries, { ignored: ['**/node_modules/**', '**/.yamf/**'], ignoreInitial: true })
+  const watcher = chokidar.watch(entries, {
+    ignored: ['**/node_modules/**', '**/.yamf/**'],
+    ignoreInitial: true,
+    // Avoid double-billing builds from editor atomic save (tmp → rename) or rapid writes
+    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
+  })
   watcher.on('all', (_e, p) => {
     for (const svc of cfg.services) {
       if (!svc.internal && p.endsWith(svc.entry)) {

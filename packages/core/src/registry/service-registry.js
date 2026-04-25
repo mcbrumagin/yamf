@@ -8,7 +8,7 @@ import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
 import { serializeServicesMap, setToArray } from './registry-state.js'
 import { publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
-import { getServiceAddresses, selectServiceLocation } from './load-balancer.js'
+import { clearRoundRobinForService, getServiceAddresses, selectServiceLocation } from './load-balancer.js'
 import { HEADERS, buildShutdownHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import net from 'node:net'
@@ -356,8 +356,11 @@ export async function registerService(state, { service, location, useAuthService
 
 /**
  * Unregister a service instance
+ * Notifies the gateway (via {@link publishCacheUpdate}) the same as {@link registerService},
+ * so pull-only gateways do not keep stale locations — otherwise round-robin can hit a dead
+ * address (~50% 502) after rolling deploys.
  */
-export function unregisterService(state, { service, location }) {
+export async function unregisterService (state, { service, location }) {
   logger.info(`Service "${service}" unregistered from ${location}`)
 
   state.replicaMetadata?.delete(`${service}\0${location}`)
@@ -372,6 +375,7 @@ export function unregisterService(state, { service, location }) {
   }
   
   serviceInstances.delete(location)
+  clearRoundRobinForService(service)
   
   // Clean up empty service entries
   if (serviceInstances.size === 0) {
@@ -391,6 +395,12 @@ export function unregisterService(state, { service, location }) {
       }
     }
   }
+
+  await publishCacheUpdate(state, {
+    service,
+    location,
+    contract: state.serviceContracts.get(service)
+  })
 }
 
 /**

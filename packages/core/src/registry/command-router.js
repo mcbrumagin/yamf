@@ -391,7 +391,7 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       return handleRegister(state, payload, headers)
     
     case COMMANDS.SERVICE_UNREGISTER:
-      return unregisterService(state, { 
+      return await unregisterService(state, { 
         service: serviceName, 
         location: serviceLocation 
       })

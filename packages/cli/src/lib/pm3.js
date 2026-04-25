@@ -137,6 +137,14 @@ function resolveByServiceName(state, name) {
   return keys
 }
 
+/** Stopped / dead PM3 rows still have `services` filled — do not use them for stop/restart/rolling. */
+function filterActiveProcessKeys(state, keys) {
+  return keys.filter((k) => {
+    const e = state.processes[k]
+    return !!(e && e.pid && isProcessAlive(e.pid))
+  })
+}
+
 /**
  * Unified target resolution: service name, filepath, or filepath#N / service-name#N.
  * Returns { keys: string[], isServiceName: boolean }
@@ -423,10 +431,15 @@ export class PM3 {
 
     this.pruneDeadProcesses()
     const state = loadState()
-    const { keys } = resolveTarget(state, target)
+    const { keys: rawKeys } = resolveTarget(state, target)
+    const keys = filterActiveProcessKeys(state, rawKeys)
 
     if (keys.length === 0) {
-      throw new Error(`No managed process found for "${target}"`)
+      throw new Error(
+        rawKeys.length
+          ? `No running process for "${target}" (${rawKeys.length} stopped/orphan key(s) in state — use yamf delete <target> to clear)`
+          : `No managed process found for "${target}"`
+      )
     }
 
     const results = []
@@ -437,11 +450,17 @@ export class PM3 {
   }
 
   async restart(target, options) {
+    this.pruneDeadProcesses()
     const state = loadState()
-    const { keys } = resolveTarget(state, target)
+    const { keys: rawKeys } = resolveTarget(state, target)
+    const keys = filterActiveProcessKeys(state, rawKeys)
 
     if (keys.length === 0) {
-      throw new Error(`No managed process found for "${target}"`)
+      throw new Error(
+        rawKeys.length
+          ? `No running process for "${target}" (${rawKeys.length} stopped/orphan key(s) in state — use yamf delete <target> to clear)`
+          : `No managed process found for "${target}"`
+      )
     }
 
     if (keys.some(k => state.processes[k]?.isRegistry)) {
@@ -450,7 +469,11 @@ export class PM3 {
 
     const results = []
     for (const key of keys) {
-      const entry = state.processes[key]
+      const stateNow = loadState()
+      const entry = stateNow.processes[key]
+      if (!entry) {
+        throw new Error(`PM3 state key "${key}" missing during restart`)
+      }
       const wasInternal = entry?.internal || false
       await this.stopOne(key)
       await sleep(200)
@@ -478,14 +501,20 @@ export class PM3 {
    * - Pure services (no HTTP, no registry lookup) fall back to the standard restart path.
    */
   async restartRolling(target, options = {}) {
-    const state = loadState()
-    const { keys } = resolveTarget(state, target)
+    this.pruneDeadProcesses()
+    const state0 = loadState()
+    const { keys: rawKeys } = resolveTarget(state0, target)
+    const keys = filterActiveProcessKeys(state0, rawKeys)
 
     if (keys.length === 0) {
-      throw new Error(`No managed process found for "${target}"`)
+      throw new Error(
+        rawKeys.length
+          ? `No running process for "${target}" (${rawKeys.length} stopped/orphan key(s) in state — use yamf delete <target> to clear)`
+          : `No managed process found for "${target}"`
+      )
     }
 
-    if (keys.some(k => state.processes[k]?.isRegistry)) {
+    if (keys.some(k => state0.processes[k]?.isRegistry)) {
       throw new Error(
         'Rolling restart of the registry is not supported locally (port collision). ' +
         'Registry rolling is driven by k3s readiness + REGISTRY_DRAIN — see yamf/docs/ROADMAP.md.'
@@ -507,8 +536,12 @@ export class PM3 {
     const results = []
     const replaced = []
     for (const key of keys) {
+      const state = loadState()
       const entry = state.processes[key]
-      if (!entry) continue
+      if (!entry || !entry.pid || !isProcessAlive(entry.pid)) {
+        logger.warn(`Rolling restart: skip "${key}" (process not running; stale state?)`)
+        continue
+      }
       const wasInternal = entry?.internal || false
       const oldPid = entry.pid
       const oldKey = key
@@ -713,8 +746,10 @@ export class PM3 {
    * Returns the filepath if found, null otherwise.
    */
   filepathForService(serviceName) {
+    this.pruneDeadProcesses()
     const state = loadState()
-    const keys = resolveByServiceName(state, serviceName)
+    const raw = resolveByServiceName(state, serviceName)
+    const keys = filterActiveProcessKeys(state, raw)
     if (keys.length === 0) return null
     return state.processes[keys[0]].filepath
   }
