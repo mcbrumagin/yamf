@@ -16,6 +16,37 @@ Living document. Framework‑level plans (YAMF) live here; product roadmaps for 
   - [Immediate & near‑term (alpha → ~6 months)](../../soundclone-deployment/docs/ROADMAP-IMMEDIATE-NEAR-TERM.md)
   - [Cloud‑hosted & community release (~6 months → later)](../../soundclone-deployment/docs/ROADMAP-CLOUD-HOSTED.md)
   - [Reliable background playback / HLS design notes](../../soundclone-deployment/docs/ROADMAP-BACKGROUND-PLAYBACK-HLS.md)
+- **Shared session backing and ZD** — [Shared session store and zero-downtime rollouts](#shared-session-store-and-zero-downtime-rollouts-operational) — **concrete** config and ops items first; **tentative** ideas at the end.
+
+---
+
+## Shared session store and zero-downtime rollouts (operational)
+
+*Portable server-side session state (e.g. refresh material in `@yamf/services-auth`’s per-token cache keys) and **true** zero-downtime deploys are related but not the same. A **shared** cache/DB makes new replicas see the same session rows as old ones; **rolling placement, health, and draining** (slices C4/C5, existing registry/gateway work) are still required to avoid cutting traffic during a version change.*
+
+### Immediate / concrete
+
+- **Point auth (and any other service) at a real shared store in non-dev** — Same client API as today (`@yamf/services-cache` / Keyv-style), but **not** only in-process memory on a single service instance: Redis, a dedicated YAMF cache service replica set, or another cluster-visible cache. This is the prerequisite for “replace one auth pod without logging everyone out.”
+- **Deploy configuration, not bundle contents** — Cache URL, credentials, and TLS live in the **config overlay** (cross-cut 1 / `config-service` story) so the same content hash can run against different cache endpoints.
+- **Harden the cache like a datastore** — TLS in transit, authentication to the cache, namespaced keys, eviction/TTL policy aligned with access/refresh lifetimes. Session-shaped values are secrets.
+- **SLO the cache tier** — For production, avoid a single in-memory cache process with no persistence if losing it is unacceptable; **replication and/or persistence** (managed Redis, etc.) per your availability target.
+- **At least one replacement strategy that preserves traffic** — e.g. **two or more** healthy app instances, or **blue/green** with a cutover, plus **readiness** before a replica receives work; pair with the existing **drain** / `HEALTH` / k3s rolling story already sketched in *What shipped* and Phase 3.
+- **Cross-check** the *Cross-cut 6* dev/prod parity checklist (later in this file) before remote deploy (C3+): the **same** `planAndApply` / service wiring should be able to point at shared cache in prod with only config deltas.
+
+### Near-term (pairs with framework rollout slices)
+
+- **C4 / C5 and cross-cut 2 (contract-aware rolling)** — Hash-same scale vs hash-different rollout; version skew rules so old and new binaries can run **during** the roll. Shared sessions **reduce** the “sticky server memory” failure mode; they do **not** remove the need for compatible APIs and data migrations (expand/contract).
+- **Long-lived connections** — SSE, WebSockets, and long HTTP work: **drain** old replicas; clients **reconnect** to new ones. (D2/D4 and client HMR are **dev** UX; production ZD is drain + reconnect + shared auth state as needed.)
+- **Product apps** (e.g. SoundClone) — Ensure session/logout/401 handling stays correct when **any** replica can serve a request; see product roadmaps under `soundclone-deployment/docs/`.
+
+### Tentative / flesh out later
+
+- **“Dump state to cache on rollout”** and similar R&D — High plumbing; prefer **authoritative shared session store** and normal rolling over bespoke snapshot machinery unless a clear SLO needs it.
+- **Distributed YAMF cache service replicas (shared cluster state)** — **Today, multiple cache service replicas do not share state**; each is an isolated in-memory (or local) view. Flesh out later: a real **distributed** mode (e.g. shard-by-key + routing, or a small coordination layer) vs documenting that **production** should point at an **external** shared store (Redis, etc.) and treat YAMF’s cache as dev/single-node. Both paths support the shared-session / ZD story; the trade-off is operability vs framework-in-the-box.
+- **Data-backed cache service (Postgres / SQLite optional sync)** — Optional configuration to **persist** or **replicate** the logical keyspace to **Postgres** or **SQLite** (write-through, periodic snapshot, or WAL-style) so restarts, single-replica blips, or audit/debug needs do not require a separate Redis operator skillset. Tension: cache semantics (TTL, eviction) vs **durability** guarantees and write amplification — needs a crisp contract (what is *cache* vs *source of truth*) before shipping.
+- **Sticky sessions (L7)** — Only if the app **cannot** be made to work with shared server-side state or stateless per-request identity; prefer shared store + stateless access tokens first.
+- **Cross-cut 5 (canary / percentage)** — Replicas + promote/drain; decision hooks exist in `deploy-decision.js`; not required for a first “two replicas + rolling + shared cache” story.
+- **D4 `applyPatch`** — Preserves **client** in-memory state on dev reload signals; orthogonal to **server** zero-downtime. Useful for UX during dev; not a substitute for server-side session portability.
 
 ---
 
@@ -109,7 +140,7 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 17. **C6** — ed25519 signed bundles + admin‑auth. **Shipped (Tier 2, registry):** `${YAMF_HOME}/deploy/authorized_keys` (or `YAMF_DEPLOY_AUTHORIZED_KEYS`) with one line per base64 **32‑byte raw** public key; `deploy-bundle` requires `yamf-bundle-ed25519-sig` (base64) over the **UTF‑8 hash string** when the file is non‑empty. **CLI remote upload:** set `YAMF_DEPLOY_PRIVATE_KEY` to a PEM PKCS8 Ed25519 private key to sign automatically. **Not shipped:** separate admin auth service + deploy tokens bound only to that issuer (still `YAMF_DEPLOY_TOKEN` + HMAC for Tier 1).
 18. **Cross‑cut 5** — canary / percentage rollouts. **Not shipped** in this pass: needs replica‑aware placement, promote/drain, and CLI grammar (`yamf deploy --canary`); the decision table in `deploy-decision.js` is the intended hook.
 19. **Cross‑cut 4** — auto‑re‑placement on replica loss. **Not shipped** in this pass: needs sustained health/FLAP signals from pm3 or registry, then placement + drain; `HEALTH` + `replicaMetadata` are prerequisites.
-20. **D4** — `applyPatch` state‑preserving HMR. **Framework done:** `connectYamfDevHmr({ applyPatch, onReload })` — return `false` from `applyPatch` to skip full reload. **App work:** re‑hydrate or call `broadcastRender` where the app adopts slice 3 HTML handlers; not a framework one‑liner.
+20. **D4** — `applyPatch` state‑preserving HMR. **Framework done:** `connectYamfDevHmr({ applyPatch, onReload })` — return `false` from `applyPatch` to skip full reload. **App work:** re‑hydrate or call `broadcastRender` where the app adopts slice 3 HTML handlers; not a framework one‑liner. **Analysis (Vite vs SSE, SoundClone defaults):** [D4-SPA-HMR-ANALYSIS.md](./D4-SPA-HMR-ANALYSIS.md).
 
 ### Slice E — Coalesced bulk cache updates  `[small/medium]`
 
