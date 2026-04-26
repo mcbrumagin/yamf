@@ -6,8 +6,8 @@ Small **copy-paste** example: one bundled service (`minimal-api`) with a public 
 
 ## What you get
 
-- `yamf build minimal-api` / `yamf deploy --local minimal-api` (or `yamf dev` to watch `src/`)
-- Vite on port **5173** with HMR for `ui/`
+- `yamf build minimal-api` / `yamf deploy --local minimal-api` (or `yamf dev` to watch `src/`; successful deploys publish **`yamf:dev-reload`** for subscribers such as [`@yamf/services-dev-hmr`](../../packages/services/dev-hmr/))
+- Vite on port **5173** with HMR for `ui/`; add `yamfVitePluginDev()` in Vite to fan the same channel on file saves (see [D4-SPA-HMR-ANALYSIS.md](../../docs/D4-SPA-HMR-ANALYSIS.md))
 - Gateway on **3000** (from `YAMF_GATEWAY_URL`); dev bootstrap registry on **20000** (from `YAMF_REGISTRY_URL`)
 
 ## Prereqs

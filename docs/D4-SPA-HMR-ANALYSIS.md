@@ -1,6 +1,6 @@
 # D4 — SPA-friendly dev HMR (analysis)
 
-**Status:** design + partial framework hook; **default browser behavior** remains full `location.reload()` unless the app opts in. This document ties together **YAMF** (`yamf:dev-reload`, SSE, Vite plugin), **Vite** HMR, and **app** responsibilities (e.g. SoundClone).
+**Status:** `createYamfDevHmrSpaPatch` in `@yamf/client` + **SoundClone** `main.js` (D4); **default** remains Vite HMR only (`VITE_YAMF_DEV_HMR` off). This document ties together **YAMF** (`yamf:dev-reload`, SSE, Vite plugin), **Vite** HMR, and **app** wiring.
 
 **Related:** [ROADMAP.md](./ROADMAP.md) (D2, D3, D4), [TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md), [TEST-PLAN-CLIENT-AND-DEV-HMR.md](./TEST-PLAN-CLIENT-AND-DEV-HMR.md).
 
@@ -35,14 +35,11 @@ Full page reload on every edited file is **expected** when `connectYamfDevHmr` r
 
 ---
 
-## Extending for “default SPA preserve” (future)
+## `createYamfDevHmrSpaPatch` (shipped in `@yamf/client`)
 
-| Area | Direction |
-|------|-----------|
-| **YAMF** | Optional helper (e.g. `connectYamfDevHmrViteSpa({ onRerender })`) that, for `source === 'vite'`, returns `false` and calls `onRerender`. Document `applyPatch` contract clearly. |
-| **Vite plugin** | Optional **`publishOnHmr: false`** or stricter `filter` so pure frontend saves do not spam pub/sub (tradeoff: other tabs / no SSE on Vite-only edits). |
-| **Payload** | Standardize fields (`source`, `service`, `hash`) so apps branch: Vite-only vs `yamf dev` deploy. |
-| **Config naming** | Env like `VITE_YAMF_SPA_PRESERVE=1` can gate behavior without conflating with static **SPA** file-server options. |
+- **`createYamfDevHmrSpaPatch({ onRerender, preserveWhen })`** returns an `applyPatch` for `connectYamfDevHmr`. Default `preserveWhen` is **`(d) => d?.source === 'vite'`** — so **`yamf dev` redeploys** (`source: 'yamf-dev'`, with `service` / `hash`) still get **`location.reload()`** for safe contract / process alignment.
+- **Vite plugin** (optional follow-up): **`publishOnHmr: false`** or stricter `filter` on `yamfVitePluginDev` to avoid pub/sub on every Vite save (other tabs / coordination tradeoff).
+- **Payload** is already `{ service, hash, at, source }` on the `reload` SSE (see `packages/services/dev-hmr/service.js`).
 
 ---
 

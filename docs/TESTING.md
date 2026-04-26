@@ -34,6 +34,7 @@ If the only goal is “registry on a different port,” prefer **no** extra `wit
 - **CLI subcommand help / validation / empty PM3:** `packages/cli/src/tests/cli-command-validation-tests.js` — `yamf test -d . -f command-validation` from `packages/cli`.
 - **@yamf/client** `patch-dom.js`: `packages/client/tests/client-patch-dom-tests.js` — `yamf test -d . -f client-patch-dom` from `packages/client` (JSDOM harness: `client-test-jsdom-harness.js`).
 - **@yamf/client** `ssr-hydrate.js`: `packages/client/tests/client-ssr-hydrate-tests.js` — `yamf test -d . -f client-ssr` from `packages/client`.
+- **@yamf/client** D4 `dev-hmr.js` (`createYamfDevHmrSpaPatch`): `packages/client/tests/client-dev-hmr-tests.js` — `yamf test -d . -f dev-hmr` from `packages/client`.
 - **@yamf/services-dev-hmr:** `packages/services/dev-hmr/tests/dev-hmr-service-tests.js` — `pnpm --filter @yamf/services-dev-hmr test`.
 - Coverage gaps (tiers) and **follow-up test debt**: [TEST-PLAN-UNDER-50.md](./TEST-PLAN-UNDER-50.md), [TEST-PLAN-CLIENT-AND-DEV-HMR.md](./TEST-PLAN-CLIENT-AND-DEV-HMR.md) (shipped HMR/client), [TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md) (remaining optional items).
 - Reusable harness docs: `packages/test/README.md`.

@@ -11,7 +11,7 @@ Consolidated **remaining** test and coverage work that is **out of scope** of th
 | Item | Suggestion | Notes |
 |------|------------|--------|
 | **`replica-helpers` (`getReplicasFor`, `listServiceLocations`, …)** | Unit tests for pure branches and edge cases (empty registry state, single replica). | See Tier C in [TEST-PLAN-UNDER-50.md](./TEST-PLAN-UNDER-50.md). |
-| **Registry / cache** | [Slice E](./ROADMAP.md) coalesced bulk cache updates: once shipped, add integration tests for the bulk wire path and backward compatibility with `cacheBulk: false` subscribers. | Tracks roadmap Phase 1. |
+| **Registry / cache** | [Slice E](./ROADMAP.md) (shipped): `cache-coalesce-tests.js` covers the bulk path; add **extra** integration tests if you change wire shape — e.g. edge cases for `cacheBulk: false` subscribers in mixed fleets. | Optional hardening, not a ship gate. |
 
 ---
 

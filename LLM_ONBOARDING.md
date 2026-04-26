@@ -162,33 +162,17 @@ packages/core/tests/
 
 ## Architecture
 
-### Component Hierarchy
+**Spine and muscle memory:** the **registry** is the **spine** (authoritative state, pub/sub, convergence). Each peer keeps a **replicated in-process service cache** — **muscle memory** — so `callService` and similar paths resolve **locally** for steady work; the registry and cache path **re-teach** on deploy, register/unregister, or `REGISTRY_PULL` when needed. The **gateway** **pulls** the same state for external HTTP; it does not replace the registry as source of truth.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Service Registry                         │
-│  - Service Discovery (register, lookup, unregister)         │
-│  - Pub/Sub Routing                                          │
-│  - State Management (source of truth)                       │
-│  - Notifies Gateway of changes                              │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ (notify: "re-pull state")
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     API Gateway                              │
-│  - Pull-only model (never pushes to registry)               │
-│  - "Dumb" registry - same state, lookups, routing           │
-│  - Cannot register or propagate services                    │
-│  - Secure public entrypoint                                 │
-└─────────────────────────────────────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-     ┌─────────┐    ┌─────────┐    ┌─────────┐
-     │Service A│    │Service B│    │Service C│
-     │ (Node)  │    │ (Node)  │    │(Python) │
-     └─────────┘    └─────────┘    └─────────┘
-```
+**Bird’s eye (anchor — no control-plane hop on hot paths):**
+
+- **Service → register → Registry** (and **re-teach** with pub/sub, `REGISTRY_PULL`, or deploy).
+- **Registry → (pub/sub cache line updates) → each process that holds a service cache.**
+- **Service A → (HTTP, address from in-process cache) → Service B** (peer; hot path).
+- **Client → gateway → service** (gateway’s routing is **pulled** from the registry, read-only, not a second authority).
+- **Registry and gateway = siblings in roles** — not a vertical “gateway owns services” data-plane stack.
+- **Heavy cache fan-out:** `YAMF_CACHE_COALESCE_MS` — [ROADMAP](docs/ROADMAP.md).
+- The root [README](README.md) ASCII is optional garnish for human readers; this list is the signal for tools.
 
 ### Startup Sequence
 

@@ -10,7 +10,7 @@ Living document. Framework‑level plans (YAMF) live here; product roadmaps for 
 
 ## Index
 
-- **This doc** — YAMF framework plan (what shipped + active slices + deferred).
+- **This doc** — YAMF framework plan: **What shipped** (including orchestrator slice summary), **Active follow‑on** (cross‑cuts, config refinements), **Shipped slice specifications (reference)**, and **Deferred** (horizon).
 - **Test coverage follow-up (near-term debt)** — [TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md): optional tests and coverage not covered by the main gap plan (e.g. `replica-helpers`, browser-only `patch-dom` paths, gateway e2e SSR). **Earlier than horizon** R&D; pick up alongside related slices.
 - **SoundClone product roadmaps** (under `soundclone-deployment/docs/`):
   - [Immediate & near‑term (alpha → ~6 months)](../../soundclone-deployment/docs/ROADMAP-IMMEDIATE-NEAR-TERM.md)
@@ -46,7 +46,7 @@ Living document. Framework‑level plans (YAMF) live here; product roadmaps for 
 - **Data-backed cache service (Postgres / SQLite optional sync)** — Optional configuration to **persist** or **replicate** the logical keyspace to **Postgres** or **SQLite** (write-through, periodic snapshot, or WAL-style) so restarts, single-replica blips, or audit/debug needs do not require a separate Redis operator skillset. Tension: cache semantics (TTL, eviction) vs **durability** guarantees and write amplification — needs a crisp contract (what is *cache* vs *source of truth*) before shipping.
 - **Sticky sessions (L7)** — Only if the app **cannot** be made to work with shared server-side state or stateless per-request identity; prefer shared store + stateless access tokens first.
 - **Cross-cut 5 (canary / percentage)** — Replicas + promote/drain; decision hooks exist in `deploy-decision.js`; not required for a first “two replicas + rolling + shared cache” story.
-- **D4 `applyPatch`** — Preserves **client** in-memory state on dev reload signals; orthogonal to **server** zero-downtime. Useful for UX during dev; not a substitute for server-side session portability.
+- **D4 `applyPatch` / `createYamfDevHmrSpaPatch`** — Preserves in-tab on Vite-originated dev reload; **yamf dev** deploy still full-reload; orthogonal to **server** zero-downtime.
 
 ---
 
@@ -75,7 +75,23 @@ Rolling k3s support plus the first wave of follow‑on slices. Concretely:
 - **Interactive SSR of client events** (slice 3). Render‑context isolation, signed‑handler RPC (`SSR_INVOKE_HANDLER`), `@yamf/client/ssr-render`, `@yamf/client/ssr-hydrate`, and `server.broadcastRender(element, { target })` on SSE services with `renderMode: 'html-handlers'`.
 - **Soundclone migration** (slice 4). Dropped `spaFallbackResolver` + `spaStaticFileSecurityCheck` and replaced `track-events-sse.js` / `track-events-sub` with `createEventSourceService('track-events', { onConnect, channels })`. Wire protocol unchanged.
 
-Regression coverage lives in `packages/core/tests/cases/rolling-registry-tests.js`, `packages/core/tests/cases/ssr-handler-tests.js`, and `packages/cli/src/tests/cli-rolling-commands.js`.
+**Orchestrator, deploy, and hardening (former phases 1–3 and most of phase 4 — D4: `createYamfDevHmrSpaPatch` + SoundClone; other apps / slice‑3 SSR still on them).**
+
+- **E — Coalesced / bulk cache updates.** `packages/core/src/registry/pubsub-manager.js` + `cache-handler.js` bulk path; `YAMF_CACHE_COALESCE_MS` (default `0` preserves legacy sync push; set `> 0` in prod to enable), `YAMF_CACHE_COALESCE_MAX_MS`, `YAMF_CACHE_BULK_MAX`, `YAMF_CACHE_PUSH_STALE_AFTER`. Subscribers default `metadata.cacheBulk: true`. Tests: `cache-coalesce-tests.js`.
+- **F — `registerCommand`.** `packages/core/src/registry/command-router.js`; `registryServer` exposes `server.registerCommand`; first consumer `packages/services/deploy-router`. Tests: `register-command-tests.js`.
+- **A — CSP / default security headers.** `packages/core/src/shared/csp.js` (`buildCsp`, `getDefaultResponseSecurityHeaders`); `YAMF_CSP_MODE`, `YAMF_CSP_RELAXED`, etc. Tests: `security-headers-tests.js`.
+- **B — Upload & path safety.** `packages/shared/src/path-safety.js` and tightened file-upload / file-server behavior (see package changelogs for details).
+- **C1 / C2 / cross‑cut 1 (v1).** `yamf build`, bundle cache, `yamf deploy --local`, `planAndApply`, `@yamf/services-config` and CLI `yamf config` (refinements remain — see *Active follow‑on*).
+- **D1** — `yamf dev` (watch + rebuild + deploy); `packages/cli/src/commands/dev.js`, `load-yamf-config` watch entries.
+- **C3** — `yamf deploy --remote`, registry bundle store, `streamBundleToFileWithHashCheck`, `remote-pm3-adapter` / `createRemotePm3`.
+- **C4 / C5** — per-replica `sourceHash` / `configVersion` / `node` in `replicaMetadata`, `deployDecisionFromReplicas`, `yamf deploy --rollback`, multi-node `pickNode` in deploy-router, rolling via existing driver + pm3.
+- **Cross‑cut 3 (baseline).** `publishMessage('yamf:deploy', …)` from deploy-router on plan paths (`packages/services/deploy-router/service.js`); richer registry `/health` deploy ring buffer called out in the design doc is optional follow‑up.
+- **D2 / D3** — `@yamf/services-dev-hmr`, `yamf dev` publish, `@yamf/client/dev-hmr`, Vite `yamfVitePluginDev`.
+- **C6 (Tier 2 / registry).** `authorized_keys` + `yamf-bundle-ed25519-sig` enforcement and CLI `YAMF_DEPLOY_PRIVATE_KEY` upload signing. **Not shipped:** separate admin-only auth issuer (still noted in *Active follow‑on*’s small-print).
+
+**Still intentionally narrow / follow‑up (not a separate phase list):** cross‑cut **2** (full contract diff / `yamf deploy --dry-run` / registry gate) as sketched in this file is only partially realized — contract data is on the wire; **automated** incompatible blocking is not the focus of the shipped path. **Cross‑cuts 4 and 5** (auto re-placement, canary) remain deferred (see *Active follow‑on*).
+
+Regression coverage lives in `packages/core/tests/cases/rolling-registry-tests.js`, `packages/core/tests/cases/ssr-handler-tests.js`, and `packages/cli/src/tests/cli-rolling-commands.js`, plus `cache-coalesce-tests.js`, `register-command-tests.js`, and deploy driver tests.
 
 ### Relevant env knobs
 
@@ -95,64 +111,65 @@ Regression coverage lives in `packages/core/tests/cases/rolling-registry-tests.j
 | `YAMF_SSR_HANDLER_TTL_MS` | `600000` | Lifetime of a signed SSR handler id. |
 | `YAMF_SSR_HANDLER_MAX` | `10000` | Max live SSR handlers before LRU eviction. |
 | `YAMF_SSR_HANDLER_SWEEP_MS` | `60000` | SSR handler TTL sweep interval. |
+| `YAMF_CACHE_COALESCE_MS` | `0` | `0` = legacy synchronous cache push per update; set `> 0` to enable coalescing (see *What shipped* — slice E). |
+| `YAMF_CACHE_COALESCE_MAX_MS` | `250` | Max window from first queued update when coalescing is on. |
+| `YAMF_CACHE_BULK_MAX` | `500` | Flush immediately if a subscriber’s pending list reaches this size. |
+| `YAMF_CACHE_PUSH_STALE_AFTER` | `3` | Failed coalesce windows before a subscriber is marked stale. |
 
 ---
 
 ## Active follow‑on work (framework)
 
-Slice labels (A–F) are **stable identifiers**; the order slices appear in below is the **recommended execution order**. Sizes in brackets are rough t‑shirts. Slices are individually shippable; apps with app‑specific pressure (e.g. Soundclone needing B before C) can reorder without blocking framework work.
+The former **Phase 1–3** and **most of Phase 4** workstreams are **shipped** and summarized under *What shipped* above. What follows is **remaining** or **optional** work — not a phased ladder.
 
-### Recommended execution order
+**D4 (done for SPA + SoundClone):** `createYamfDevHmrSpaPatch` in `@yamf/client/dev-hmr` (tests: `yamf test -d . -f dev-hmr` in `packages/client`); other apps and **slice 3** HTML/SSR UIs follow the same `applyPatch` contract manually — [D4-SPA-HMR-ANALYSIS.md](./D4-SPA-HMR-ANALYSIS.md).
 
-**Phase 1 — low‑risk plumbing, parallel‑safe:**
+### Cross‑cut 1 — config-service refinements (before treating remote as “boring”)
 
-1. **E** — coalesced bulk cache updates. Ship **first** so slice C's deploy storms don't land on top of a known fanout bottleneck.
-2. **F** — registry `registerCommand` extension point. Prerequisite for C's `deploy-router` to live as a plugin rather than in core; validates the plugin model on its most load‑bearing consumer.
-3. **A** — CSP / security header defaults. Independent of the orchestrator story; small; blocks nothing.
-4. **B** — upload / path protection. Similar size to A; promote earlier if app‑side upload exposure predates remote deploy (Soundclone case).
+- Atomic `save()` (tmp + rename) in `packages/services/config/storage.js`.
+- Random per‑install salt instead of hard‑coded `KEY_SALT` for `YAMF_CONFIG_KEY` derivation.
+- Passphrase entropy hint (`openssl rand -base64 32`).
+- Optional: `yamf config` / config-service `delete` for key rotation by removal.
 
-**Phase 2 — orchestrator groundwork (local only):** *implemented in-tree (C1, C2, cross‑cut 1 primitives; cross‑cut 6 is a review checklist).*
+### Cross‑cut 2 — contract‑aware rolling (full design)
 
-**Note:** **C3 (remote deploy, registry bundle store)** is under **Phase 3** below, not Phase 2 — naming is by slice (C*), not phase number.
+- `yamf deploy --dry-run` contract diff, `--allow-breaking`, registry **promotion** gate on backward compatibility (see the sketch under *C3+ deploy router* in this file). **Today:** contracts ride on `REGISTRY_PULL`; **automated** enforcement is not fully wired.
 
-5. **C1** — `yamf build` + bundle cache. **Shipped:** `yamf build` / `yamf build --all`, `.yamf/build/…` layout, `yamf.config.js` (see `yamf/yamf.config.example.js`), `computeBundleHash` in `packages/cli/src/lib/bundle-hash.js`.
-6. **C2** — `yamf deploy --local`. **Shipped:** `YAMF_SOURCE_HASH` + optional `YAMF_CONFIG_VERSION` in `registerServiceWithRegistry` → `replicaMetadata` on the registry, `replicas` on `REGISTRY_PULL`, `planAndApply` in `packages/cli/src/lib/deploy-driver.js`, `yamf deploy --local <svc>`, `yamf status --versions`.
-7. **Cross‑cut 1** — secrets / config separation (`config-service` scaffolding). **Shipped (v1):** `@yamf/services-config` (AES‑256‑GCM file store via `@yamf/core/crypto`, scrypt‑derived key from `YAMF_CONFIG_KEY`), `yamf config get|set|list`, deploy overlay when `services[].env` lists required names. **Hard gate on C3** for remote. **Refinements to land before `yamf deploy --remote`:**
-   - Atomic save — `packages/services/config/storage.js` `save()` should write to `store.enc.tmp` and `renameSync` (mirrors pm3 state persistence). A truncated write on crash currently throws on next `load()`.
-   - Random per‑install salt — replace the hard‑coded `KEY_SALT = 'yamf-config-v1'` with a 16‑byte random salt persisted to `${baseDir}/salt` on first run. Keeps derived keys unique per deployment even when the passphrase is reused.
-   - Passphrase entropy hint — README + error message should point at `openssl rand -base64 32`; current message only says "passphrase".
-   - Optional: `delete` command on `config-service` for rotation‑by‑removal (today `set` can only add/overwrite).
-8. **Cross‑cut 6** — dev/prod parity design review. **Not automated:** use the checklist in this file under *Cross‑cut 6* before C3 / D1; `planAndApply` is the shared entry point for local deploys today.
+### Cross‑cut 3 — deploy observability (residual)
 
-**Phase 3 — remote rollout:**
+- Richer **registry** `/health` deploy ring buffer and `yamf status --versions --since` as in the C3+ sketch — `yamf:deploy` pub is already in place for subscribers.
 
-9. **D1** — `yamf dev` + watch + local redeploy (can start the moment C2 lands; overlaps with C3 handoff).
-10. **C3** — `pm3-service deploy` + registry bundle store + single‑node remote deploy (gated on cross‑cut 1).
-11. **C4** — multi‑node placement + rolling.
-12. **C5** — hash‑same‑as‑scale / hash‑diff‑as‑rollout + rollback.
-13. **Cross‑cut 2** — contract‑aware rolling (pairs with C5).
-14. **Cross‑cut 3** — deploy audit + observability (accrues across C3–C5).
+### Cross‑cut 4 / 5 — placement automation & canary
 
-**Phase 4 — polish & production hardening:**
+- **4** — Auto re‑placement on sustained unhealthy / FLAP; needs signals from pm3 or registry.
+- **5** — `yamf deploy --canary` / percentage; `deploy-decision.js` is the intended hook.
 
-15. **D2** — `@yamf/dev-hmr` SSE + client. **Shipped:** `PUBSUB_CHANNEL_YAMF_DEV_RELOAD`, `@yamf/services-dev-hmr`, `yamf dev` publish, `dev-bootstrap` + `YAMF_DEV=on`, `@yamf/client/dev-hmr`. **Optional follow-up:** `DEPLOY_TOKEN` gating for browser `EventSource`, gateway URL docs.
-16. **D3** — Vite plugin bridge. **Shipped:** `import { yamfVitePluginDev } from '@yamf/client/vite-plugin-yamf-dev'` — debounced `handleHotUpdate` → `publishMessage` to `yamf:dev-reload` (same channel as D2). Needs `YAMF_REGISTRY_URL` in the Vite process; `YAMF_VITE_DEV_LOG=1` for publish debug.
-17. **C6** — ed25519 signed bundles + admin‑auth. **Shipped (Tier 2, registry):** `${YAMF_HOME}/deploy/authorized_keys` (or `YAMF_DEPLOY_AUTHORIZED_KEYS`) with one line per base64 **32‑byte raw** public key; `deploy-bundle` requires `yamf-bundle-ed25519-sig` (base64) over the **UTF‑8 hash string** when the file is non‑empty. **CLI remote upload:** set `YAMF_DEPLOY_PRIVATE_KEY` to a PEM PKCS8 Ed25519 private key to sign automatically. **Not shipped:** separate admin auth service + deploy tokens bound only to that issuer (still `YAMF_DEPLOY_TOKEN` + HMAC for Tier 1).
-18. **Cross‑cut 5** — canary / percentage rollouts. **Not shipped** in this pass: needs replica‑aware placement, promote/drain, and CLI grammar (`yamf deploy --canary`); the decision table in `deploy-decision.js` is the intended hook.
-19. **Cross‑cut 4** — auto‑re‑placement on replica loss. **Not shipped** in this pass: needs sustained health/FLAP signals from pm3 or registry, then placement + drain; `HEALTH` + `replicaMetadata` are prerequisites.
-20. **D4** — `applyPatch` state‑preserving HMR. **Framework done:** `connectYamfDevHmr({ applyPatch, onReload })` — return `false` from `applyPatch` to skip full reload. **App work:** re‑hydrate or call `broadcastRender` where the app adopts slice 3 HTML handlers; not a framework one‑liner. **Analysis (Vite vs SSE, SoundClone defaults):** [D4-SPA-HMR-ANALYSIS.md](./D4-SPA-HMR-ANALYSIS.md).
+### C6 / deploy auth — smaller items
 
-### Slice E — Coalesced bulk cache updates  `[small/medium]`
+- Separate **admin** auth issuer for deploy (vs shared `YAMF_DEPLOY_TOKEN` + HMAC).
+- `requireDeployToken` is implemented on plugin commands; any remaining `DEPLOY_TOKEN` gating for **browser** `EventSource` (D2) and **gateway URL** docs for Vite (D3) are polish.
+
+### Cross‑cut 6 — dev/prod parity (ongoing)
+
+- **Manual** checklist in this file under *Cross-cut 6* before expanding remote or dev ergonomics. `planAndApply` is the shared deploy entry point for local/remote.
+
+---
+
+## Shipped slice specifications (reference)
+
+Design notes below were written as **pre‑ship** checklists. **E, F, A, B, C1, C2, C3, C4, C5, D1–D3, C6 (Tier 2),** and the baseline **E + cache** path are in tree; the sections remain as **API and semantics** reference.
+
+### Slice E — Coalesced bulk cache updates  `[shipped — reference]`
 
 **Goal.** Replace the "one HTTP call per subscriber per registration" fanout with "one HTTP call per subscriber per coalesce window, carrying N updates". Directly addresses the update‑fanout bottleneck identified in the Scale envelope below, without changing any subscriber‑visible semantics beyond a small latency shift and an optional bulk wire shape.
 
-**Why first.** It's the cheapest scalability win available: a ~200 LOC patch to `packages/core/src/registry/pubsub-manager.js` + `packages/core/src/service/cache-handler.js`, zero topology change, zero trust‑model change. Landing it before slice C means the orchestrator's deploy storms never hit the flat‑fanout wall.
+**Why it mattered (historical).** It was the cheapest scalability win: `pubsub-manager.js` + `cache-handler.js`, zero topology change. Coalescing is **off** by default (`YAMF_CACHE_COALESCE_MS=0`) for backward compatibility; set a positive window in production.
 
 **Design commitments:**
 
 1. **Buffered dispatch.** `publishCacheUpdate` stops firing HTTP calls inline. Instead it appends `{ subscription, service, location, contract }` to a per‑subscriber pending list and arms (or resets) a debounce timer.
 2. **Debounce semantics.**
-   - `YAMF_CACHE_COALESCE_MS` (default `50`): flush this many ms after the **last** queued update.
+   - `YAMF_CACHE_COALESCE_MS` (default `0` in code = coalescing off; e.g. `50` in prod): flush this many ms after the **last** queued update.
    - `YAMF_CACHE_COALESCE_MAX_MS` (default `250`): hard ceiling from the **first** queued update in a window, so sustained streams still flush.
    - `YAMF_CACHE_BULK_MAX` (default `500`): if a subscriber's pending list reaches this, flush immediately.
 3. **Wire protocol.** Current `buildCacheUpdateHeaders` path keeps working (single‑update, header‑only body). A new `yamf-cache-bulk: 1` mode sends a body `{ windowId, updates: [{ subscription, service, location, contract }] }` and a single header. `windowId` is `${registryId}:${monotonicCounter}` — used today only for dedup/logging, but a deliberate forward‑compat hook so the cascade fan‑out horizon item (Deferred) can reuse the exact wire shape without another protocol bump. Subscribers advertise support via `metadata.cacheBulk: true` at registration; registry falls back to per‑update calls for legacy subscribers within the same window.
@@ -169,7 +186,7 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 
 **Expected reduction.** N registrations × M subscribers (today) → ~1 call × M subscribers per coalesce window (after E). For a 100‑service rolling redeploy against ~100 subscribers: ~10 000 calls → ~100 calls per window (with ≤250 ms worst‑case update latency). That's the "tunable, no arch change" row of the Scale envelope moving from tight to comfortable.
 
-### Slice F — Registry command extension point  `[tiny]`
+### Slice F — Registry command extension point  `[shipped — reference]`
 
 **Goal.** Expose `registry.registerCommand(name, handler)` on the command router so plugin services can add new `yamf-command:` verbs **without editing core**. Formalizes the "tiny kernel, everything else is a plugin" positioning in [Towards 1.0](#towards-10) and — critically — lets slice C's deploy router ship as `@yamf/services-deploy-router` rather than as a new `packages/core/src/registry/deploy-router.js`. Without F, slice C forces a last‑minute API‑shape argument during C3.
 
@@ -191,7 +208,7 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 
 **Remote scope.** F is in-process only (`server.registerCommand` on the registry instance). Slice C3’s deploy router either runs in-process beside the registry (e.g. homelab), or a later follow-up adds a remote `REGISTRY_COMMAND_REGISTER` (or equivalent) command envelope; choose before C3.
 
-### Slice A — Content‑Security‑Policy & default security headers  `[small]`
+### Slice A — Content‑Security‑Policy & default security headers  `[shipped — reference]`
 
 **Goal.** Give YAMF services sane default response headers (CSP + friends) and a minimal, declarative way to tighten them per service or route. Remove the need for apps to hand‑set `x-content-type-options`, `x-frame-options`, etc. on each response.
 
@@ -222,7 +239,7 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 
 **Version bumps.** `@yamf/core` 0.6.0 → 0.7.0 (new public CSP options); `@yamf/client` 0.2.0 → 0.3.0 if nonce wiring ships with it.
 
-### Slice B — Enhanced upload & path protection  `[small/medium]`
+### Slice B — Enhanced upload & path protection  `[shipped — reference]`
 
 **Goal.** Tighten the `file-upload` and `file-server` packages so apps get safe defaults for untrusted input without each writing their own `spaStaticFileSecurityCheck`‑style shims.
 
@@ -242,9 +259,9 @@ Slice labels (A–F) are **stable identifiers**; the order slices appear in belo
 
 **Version bumps.** `@yamf/services-file-upload` 0.1.5 → 0.2.0; `@yamf/services-file-server` 0.2.0 → 0.3.0; `@yamf/shared` 0.1.2 → 0.2.0 (new `path-safety` export).
 
-### Phase 2 implementation details  `[scoping for C1, C2, cross‑cuts 1 & 6]`
+### Phase 2 implementation details  `[shipped — reference, C1/C2 / cross-cut 1]`
 
-Consolidated snippets and contracts for the next ~month of work. These slot into slices C and the cross‑cutting concerns below but are pulled up here so phase‑2 implementers can read one block.
+Consolidated snippets and contracts for the **C1 / C2 / config** work (now shipped). Kept for implementers and parity reviews (cross‑cut 6).
 
 #### `yamf.config.js` — project manifest (C1, reused by C2 and D1)
 
@@ -620,7 +637,7 @@ Leverages slice 3's `createEventSourceService` + `broadcastRender` and slice C's
    - **D1** — `yamf dev` + file watch + local redeploy (requires C1/C2). No client HMR yet.
    - **D2** — `@yamf/dev-hmr` SSE service + `@yamf/client/dev-hmr` client → full page reload on change.
    - **D3** — `yamfVitePluginDev` in `@yamf/client/vite-plugin-yamf-dev` (HMR → `yamf:dev-reload` pub/sub).
-   - **D4** — `applyPatch` hook for state‑preserving reloads (depends on slice 3 `broadcastRender` being adopted by the app).
+   - **D4** — `applyPatch` / `createYamfDevHmrSpaPatch` (slice 3 / `broadcastRender` only for SSR HTML apps).
 
 ### Cross‑cutting concerns for the orchestrator story  `[must‑land with C/D]`
 
@@ -644,9 +661,9 @@ If slices C and D push YAMF toward "system‑agnostic small orchestrator", these
 
 6. **Dev/prod parity.**  **Design review gate before C3 and D1 ship**, not a standalone slice. `yamf dev` (slice D), `yamf deploy --local` (C2) and `yamf deploy --remote` (C3+) must resolve to the **same** code path with different defaults (token, remote URL, watch mode). If they diverge, the "works locally, breaks on remote" bug class comes back — and it comes back *in production*, not in tests.
 
-### Phase 3 implementation details  `[scoping for D1, C3, C4, C5, cross‑cuts 2 & 3]`
+### Phase 3 implementation details  `[shipped — reference, D1 / C3 / C4 / C5]`
 
-Consolidated snippets for the remote‑rollout work. Mirrors the Phase 2 block's format. Phase 2's `planAndApply` stays the single entry point — everything below adds capabilities behind it, it does not fork it.
+Consolidated snippets for the **remote / rolling** work (in tree). `planAndApply` remains the single entry point. Cross‑cut **2** (full contract gate) and **3** (rich registry deploy ring) may exceed what is wired; see *Active follow‑on work*.
 
 #### D1 — `yamf dev` (watch + debounce on top of Phase 2)
 
@@ -884,14 +901,9 @@ publishMessage('yamf:deploy', {
 
 #### Prerequisites summary for Phase 3
 
-Before starting C3, the following need to land:
+**Historical (C3 shipped):** the items below were **pre‑C3** gates. **2–4** are in tree (`requireDeployToken` on deploy commands, `node` in `replicaMetadata`, `getReplicasFor` / healthy placement helpers for deploy-router). **1** (cross‑cut 1 hardening) remains in *Active follow‑on work*.
 
-1. Cross‑cut 1 refinements listed in the execution order (atomic save, random salt, entropy doc) — none are large.
-2. `registerCommand` gains `requireDeployToken` option + `yamf-deploy-token` header handling in `command-router.js` (~10 lines in core; Slice F extension).
-3. `registerService` learns to strip `node` into `replicaMetadata` alongside `sourceHash`/`configVersion` (1‑line destructure change, shown above).
-4. `registry.getReplicasFor(name)` and `registry.listHealthyLocations(name)` helpers exposed on the server object — today both require reaching into `state`; the deploy router plugin shouldn't need to.
-
-### Lower‑priority cleanup (tracked, not blocked on slices A–E)
+### Lower‑priority cleanup (tracked, not blocked on shipped slices A–E)
 
 - `createService` and `createSubscriptionService` both branch into a pure variant with duplicate lifecycle plumbing. Extract `createLocalService({ name, handler, access, cache, context, pubSubManager? })` so public factories only describe type‑specific bits.
 - `createService`'s `pureServiceWrapper` can drop the `undefined` sentinel once `before()` is first‑class on `createPureService`.
@@ -904,14 +916,14 @@ Before starting C3, the following need to land:
 
 YAMF's identity shifts with slices C + D: from "service framework with rolling support" to **"small, system‑agnostic orchestrator that also happens to be a service framework"**. A 1.0 bar worth committing to:
 
-- **Ships:** slices A, B, C (through C5), D (through D3), E, F, and all six cross‑cutting concerns above.
-- **Doesn't ship yet:** federation / multi‑registry gossip, cascade fan‑out (see Deferred below), non‑JS bundle deploys, mTLS between nodes (tokens + signed bundles remain primary), `applyPatch` state‑preserving HMR (D4), **gateway–registry continuity** (hold, last‑known routing, split‑brain mitigations — horizon subsection in Deferred).
+- **Shipped (framework):** slices A, B, C (through C5), D2–D3, D4 (SPA helper + SoundClone; slice‑3 apps still own re-hydration), E, F, C6 (Tier 2), deploy router; cross‑cut 1 (v1); cross‑cut 3 baseline (`yamf:deploy` pub). **Cross‑cuts 2, 4, 5, 6** (full diff gate, canary, auto re‑placement, automated parity) are **not** "done" as originally specified — some are polish, some are deferred to post‑1.0.
+- **Doesn't ship yet (typical 1.0 + horizon):** federation / multi‑registry gossip, cascade fan‑out (see Deferred below), non‑JS bundle deploys, mTLS between nodes (tokens + signed bundles remain primary), D4 in **every** app / HTML‑handler SSR, **gateway–registry continuity** (hold, last‑known routing, split‑brain mitigations — horizon subsection in Deferred).
 - **Story:** a single binary (`yamf`) takes you from `yamf init` to `yamf dev` to `yamf deploy --remote`, on k3s **or** a fleet of plain VMs, with rolling + rollback + contracts + secrets management, zero vendor dependencies.
 - **Plugin model formalized.** Already mostly true — `@yamf/services-*` packages are plugins today. At 1.0, name it explicitly: **core is a tiny kernel** (registry state, gateway routing, HTTP primitives, pub/sub, lifecycle); **everything else is a service** that can be swapped or omitted. Concretely:
   - **Always‑there kernel:** `create-service`, `create-route`, `create-subscription-service`, `create-event-source-service`, registry, gateway, pub/sub, lifecycle, call‑service, HTTP primitives.
   - **Default‑but‑replaceable:** rate‑limiter (in‑process today; expose `createRateLimiterService` wire so apps can swap in Redis/etc.), `simpleSecurityCheck`, auth‑via‑token.
   - **Optional services** (all plain YAMF services; mix and match): `config-service`, `secrets-service`, `deploy-router` (slice C), `dev-hmr-service` (slice D), `metrics-service`, `audit-service`, `schema-registry-service`, `queue-service`, `scheduler-service`, `blob-service`, `notify-service`.
-  - **Registry extension point (small, high‑leverage):** `registerCommand(name, handler)` on the registry command router so a plugin service (e.g. `deploy-router`, `schema-registry`) can add new `yamf-command:` verbs without editing core. **Shipping as [Slice F](#slice-f--registry-command-extension-point--tiny)** — first consumer is slice C's deploy router, which validates the plugin API on its most load‑bearing real‑world case.
+  - **Registry extension point (small, high‑leverage):** `registerCommand(name, handler)` on the registry command router so a plugin service (e.g. `deploy-router`, `schema-registry`) can add new `yamf-command:` verbs without editing core. **Shipped as [Slice F](#slice-f--registry-command-extension-point--shipped--reference).**
 - **Branding (optional, cheeky).** Retronym the name at 1.0: **YAMF — "Yet Another Mini‑orchestration Framework"**, or lean into the cheeky negation (**"YAMF Ain't a Microservice Framework"**). Doesn't require an npm namespace move; just README + marketing copy.
 
 ---
@@ -943,11 +955,11 @@ Envelope:
 | **Tunable, no arch change** | ≤ 1 000 | ≤ 5 000 | ~10 MB | cache‑update fanout during deploy storms |
 | **Needs design changes** | ≥ 10 000 | ≥ 10 000 | ≥ 50 MB | fanout, registration thundering herd, single‑registry throughput |
 
-**First real bottleneck is update fanout, not memory.** `publishCacheUpdate` hits every non‑pure subscriber on every registration. A whole‑fleet deploy of N services with R replicas per service costs roughly **N × (N × R)** HTTP calls at the registry. Memory stays small long after fanout starts hurting.
+**First real bottleneck is update fanout, not memory** (with coalescing **off**). `publishCacheUpdate` in immediate mode hits every non‑pure subscriber on every registration. A whole‑fleet deploy of N services with R replicas per service costs roughly **N × (N × R)** HTTP calls at the registry. Memory stays small long after fanout starts hurting.
 
 Mitigations, in order of diminishing returns:
 
-- **Coalesced bulk cache updates → promoted to [Slice E](#slice-e--coalesced-bulk-cache-updates--smallmedium).** Single flag, no topology change; cuts outbound calls by roughly the window batch size.
+- **Coalesced bulk cache updates — [Slice E](#slice-e--coalesced-bulk-cache-updates--shipped--reference) shipped.** Set `YAMF_CACHE_COALESCE_MS > 0` and use bulk-capable subscribers (`cacheBulk: true`); cuts outbound calls by roughly the coalesce window batch size.
 - **Lazy cache pull on first call** — services start with an empty cache and pull on the first `callService('foo')` miss; the full‑fanout path becomes optional (`YAMF_EAGER_CACHE=on` for today's behavior). Small patch, plays nicely with E.
 - **Cascade fan‑out of cache updates** — see below; meaningful only once E + lazy pull are in and the registry is **still** the bottleneck.
 - **Sharded registries** (dovetails with federation above) — partition by service name prefix or tenant; each registry authoritative for its shard.
@@ -961,7 +973,7 @@ Mitigations, in order of diminishing returns:
 
 **High‑level shape:**
 
-1. **Coalesce first** (requires slice E) — cascade only kicks in when a window would hit more than `YAMF_CASCADE_MIN` recipients (default `64`). Small fleets stay on flat fanout; no added complexity.
+1. **Coalesce first** (slice E, shipped) — cascade only kicks in when a window would hit more than `YAMF_CASCADE_MIN` recipients (default `64`). Small fleets stay on flat fanout; no added complexity.
 2. **Partition recipients.** Registry splits the subscriber list into `K` roughly equal buckets (default `K = ceil(sqrt(M))`; e.g. 100 subscribers → 10 head replicas × 10 peers each).
 3. **Wire shape**, per bucket:
    ```jsonc
