@@ -11,6 +11,7 @@ import { publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from
 import { clearRoundRobinForService, getServiceAddresses, selectServiceLocation } from './load-balancer.js'
 import { HEADERS, buildShutdownHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
+import { isBackwardCompatibleServiceContract, areServiceContractsEqual } from '../service/contract-compatibility.js'
 import net from 'node:net'
 import { localState } from '../shared/local-state.js'
 import readStream from '../http-primitives/read-stream.js'
@@ -225,8 +226,18 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * @param {Object} [options.metadata] - Service metadata (for special services like gateway)
  * @param {Object} [options.rateLimit] - Rate limit configuration for this service
  */
-export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit, contract, serviceType, timeout }) {
+export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit, contract, serviceType, timeout, allowBreakingContract = false }) {
   logger.debug(`registerService - service "${service}" registering for ${location} (accessControl: ${accessControl})`)
+  
+  const existingContract = state.serviceContracts.get(service)
+  if (contract && existingContract && !areServiceContractsEqual(existingContract, contract)) {
+    if (!isBackwardCompatibleServiceContract(existingContract, contract) && !allowBreakingContract) {
+      throw new HttpError(409,
+        `Service "${service}": new registration contract is not backward compatible with the contract already in the registry. ` +
+        'Deploy with contract overrides or re-register the old version first, or have the new replica send the yamf-allow-breaking-contract header (e.g. YAMF_DEPLOY_ALLOW_BREAKING=1 in its environment).'
+      )
+    }
+  }
   
   // Check for pure service load-balancing attempt
   if (accessControl === 'pure') {

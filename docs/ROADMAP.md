@@ -81,17 +81,18 @@ Rolling k3s support plus the first wave of follow‑on slices. Concretely:
 - **F — `registerCommand`.** `packages/core/src/registry/command-router.js`; `registryServer` exposes `server.registerCommand`; first consumer `packages/services/deploy-router`. Tests: `register-command-tests.js`.
 - **A — CSP / default security headers.** `packages/core/src/shared/csp.js` (`buildCsp`, `getDefaultResponseSecurityHeaders`); `YAMF_CSP_MODE`, `YAMF_CSP_RELAXED`, etc. Tests: `security-headers-tests.js`.
 - **B — Upload & path safety.** `packages/shared/src/path-safety.js` and tightened file-upload / file-server behavior (see package changelogs for details).
-- **C1 / C2 / cross‑cut 1 (v1).** `yamf build`, bundle cache, `yamf deploy --local`, `planAndApply`, `@yamf/services-config` and CLI `yamf config` (refinements remain — see *Active follow‑on*).
+- **C1 / C2 / cross‑cut 1 (v1 + hardening).** `yamf build`, bundle cache, `yamf deploy --local`, `planAndApply`, `@yamf/services-config` and CLI `yamf config` (per-install `salt`, atomic `store.enc` writes, `delete` / `yamf config delete`, `YAMF_CONFIG_KEY` + `openssl rand -base64 32` guidance).
 - **D1** — `yamf dev` (watch + rebuild + deploy); `packages/cli/src/commands/dev.js`, `load-yamf-config` watch entries.
 - **C3** — `yamf deploy --remote`, registry bundle store, `streamBundleToFileWithHashCheck`, `remote-pm3-adapter` / `createRemotePm3`.
 - **C4 / C5** — per-replica `sourceHash` / `configVersion` / `node` in `replicaMetadata`, `deployDecisionFromReplicas`, `yamf deploy --rollback`, multi-node `pickNode` in deploy-router, rolling via existing driver + pm3.
+- **Cross‑cut 2 (contract gate).** `contract-compatibility.js`, `yamf deploy --dry-run` / `--allow-breaking`, bundle contract extract (`YAMF_EXTRACT_SERVICE_CONTRACT`), registry **409** on incompatible `SERVICE_REGISTER` without `yamf-allow-breaking-contract`. Tests: `contract-compatibility-tests.js`.
 - **Cross‑cut 3 (baseline).** `publishMessage('yamf:deploy', …)` from deploy-router on plan paths (`packages/services/deploy-router/service.js`); richer registry `/health` deploy ring buffer called out in the design doc is optional follow‑up.
 - **D2 / D3** — `@yamf/services-dev-hmr`, `yamf dev` publish, `@yamf/client/dev-hmr`, Vite `yamfVitePluginDev`.
 - **C6 (Tier 2 / registry).** `authorized_keys` + `yamf-bundle-ed25519-sig` enforcement and CLI `YAMF_DEPLOY_PRIVATE_KEY` upload signing. **Not shipped:** separate admin-only auth issuer (still noted in *Active follow‑on*’s small-print).
 
-**Still intentionally narrow / follow‑up (not a separate phase list):** cross‑cut **2** (full contract diff / `yamf deploy --dry-run` / registry gate) as sketched in this file is only partially realized — contract data is on the wire; **automated** incompatible blocking is not the focus of the shipped path. **Cross‑cuts 4 and 5** (auto re-placement, canary) remain deferred (see *Active follow‑on*).
+**Still intentionally narrow / follow‑up (not a separate phase list):** cross‑cut **2** warm‑replica promotion hook (optional; register-time gate is shipped). **Cross‑cuts 4 and 5** (auto re-placement, canary) remain deferred (see *Active follow‑on*).
 
-Regression coverage lives in `packages/core/tests/cases/rolling-registry-tests.js`, `packages/core/tests/cases/ssr-handler-tests.js`, and `packages/cli/src/tests/cli-rolling-commands.js`, plus `cache-coalesce-tests.js`, `register-command-tests.js`, and deploy driver tests.
+Regression coverage lives in `packages/core/tests/cases/rolling-registry-tests.js`, `packages/core/tests/cases/ssr-handler-tests.js`, `packages/core/tests/cases/contract-compatibility-tests.js`, and `packages/cli/src/tests/cli-rolling-commands.js`, plus `cache-coalesce-tests.js`, `register-command-tests.js`, and deploy driver tests.
 
 ### Relevant env knobs
 
@@ -124,16 +125,13 @@ The former **Phase 1–3** and **most of Phase 4** workstreams are **shipped** a
 
 **D4 (done for SPA + SoundClone):** `createYamfDevHmrSpaPatch` in `@yamf/client/dev-hmr` (tests: `yamf test -d . -f dev-hmr` in `packages/client`); other apps and **slice 3** HTML/SSR UIs follow the same `applyPatch` contract manually — [D4-SPA-HMR-ANALYSIS.md](./D4-SPA-HMR-ANALYSIS.md).
 
-### Cross‑cut 1 — config-service refinements (before treating remote as “boring”)
+### Cross‑cut 1 — config-service hardening
 
-- Atomic `save()` (tmp + rename) in `packages/services/config/storage.js`.
-- Random per‑install salt instead of hard‑coded `KEY_SALT` for `YAMF_CONFIG_KEY` derivation.
-- Passphrase entropy hint (`openssl rand -base64 32`).
-- Optional: `yamf config` / config-service `delete` for key rotation by removal.
+**Shipped:** Atomic `store.enc` save (tmp + rename under the data dir), 16-byte random per-install `salt` with one-time legacy re-key, `YAMF_CONFIG_KEY` error text pointing at `openssl rand -base64 32`, `command: 'delete'` and `yamf config delete` for rotation-by-removal, tests in `packages/services/config/config-storage-tests.js`. No other consumers: breaking layout/crypto changes do not need compatibility shims.
 
-### Cross‑cut 2 — contract‑aware rolling (full design)
+### Cross‑cut 2 — contract‑aware rolling
 
-- `yamf deploy --dry-run` contract diff, `--allow-breaking`, registry **promotion** gate on backward compatibility (see the sketch under *C3+ deploy router* in this file). **Today:** contracts ride on `REGISTRY_PULL`; **automated** enforcement is not fully wired.
+**Shipped:** `yamf deploy --dry-run` loads the built bundle with `YAMF_EXTRACT_SERVICE_CONTRACT` (early return in `createService`), diffs vs. `serviceContracts` from `REGISTRY_PULL` using `contract-compatibility.js` (`isBackwardCompatibleServiceContract`, key-based + validator fallback). Non‑zero exit when dry-run would block. `--allow-breaking` sets `YAMF_DEPLOY_ALLOW_BREAKING` on spawned processes and sends `yamf-allow-breaking-contract` on registry register. **Registry:** `SERVICE_REGISTER` rejects non‑compatible contract changes with **409** unless the header is set. **Not in this slice:** explicit `markReplicaHealthy` / warm‑up gate (registration-time check is the enforcement point today).
 
 ### Cross‑cut 3 — deploy observability (residual)
 
@@ -442,9 +440,10 @@ Minimum viable contract so C3 can't leak secrets into bundles:
 - **Service**: `packages/services/config/service.js` — `createService('config-service', handler)` with commands:
   - `get`  → `{ service, env }` → `{ values: {...}, version: N }`
   - `set`  → `{ service, env, values: {KEY: VALUE}, expectedVersion? }` → `{ version: N+1 }` (admin token required)
+  - `delete`  → `{ service, env, keys: string[], expectedVersion? }` → `{ version: N+1 }` (admin token; removes keys, rotation-by-removal)
   - `list` → `{ service?, env? }` → `[{ service, env, version, keys }]` (no values)
-- **Storage**: file‑backed at `${YAMF_HOME}/config/<service>/<env>.enc`, encrypted with libsodium secretbox using `YAMF_CONFIG_KEY` (32‑byte master key persisted like auth's ed25519 keys, see `packages/services/auth/service.js:88`). In memory cache is plaintext; `dump` command refuses to print values.
-- **CLI**: `yamf config set <service> --env prod KEY=VALUE` (prompts if value omitted, never echoes); `yamf config get <service> --env prod` (masked by default, `--reveal` needs admin token). Implemented in `packages/cli/src/commands/config.js`.
+- **Storage**: `createConfigStore` in `storage.js` — data dir (default `${YAMF_HOME}/config/data` via `service.js`): `store.enc` (JSON sealed with AES-256-GCM) + per-install `salt` (16 bytes) for scrypt key derivation from passphrase `YAMF_CONFIG_KEY`. Legacy stores without `salt` re-key on first run. In-memory state is plaintext at rest in process only.
+- **CLI**: `yamf config set`, `get` (masked by default, `--reveal` unsafe), `list`, `delete` — in `packages/cli/src/commands/config.js`. Strong passphrase: `openssl rand -base64 32`.
 - **Integration with pm3 spawn** (the only code path where plaintext lands on disk is the child process env):
 
   ```js
@@ -873,10 +872,11 @@ Phase 2 already ships `configVersion` in `replicaMetadata`; `yamf config set` bu
 
 #### Cross‑cut 2 — contract‑aware rolling
 
-Tie to the runtime contracts work tracked in `.cursor/plans/runtime_service_contracts_*.plan.md`.
+Runtime contracts: `service-contract.js`. Cross‑cut 2 wiring:
 
-- `yamf deploy --dry-run` diffs current vs. incoming contract (already on `REGISTRY_PULL`), prints added/removed/changed fields, exits non‑zero on incompatibilities unless `--allow-breaking`.
-- Registry refuses to promote a rolling replica to `healthy` if `isBackwardCompatible(current, incoming) === false`. Hook point is wherever the registry transitions a replica out of "warming" — today that's implicit in first‑call success; add an explicit `markReplicaHealthy(service, location)` step in `service-registry.js` so the contract gate has a single place to live.
+- **CLI / `planAndApply`:** `loadIncomingServiceContractFromBundle` → `checkDeployContractGate` → throws or (with `--dry-run`) JSON result; `YAMF_DEPLOY_ALLOW_BREAKING` for child + register header.
+- **Registry:** `registerService` compares new `yamf-service-contract` to the stored contract for that service name before overwrite; **409** if stricter / incompatible unless `yamf-allow-breaking-contract: 1`.
+- **Optional later:** a separate **healthy** transition hook if the deploy model adds an explicit warming state beyond register.
 
 #### Cross‑cut 3 — deploy audit events
 

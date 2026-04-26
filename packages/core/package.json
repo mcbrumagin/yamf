@@ -19,7 +19,8 @@
     "./env-config": "./src/shared/env-config.js",
     "./http-error": "./src/http-primitives/http-error.js",
     "./logger": "./src/utils/logger.js",
-    "./crypto": "./src/shared/crypto.js"
+    "./crypto": "./src/shared/crypto.js",
+    "./contract-compatibility": "./src/service/contract-compatibility.js"
   },
   "engines": {
     "node": ">=24.0.0"

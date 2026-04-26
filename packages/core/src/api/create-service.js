@@ -38,6 +38,11 @@ import crypto from 'crypto'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
+function isExtractServiceContract () {
+  const v = envConfig.get('YAMF_EXTRACT_SERVICE_CONTRACT')
+  return v === '1' || v === 1 || v === true
+}
+
 /**
  * Configuration for service setup
  */
@@ -114,6 +119,10 @@ export default async function createService(name, serviceFn, options = {}) {
 
   const contract = buildContract(config.useContract, serviceFn)
   if (contract) config.contract = contract
+
+  if (isExtractServiceContract()) {
+    return { yamfContractExtract: true, name, contract: contract || null }
+  }
   
   const cache = config.sharedCache || createServiceState()
 

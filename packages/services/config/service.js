@@ -55,6 +55,27 @@ export default async function createConfigService (opts = {}) {
         )
         return { version: v }
       }
+      if (command === 'delete') {
+        const token = payload.adminToken || payload.token
+        if (!adminToken || token !== adminToken) {
+          throw new HttpError(401, 'admin token required for delete')
+        }
+        const { service, env: envName, keys, expectedVersion } = payload
+        if (!service || !envName || !keys) {
+          throw new HttpError(400, 'delete requires service, env, keys (array of key names)')
+        }
+        const list = Array.isArray(keys) ? keys.map((k) => String(k)) : [String(keys)]
+        if (list.length === 0) {
+          throw new HttpError(400, 'delete requires at least one key name')
+        }
+        const v = store.removeKeys(
+          String(service),
+          String(envName),
+          list,
+          expectedVersion
+        )
+        return { version: v }
+      }
       throw new HttpError(400, `Unknown command: ${command}`)
     },
     { accessControl: 'private' }

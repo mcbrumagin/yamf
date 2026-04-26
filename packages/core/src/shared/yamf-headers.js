@@ -47,6 +47,8 @@ export const HEADERS = {
 
   // Service contracts
   SERVICE_CONTRACT: 'yamf-service-contract', // JSON-serialized contract object
+  /** Cross-cut 2: new replica registers a breaking contract; registry allows if header present */
+  ALLOW_BREAKING_CONTRACT: 'yamf-allow-breaking-contract',
 
   // Service type and timeout (for SSE, future WebSocket, etc.)
   SERVICE_TYPE: 'yamf-service-type',   // 'standard', 'sse', etc.
@@ -150,7 +152,8 @@ export function buildRegisterHeaders(serviceName, location, {
   contract = true,
   serviceType = null, // 'sse', etc. -- null means standard
   timeout = null,    // per-service timeout in ms (0 = no timeout)
-  metadata = null
+  metadata = null,
+  allowBreakingContract = false
 } = {}) {
   // TODO: Hybrid rate limiting - if rateLimit is an object, serialize it
   // For now, only support boolean (true = require config exists)
@@ -171,7 +174,8 @@ export function buildRegisterHeaders(serviceName, location, {
     ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) }),
     ...(serviceType && { [HEADERS.SERVICE_TYPE]: serviceType }),
     ...(timeout !== null && { [HEADERS.TIMEOUT]: String(timeout) }),
-    ...(meta && { [HEADERS.SERVICE_METADATA]: meta })
+    ...(meta && { [HEADERS.SERVICE_METADATA]: meta }),
+    ...(allowBreakingContract && { [HEADERS.ALLOW_BREAKING_CONTRACT]: '1' })
   }
 }
 
@@ -406,7 +410,8 @@ export function parseCommandHeaders(headers) {
     timeout,
     serviceMetadata,
     cacheBulk: headers[HEADERS.CACHE_BULK] === '1',
-    cacheWindowId: headers[HEADERS.CACHE_WINDOW_ID] || null
+    cacheWindowId: headers[HEADERS.CACHE_WINDOW_ID] || null,
+    allowBreakingContract: headers[HEADERS.ALLOW_BREAKING_CONTRACT] === '1'
   }
 }
 

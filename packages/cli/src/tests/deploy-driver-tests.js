@@ -1,9 +1,25 @@
 import { assert } from '@yamf/test'
 import { HEADERS, COMMANDS } from '@yamf/core'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { planAndApply, resolveLocalRollingTarget } from '../lib/deploy-driver.js'
+
+/**
+ * ESM that dynamic-imports @yamf/core and supports YAMF_EXTRACT_SERVICE_CONTRACT (no node_modules in tmp cwd).
+ * @param {string} [serviceName]
+ */
+function makeTestServiceBundle (serviceName = 'sample-svc') {
+  const require = createRequire(fileURLToPath(new URL('../../../package.json', import.meta.url)))
+  const href = pathToFileURL(require.resolve('@yamf/core')).href
+  return `import { createService } from ${JSON.stringify(href)}
+export default async function yamfDeployTestEntry () {
+  return createService(${JSON.stringify(serviceName)}, async () => ({}), { useContract: false })
+}
+`
+}
 
 export async function testResolveLocalRollingTargetUsesRunningBundlePathFallback () {
   const cwd = mkdtempSync(join(tmpdir(), 'yamf-deploy-driver-'))
@@ -78,7 +94,8 @@ export async function testPlanAndApplyRollingUsesFilepathFallbackWhenServiceKeyM
   const oldBundle = join(cwd, '.yamf', 'build', 'sample-svc', 'sha256-old.mjs')
   const newBundle = join(cwd, '.yamf', 'build', 'sample-svc', `${newHash}.mjs`)
   mkdirSync(join(cwd, '.yamf', 'build', 'sample-svc'), { recursive: true })
-  writeFileSync(newBundle, 'export default 1\n', 'utf8')
+  writeFileSync(oldBundle, makeTestServiceBundle('sample-svc'), 'utf8')
+  writeFileSync(newBundle, makeTestServiceBundle('sample-svc'), 'utf8')
   let rollingTarget = null
   const pm3 = {
     filepathForService: () => null,
@@ -122,12 +139,14 @@ export async function testPlanAndApplyRemoteRollingDoesNotUseLocalFilepathFallba
   const newHash = 'sha256-new'
   const newBundle = join(cwd, '.yamf', 'build', 'sample-svc', `${newHash}.mjs`)
   mkdirSync(join(cwd, '.yamf', 'build', 'sample-svc'), { recursive: true })
-  writeFileSync(newBundle, 'export default 1\n', 'utf8')
+  const oldB = join(cwd, '.yamf', 'build', 'sample-svc', 'sha256-old.mjs')
+  writeFileSync(oldB, makeTestServiceBundle('sample-svc'), 'utf8')
+  writeFileSync(newBundle, makeTestServiceBundle('sample-svc'), 'utf8')
   let rollingTarget = null
   const pm3 = {
     filepathForService: () => null,
     async list () {
-      return [{ status: 'running', internal: false, filepath: join(cwd, '.yamf', 'build', 'sample-svc', 'sha256-old.mjs') }]
+      return [{ status: 'running', internal: false, filepath: oldB }]
     },
     async restartRolling (target) {
       rollingTarget = target
@@ -174,7 +193,7 @@ export async function testPlanAndApplyFromYamfDevRedeploysWhenRegistryNoopButNoR
   const hash = 'sha256-new'
   const bundlePath = join(cwd, '.yamf', 'build', 'sample-svc', `${hash}.mjs`)
   mkdirSync(join(cwd, '.yamf', 'build', 'sample-svc'), { recursive: true })
-  writeFileSync(bundlePath, 'export default 1\n', 'utf8')
+  writeFileSync(bundlePath, makeTestServiceBundle('sample-svc'), 'utf8')
 
   const startCalls = []
   const pm3 = {
@@ -228,7 +247,7 @@ export async function testPlanAndApplyFromYamfDevStaysNoopWhenPm3RunsThisBundle 
   const hash = 'sha256-new'
   const bundlePath = join(cwd, '.yamf', 'build', 'sample-svc', `${hash}.mjs`)
   mkdirSync(join(cwd, '.yamf', 'build', 'sample-svc'), { recursive: true })
-  writeFileSync(bundlePath, 'export default 1\n', 'utf8')
+  writeFileSync(bundlePath, makeTestServiceBundle('sample-svc'), 'utf8')
 
   const pm3 = {
     async list () {

@@ -15,6 +15,7 @@ yamf config - Talk to config-service (Phase 2)
 Usage:
   yamf config get <service> [options]     Call config-service get (values masked)
   yamf config set <service> <KEY=VALUE> [options]   Set a key (requires YAMF_CONFIG_ADMIN_TOKEN on server)
+  yamf config delete <service> <KEY> [KEY...] [options]   Remove key(s) (admin token, rotation-by-removal)
   yamf config list [options]              List config entries (no values)
 
 Environment:
@@ -135,5 +136,25 @@ export async function runConfigCommand (args) {
     return
   }
 
-  throw new Error(`Unknown config subcommand: ${sub}. Try: yamf config get | set | list`)
+  if (sub === 'delete') {
+    const pos = options._positional
+    const service = pos[0]
+    const keys = pos.slice(1)
+    if (!service || keys.length === 0) {
+      throw new Error('Usage: yamf config delete <service> <KEY> [KEY...]')
+    }
+    const admin = process.env.YAMF_CONFIG_ADMIN_TOKEN || (await promptHidden('YAMF_CONFIG_ADMIN_TOKEN: '))
+    const body = {
+      command: 'delete',
+      service,
+      env: envName,
+      keys,
+      adminToken: admin
+    }
+    const r = await httpRequest(registryUrl, { method: 'POST', headers: baseHeaders, body })
+    console.log(JSON.stringify(r, null, 2))
+    return
+  }
+
+  throw new Error(`Unknown config subcommand: ${sub}. Try: yamf config get | set | delete | list`)
 }

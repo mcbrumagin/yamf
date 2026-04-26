@@ -40,5 +40,8 @@ export {
 } from './registry/deploy-bundle-signature.js'
 export { getReplicasFor, listServiceLocations } from './registry/replica-helpers.js'
 
+// Contract cross-cut 2: import from @yamf/core/contract-compatibility (not the main entry) so app
+// bundles that only need createService do not load or resolve this module.
+
 // Rate Limiter
 export * from './rate-limiter/index.js'

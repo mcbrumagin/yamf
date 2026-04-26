@@ -14,6 +14,13 @@ import { hasLocalService, getLocalServiceAccess } from '../shared/local-state.js
 
 const logger = new Logger({ logGroup: 'yamf-service-helpers' })
 
+function allowBreakingContractFromEnv () {
+  return (
+    envConfig.get('YAMF_DEPLOY_ALLOW_BREAKING') === '1' ||
+    envConfig.get('YAMF_DEPLOY_ALLOW_BREAKING') === true
+  )
+}
+
 /**
  * Default configuration for service operations
  */
@@ -149,7 +156,8 @@ export async function registerServiceWithRegistry(serviceName, location, options
       contract,
       serviceType,
       timeout,
-      metadata
+      metadata,
+      allowBreakingContract: allowBreakingContractFromEnv()
     })
   })
 }
@@ -176,7 +184,8 @@ export async function notifyRegistryOfPureService(serviceName, options = {}) {
         useAuthService,
         accessControl: 'pure',
         registryToken,
-        contract
+        contract,
+        allowBreakingContract: allowBreakingContractFromEnv()
       })
     })
   } catch (err) {

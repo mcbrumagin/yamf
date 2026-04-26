@@ -11,6 +11,8 @@ import {
   deployDecisionFromReplicas,
   signDeployHashWithEd25519Pem
 } from '@yamf/core'
+import { checkDeployContractGate } from '@yamf/core/contract-compatibility'
+import { loadIncomingServiceContractFromBundle } from './contract-from-bundle.js'
 import { readFileSync, createReadStream } from 'node:fs'
 import { dirname, join, resolve as pathResolve, sep } from 'node:path'
 import { getServiceBuildDir } from './yamf-paths.js'
@@ -197,6 +199,8 @@ export function mergeRequiredEnvFromProcess (requiredNames, overlay) {
  * @param {boolean} [args.fromYamfDev] - yamf dev: ignore noop if no PM3 process runs the bundle (stale replica row)
  * @param {string} [args.configRoot] - Absolute project root (yamf `root` + cwd). Sets {@code YAMF_ENTRY_DIR} so bundled
  *   entries can resolve `public/` and other paths next to the source entry, not under `.yamf/build/`.
+ * @param {boolean} [args.dryRun] - Cross-cut 2: do not upload or start; print contract diff result
+ * @param {boolean} [args.allowBreaking] - allow deploy / replica registration when contract is not backward compatible
  */
 export async function planAndApply ({
   yamfService,
@@ -210,7 +214,9 @@ export async function planAndApply ({
   remote = false,
   deployToken = process.env.YAMF_DEPLOY_TOKEN || '',
   fromYamfDev = false,
-  configRoot
+  configRoot,
+  dryRun = false,
+  allowBreaking = false
 }) {
   const pull = await httpRequest(registryUrl, {
     headers: {
@@ -249,6 +255,9 @@ export async function planAndApply ({
   }
 
   if (decision === 'noop') {
+    if (dryRun) {
+      return { decision, dryRun: true, replicas: sameHash.length, contract: { skipped: 'no deploy needed (already at this hash)' } }
+    }
     return { decision, replicas: sameHash.length }
   }
 
@@ -261,6 +270,42 @@ export async function planAndApply ({
     )
   }
 
+  const yamfEntryDir =
+    configRoot && yamfService.entry
+      ? pathResolve(configRoot, dirname(yamfService.entry))
+      : null
+
+  let incomingContract
+  try {
+    incomingContract = await loadIncomingServiceContractFromBundle(bundlePath, {
+      ...(yamfEntryDir ? { yamfEntryDir } : {})
+    })
+  } catch (e) {
+    throw new Error(
+      `Could not load service contract from bundle (cross-cut 2): ${e?.message || e}`
+    )
+  }
+  const currentContract = pull.serviceContracts?.[serviceName] ?? null
+  const gate = checkDeployContractGate(currentContract, incomingContract, { allowBreaking: !!allowBreaking })
+  if (dryRun) {
+    return {
+      decision,
+      dryRun: true,
+      contract: {
+        current: currentContract,
+        incoming: incomingContract,
+        allowed: gate.allowed,
+        reason: gate.reason,
+        diffSummary: gate.diff?.summary,
+        diffLines: gate.diff?.lines
+      }
+    }
+  }
+  if (!gate.allowed) {
+    const extra = (gate.diff?.lines || []).join('\n')
+    throw new Error(`${gate.reason}\n${extra}`)
+  }
+
   if (remote) {
     await uploadDeployBundleToRegistry({ registryUrl, hash, bundlePath, deployToken })
   }
@@ -268,10 +313,11 @@ export async function planAndApply ({
   let env = {
     YAMF_SOURCE_HASH: hash,
     YAMF_BUNDLE_PATH: bundlePath,
-    YAMF_SERVICE_NAME: serviceName
+    YAMF_SERVICE_NAME: serviceName,
+    ...(allowBreaking && { YAMF_DEPLOY_ALLOW_BREAKING: '1' })
   }
-  if (configRoot && yamfService.entry) {
-    env.YAMF_ENTRY_DIR = pathResolve(configRoot, dirname(yamfService.entry))
+  if (yamfEntryDir) {
+    env.YAMF_ENTRY_DIR = yamfEntryDir
   }
 
   const required = yamfService.env || []

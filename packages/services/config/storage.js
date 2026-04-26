@@ -1,20 +1,50 @@
-import { createDecipheriv } from 'node:crypto'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs'
+import { createDecipheriv, randomBytes } from 'node:crypto'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
-import { envConfig } from '@yamf/core/env-config'
-import { deriveKeyScrypt32, sealJsonAesGcm256, openJsonAesGcm256 } from '@yamf/core/crypto'
+import { envConfig, deriveKeyScrypt32, sealJsonAesGcm256, openJsonAesGcm256 } from '@yamf/core'
 
-const KEY_SALT = 'yamf-config-v1'
+/** @deprecated - only to decrypt pre-cross-cut-1 stores, then re-key to per-install `salt` */
+const KEY_SALT_LEGACY = 'yamf-config-v1'
 
 /**
+ * @param {string|Buffer} salt
  * @returns {Buffer}
  */
-function getMasterKey () {
+function deriveKey (salt) {
   const raw = envConfig.get('YAMF_CONFIG_KEY', null)
   if (!raw) {
-    throw new Error('YAMF_CONFIG_KEY is required (passphrase; scrypt-derived to 32 bytes in @yamf/core/crypto)')
+    throw new Error(
+      'YAMF_CONFIG_KEY is required (scrypt passphrase). Generate a strong secret, e.g. `openssl rand -base64 32` — set in the environment, never commit it.'
+    )
   }
-  return deriveKeyScrypt32(String(raw), KEY_SALT, { N: 16384, r: 8, p: 1 })
+  return deriveKeyScrypt32(String(raw), salt, { N: 16384, r: 8, p: 1 })
+}
+
+/**
+ * @param {string} dir
+ * @param {Buffer} b - 16 bytes
+ */
+function writeSaltAtomic (dir, b) {
+  mkdirSync(dir, { recursive: true })
+  const p = join(dir, 'salt')
+  const tmp = `${p}.tmp`
+  const line = `${b.toString('base64')}\n`
+  writeFileSync(tmp, line, { mode: 0o600, encoding: 'utf8' })
+  renameSync(tmp, p)
+}
+
+/**
+ * @param {string} dir
+ * @returns {Buffer}
+ */
+function readSaltB64 (dir) {
+  const p = join(dir, 'salt')
+  const s = readFileSync(p, { encoding: 'utf8' }).trim()
+  const b = Buffer.from(s, 'base64')
+  if (b.length !== 16) {
+    throw new Error('config store salt: expected 16 bytes (base64 in salt file), re-create salt or use a fresh YAMF_HOME config dir')
+  }
+  return b
 }
 
 /**
@@ -37,10 +67,32 @@ function openJsonLegacyBinaryBlob (buf, key) {
  * Crypto: @yamf/core (AES-256-GCM + scrypt) — not a separate npm crypt library.
  */
 export function createConfigStore (baseDir) {
-  const key = getMasterKey()
+  /** @type {Buffer} */
+  let key
   /** @type {Map<string, { version: number, values: Record<string, string> }>} */
   const mem = new Map()
   const filePath = () => join(baseDir, 'store.enc')
+  const saltPath = () => join(baseDir, 'salt')
+
+  const save = () => {
+    mkdirSync(baseDir, { recursive: true })
+    const all = Object.fromEntries(mem)
+    const text = sealJsonAesGcm256(key, all)
+    const p = filePath()
+    const tmp = join(baseDir, `store.enc.${process.pid}.tmp`)
+    try {
+      writeFileSync(tmp, text, { mode: 0o600, encoding: 'utf8' })
+      renameSync(tmp, p)
+    } catch (e) {
+      try {
+        if (existsSync(tmp)) unlinkSync(tmp)
+      } catch {
+        /* ignore */
+      }
+      throw e
+    }
+  }
+
   const load = () => {
     const p = filePath()
     if (!existsSync(p)) return
@@ -57,16 +109,29 @@ export function createConfigStore (baseDir) {
       mem.set(k, v)
     }
   }
-  const save = () => {
-    mkdirSync(baseDir, { recursive: true })
-    const all = Object.fromEntries(mem)
-    const text = sealJsonAesGcm256(key, all)
-    const p = filePath()
-    const tmp = `${p}.${process.pid}.tmp`
-    writeFileSync(tmp, text, { mode: 0o600, encoding: 'utf8' })
-    renameSync(tmp, p)
+
+  mkdirSync(baseDir, { recursive: true })
+  const storeExists = existsSync(filePath())
+  const saltExists = existsSync(saltPath())
+
+  if (saltExists) {
+    key = deriveKey(readSaltB64(baseDir))
+  } else if (storeExists) {
+    key = deriveKey(KEY_SALT_LEGACY)
+    load()
+    const newSalt = randomBytes(16)
+    writeSaltAtomic(baseDir, newSalt)
+    key = deriveKey(newSalt)
+    save()
+  } else {
+    const newSalt = randomBytes(16)
+    writeSaltAtomic(baseDir, newSalt)
+    key = deriveKey(newSalt)
   }
-  load()
+
+  if (!(!saltExists && storeExists)) {
+    load()
+  }
 
   return {
     get (service, env) {
@@ -84,6 +149,30 @@ export function createConfigStore (baseDir) {
       const next = {
         version: cur.version + 1,
         values: { ...cur.values, ...values }
+      }
+      mem.set(k, next)
+      save()
+      return next.version
+    },
+    /**
+     * Remove keys from one service/env row (for rotation-by-removal).
+     * @param {string[]} keys
+     */
+    removeKeys (service, env, keys, expectedVersion) {
+      const k = `${service}\0${env}`
+      const cur = mem.get(k) || { version: 0, values: {} }
+      if (expectedVersion != null && cur.version !== expectedVersion) {
+        const err = new Error(`version mismatch: have ${cur.version}, expected ${expectedVersion}`)
+        err.code = 'VERSION_CONFLICT'
+        throw err
+      }
+      const values = { ...cur.values }
+      for (const name of keys) {
+        delete values[name]
+      }
+      const next = {
+        version: cur.version + 1,
+        values
       }
       mem.set(k, next)
       save()

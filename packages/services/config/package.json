@@ -16,11 +16,12 @@
     "@yamf/core": "workspace:*"
   },
   "devDependencies": {
+    "@yamf/cli": "workspace:*",
     "@yamf/core": "workspace:*",
     "@yamf/test": "workspace:*"
   },
   "scripts": {
-    "test": "node -e \"console.log('no tests yet')\""
+    "test": "yamf test -d ."
   },
   "files": [
     "service.js",

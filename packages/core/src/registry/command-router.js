@@ -190,7 +190,8 @@ async function handleRegister(state, payload, headers = {}) {
     routePath, routeDataType, routeType,
     rateLimitRequired, contract,
     serviceType, timeout,
-    serviceMetadata
+    serviceMetadata,
+    allowBreakingContract
   } = parseCommandHeaders(headers)
   
   // Header-based registration
@@ -214,7 +215,8 @@ async function handleRegister(state, payload, headers = {}) {
       contract,
       serviceType,
       timeout,
-      metadata: serviceMetadata && typeof serviceMetadata === 'object' ? serviceMetadata : {}
+      metadata: serviceMetadata && typeof serviceMetadata === 'object' ? serviceMetadata : {},
+      allowBreakingContract: !!allowBreakingContract
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {

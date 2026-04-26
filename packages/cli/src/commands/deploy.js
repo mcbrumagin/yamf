@@ -18,7 +18,9 @@ const ARGS = {
   env: { flags: ['-e', '--env'], type: 'string' },
   replicas: { flags: ['-i', '--replicas'], type: 'number' },
   rollback: { flags: ['--rollback'], type: 'string' },
-  force: { flags: ['--force'] }
+  force: { flags: ['--force'] },
+  dryRun: { flags: ['--dry-run'] },
+  allowBreaking: { flags: ['--allow-breaking'] }
 }
 
 function getDeployHelp () {
@@ -118,10 +120,15 @@ export async function runDeployCommand (args) {
     cwd,
     remote,
     deployToken: process.env.YAMF_DEPLOY_TOKEN,
-    configRoot
+    configRoot,
+    dryRun: !!options.dryRun,
+    allowBreaking: !!options.allowBreaking
   })
   if (options.rollback) {
     result.rollback = true
+  }
+  if (result.dryRun && result.contract && result.contract.allowed === false) {
+    process.exitCode = 1
   }
   logger.info('Deploy result:', result)
   console.log(JSON.stringify(result, null, 2))
