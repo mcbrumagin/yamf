@@ -4,13 +4,15 @@ import {
   HttpError,
   next,
   envConfig,
-  HEADERS
+  HEADERS,
+  loadOrCreateEd25519KeyPair
 } from '@yamf/core'
 
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 
 import { createInMemoryCache } from '@yamf/services-cache'
-import { ed25519 } from '@yamf/core/crypto'
+import { ed25519, calculateSHA256Checksum } from '@yamf/core/crypto'
 
 const logger = new Logger({ logGroup: 'yamf-services' })
 
@@ -39,92 +41,128 @@ async function assertValidateUserPasswordSanity(validateUserPassword) {
   }
 }
 
-
-/*
-
-  hybrid JWT-lite w/ optional sessions 
-  - opinionated ed25519 assymetric signing/verification, so no need for JWT header
-  - expiration data is stored in refresh/access tokens that are part of the signature
-  - expirations can also be saved in memory, if revocation is needed
-  - on login, a refresh token will be returned to the client, along with an access token
-  - the auth service will handle signing/authentication with the private key
-  - the refresh token will be used by a client on landing to generate a new access token
-  - [unimplemnted]access tokens can be verified by services that have the public key
-
-  TODO: public key will be sent on a pubsub channel so other services can subscribe to it
-  TODO: brute force protection for authentication endpoints (rate limiting, IP-based restrictions, CAPTCHAs)
-*/
-
-// default to hardcoded single admin user
-const defaultValidateUser = async (username, password) => {
-  let user = envConfig.getRequired('ADMIN_USER')
-  let pass = envConfig.getRequired('ADMIN_PASS')
-  if (user !== username || pass !== password) return false
-  else return true
+function defaultKeyDir() {
+  return join(envConfig.get('YAMF_HOME', join(process.cwd(), '.yamf')), 'auth')
 }
 
-// eventually will be backed by a database
+function tokenKeyId(encodedToken) {
+  return calculateSHA256Checksum(encodedToken).slice(0, 16)
+}
+
+const defaultValidateUser = async (username, password) => {
+  const user = envConfig.getRequired('ADMIN_USER')
+  const pass = envConfig.getRequired('ADMIN_PASS')
+  if (user !== username || pass !== password) return false
+  return true
+}
+
+/**
+ * @param {Object} [opts]
+ * @param {string} [opts.serviceName='auth-service']
+ * @param {boolean|string} [opts.useSessions='refresh-only'] true | 'refresh-only' | false
+ * @param {boolean} [opts.ephemeral] default true when NODE_ENV=test
+ * @param {number|null} [opts.maxSessionsPerUser] max concurrent refresh sessions per user (null = unlimited)
+ */
 export default async function createAuthService({
   serviceName = 'auth-service',
   useSessions = 'refresh-only',
   validateUserPassword = defaultValidateUser,
-  enrichTokenPayload = null
+  enrichTokenPayload = null,
+  keyName = 'default',
+  keyDir = defaultKeyDir(),
+  ephemeral = process.env.NODE_ENV === 'test' || process.env.YAMF_AUTH_EPHEMERAL === '1',
+  accessTokenExpiry = 60000 * 30,
+  refreshTokenExpiry = 60000 * 60 * 24,
+  maxSessionsPerUser = null,
+  sessionMetadataFn = null
 } = {}) {
   if (useSessions && useSessions !== true && useSessions !== 'refresh-only') {
     throw new Error('useSessions must be true or "refresh-only"')
   }
+  if (maxSessionsPerUser != null && (!Number.isFinite(maxSessionsPerUser) || maxSessionsPerUser < 1)) {
+    throw new Error('maxSessionsPerUser must be a positive integer or null')
+  }
 
   await assertValidateUserPasswordSanity(validateUserPassword)
 
-  const keyPair = await ed25519.generateKeyPair()
+  const { keyPair, kid } = await loadOrCreateEd25519KeyPair({
+    keyName,
+    keyDir,
+    ephemeral
+  })
 
-  // should use an internal memory-only cache for security
-  const defaultAccessTokenExpireTime = 60000 * 30
-  const defaultRefreshTokenExpireTime = 60000 * 60 * 24
+  const minEvict = Math.min(accessTokenExpiry, refreshTokenExpiry)
+  const cache = !useSessions
+    ? null
+    : createInMemoryCache({
+      expireTime: minEvict,
+      evictionInterval: Math.max(1000, Math.floor(minEvict / 30))
+    })
 
+  const encodeBase64 = (data) => Buffer.from(data).toString('base64')
+  const decodeBase64 = (data) => Buffer.from(data, 'base64').toString('utf8')
 
   const createToken = async (user, type = 'access') => {
-    let expire = Date.now() + (type === 'access' ? defaultAccessTokenExpireTime : defaultRefreshTokenExpireTime)
+    const expire = Date.now() + (type === 'access' ? accessTokenExpiry : refreshTokenExpiry)
     const extra = enrichTokenPayload ? await enrichTokenPayload(user) : {}
-    const payload = JSON.stringify({ user, expire, ...extra })
+    const payload = JSON.stringify({ user, expire, kid, ...extra })
     const signature = await ed25519.sign(keyPair, payload)
     logger.debug(`signature: ${signature}`)
     return encodeBase64(`${payload}.${signature}`)
   }
 
-  const encodeBase64 = (data) => {
-    return Buffer.from(data).toString('base64')
+  function assertPayloadKidMatches(payload) {
+    if (payload.kid != null && payload.kid !== kid) {
+      throw new HttpError(401, 'Invalid access token')
+    }
   }
 
-  const decodeBase64 = (data) => {
-    return Buffer.from(data, 'base64').toString('utf8')
+  function evictOldestUserSessionsIfNeeded(user) {
+    if (!cache || maxSessionsPerUser == null) return
+    const all = cache.get('*')
+    if (!all || typeof all !== 'object') return
+    const rows = Object.keys(all)
+      .filter((k) => k.startsWith('refresh:') && all[k]?.user === user)
+      .map((k) => ({ k, t: all[k].createdAt || 0 }))
+      .sort((a, b) => a.t - b.t)
+    while (rows.length >= maxSessionsPerUser) {
+      const row = rows.shift()
+      if (row) cache.del(row.k)
+    }
   }
-
-  const cache = !useSessions ? null :createInMemoryCache({
-    expireTime: defaultAccessTokenExpireTime,
-    evictionInterval: defaultAccessTokenExpireTime / 30
-  })
 
   const authenticate = async (payload, request, response) => {
     logger.debug(`authenticating user ${payload.user}`)
 
     const isValid = await validateUserPassword(payload.user, payload.password)
-
     if (isValid !== true) {
       throw new HttpError(401, 'Invalid credentials')
     }
 
+    if (useSessions) {
+      evictOldestUserSessionsIfNeeded(payload.user)
+    }
+
     const refreshToken = await createToken(payload.user, 'refresh')
     const accessToken = await createToken(payload.user, 'access')
-    
+    const now = Date.now()
+    const meta = sessionMetadataFn
+      ? await sessionMetadataFn(payload, request)
+      : undefined
+
     if (useSessions) {
-      cache.setex(`${payload.user}:refresh-token`, refreshToken, defaultRefreshTokenExpireTime)
+      const rid = tokenKeyId(refreshToken)
+      cache.setex(
+        `refresh:${rid}`,
+        { user: payload.user, createdAt: now, ...(meta && { metadata: meta }) },
+        refreshTokenExpiry
+      )
       if (useSessions !== 'refresh-only') {
-        cache.setex(`${payload.user}:access-token`, accessToken)
+        const aid = tokenKeyId(accessToken)
+        cache.setex(`access:${aid}`, { user: payload.user, createdAt: now }, accessTokenExpiry)
       }
     }
 
-    // TODO different security settings for production/development
     response.writeHead(200, {
       'Set-Cookie': `refresh-token=${refreshToken}; Path=/; HttpOnly; Secure; SameSite=Strict`,
       'content-type': 'application/json'
@@ -133,11 +171,20 @@ export default async function createAuthService({
     return next()
   }
 
-  /**
-   * Logout: invalidate sessions when enabled, then clear the refresh-token cookie.
-   * If sessions are disabled, does nothing except clear the cookie so the client drops it.
-   */
   const logout = async (payload, request, response) => {
+    const wantAll = payload && typeof payload === 'object' && payload.logoutAll === true
+
+    const clearSessionKeysForUser = (user) => {
+      if (!cache || !user) return
+      const all = cache.get('*')
+      if (!all || typeof all !== 'object') return
+      for (const k of Object.keys(all)) {
+        if ((k.startsWith('refresh:') || k.startsWith('access:')) && all[k]?.user === user) {
+          cache.del(k)
+        }
+      }
+    }
+
     let user = null
 
     const authToken = request.headers?.[HEADERS.AUTH_TOKEN]
@@ -147,7 +194,7 @@ export default async function createAuthService({
         const [tokenPayload] = decoded.split('.')
         const parsed = JSON.parse(tokenPayload)
         if (parsed?.user) user = parsed.user
-      } catch (_) { /* ignore invalid token */ }
+      } catch (_) { /* ignore */ }
     }
 
     if (!user && request.headers?.cookie) {
@@ -164,9 +211,19 @@ export default async function createAuthService({
     }
 
     if (useSessions && user) {
-      cache.del(`${user}:refresh-token`)
-      if (useSessions !== 'refresh-only') {
-        cache.del(`${user}:access-token`)
+      if (wantAll) {
+        clearSessionKeysForUser(user)
+      } else {
+        const match = request.headers?.cookie?.match(/refresh-token=([^;]+)/)
+        const refreshEnc = match?.[1]
+        if (refreshEnc) {
+          const rid = tokenKeyId(refreshEnc)
+          cache.del(`refresh:${rid}`)
+        }
+        if (useSessions !== 'refresh-only' && authToken) {
+          const aid = tokenKeyId(authToken)
+          cache.del(`access:${aid}`)
+        }
       }
     }
 
@@ -182,49 +239,55 @@ export default async function createAuthService({
   const getNewAccessToken = async (payload, request) => {
     logger.info(`checking cookie for refresh token ${request.headers.cookie}`)
 
-    // TODO error if payload is not null? we are using the refresh token header
     if (!request.headers.cookie) {
       throw new HttpError(400, 'Invalid auth request')
     }
 
-    let refreshTokenEncoded = request.headers.cookie.split('refresh-token=')[1]
-    logger.info(`refresh token header: ${refreshTokenEncoded}`)
-    let refreshToken = decodeBase64(refreshTokenEncoded)
-    logger.info(`refresh token decoded: ${refreshToken}`)
+    const m = request.headers.cookie.match(/refresh-token=([^;]+)/)
+    const refreshTokenEncoded = m?.[1]
+    if (!refreshTokenEncoded) {
+      throw new HttpError(400, 'Invalid auth request')
+    }
+
+    const refreshToken = decodeBase64(refreshTokenEncoded)
     const [tokenPayload, signature] = refreshToken.split('.')
 
     payload = JSON.parse(tokenPayload)
-
-    let isValid = await ed25519.verify(keyPair, tokenPayload, signature)
-
+    const isValid = await ed25519.verify(keyPair, tokenPayload, signature)
     if (!isValid) {
       throw new HttpError(400, 'Invalid auth request')
-    } else if (payload.expire < Date.now()) {
+    }
+    if (payload.expire < Date.now()) {
       throw new HttpError(401, 'Expired refresh token')
     }
+    assertPayloadKidMatches(payload)
 
     if (useSessions) {
-      let cacheToken = cache.get(`${payload.user}:refresh-token`)
-      if (!cacheToken || cacheToken !== refreshTokenEncoded) {
+      const rid = tokenKeyId(refreshTokenEncoded)
+      const entry = cache.get(`refresh:${rid}`)
+      if (!entry || entry.user !== payload.user) {
         throw new HttpError(401, 'Invalid session')
       }
     }
 
     const accessToken = await createToken(payload.user, 'access')
     if (useSessions && useSessions !== 'refresh-only') {
-      cache.setex(`${payload.user}:access-token`, accessToken)
+      const aid = tokenKeyId(accessToken)
+      cache.setex(`access:${aid}`, { user: payload.user, createdAt: Date.now() }, accessTokenExpiry)
     }
 
     return { accessToken }
   }
 
   const verifyAccessToken = async (accessToken) => {
-    let decodedToken, tokenPayload, signature
+    let decodedToken
+    let tokenPayload
+    let signature
     try {
       decodedToken = decodeBase64(accessToken)
       const parts = decodedToken.split('.')
-      signature = parts.pop() // only the last part is the signature
-      tokenPayload = parts.join('.') // reassemble the payload without the signature
+      signature = parts.pop()
+      tokenPayload = parts.join('.')
     } catch (err) {
       throw new HttpError(401, 'Invalid access token')
     }
@@ -236,16 +299,19 @@ export default async function createAuthService({
       throw new HttpError(401, 'Invalid access token')
     }
 
-    let isValid = await ed25519.verify(keyPair, tokenPayload, signature)
+    const isValid = await ed25519.verify(keyPair, tokenPayload, signature)
     if (!isValid) {
       throw new HttpError(401, 'Invalid access token')
-    } else if (payload.expire < Date.now()) {
+    }
+    if (payload.expire < Date.now()) {
       throw new HttpError(401, 'Expired access token')
     }
+    assertPayloadKidMatches(payload)
 
     if (useSessions && useSessions !== 'refresh-only') {
-      let cacheToken = cache.get(`${payload.user}:access-token`)
-      if (!cacheToken || cacheToken !== accessToken) {
+      const aid = tokenKeyId(accessToken)
+      const entry = cache.get(`access:${aid}`)
+      if (!entry || entry.user !== payload.user) {
         throw new HttpError(401, 'Invalid session')
       }
     }
@@ -253,16 +319,11 @@ export default async function createAuthService({
   }
 
   const server = await createService(serviceName, async function authService(payload, request, response) {
-    // TODO bearer token?
     if (payload.authenticate) return authenticate(payload.authenticate, request, response)
-    else if (payload.logout) return logout(payload.logout, request, response)
-    else if (payload.verifyAccess) return verifyAccessToken(payload.verifyAccess, request, response)
-    else return getNewAccessToken(payload, request, response)
+    if (payload.logout) return logout(payload.logout, request, response)
+    if (payload.verifyAccess) return verifyAccessToken(payload.verifyAccess, request, response)
+    return getNewAccessToken(payload, request)
   })
-
-  // TODO if we add CSRF protection, we need to add process tokens for form state
-  // NOTE it should not be needed since we are using JWT lite, but it would be good for defense in depth
-  // will be ideal for financial/medical data, legacy browsers, or samesite relaxation
 
   return server
 }

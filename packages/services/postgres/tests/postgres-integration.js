@@ -26,8 +26,8 @@ const TEST_PSQL_CONFIG = process.env.TEST_PSQL_URL ||
 
 export async function testPostgres_BasicQuery() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       const result = await callService('postgres-service', {
         template: 'SELECT 1 + 1 AS sum',
@@ -44,8 +44,8 @@ export async function testPostgres_BasicQuery() {
 
 export async function testPostgres_ParameterizedQuery() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       const result = await callService('postgres-service', {
         template: 'SELECT :a::integer + :b::integer AS sum',
@@ -58,8 +58,8 @@ export async function testPostgres_ParameterizedQuery() {
 
 export async function testPostgres_CaseMapping() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       const result = await callService('postgres-service', {
         template: `SELECT 'test' AS my_column_name, 123 AS another_value`,
@@ -75,8 +75,8 @@ export async function testPostgres_CaseMapping() {
 
 export async function testPostgres_MapCaseFalse() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       const result = await callService('postgres-service', {
         template: `SELECT 'raw' AS snake_case_key`,
@@ -92,8 +92,8 @@ export async function testPostgres_MapCaseFalse() {
 
 export async function testPostgres_EmptyResult() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       const result = await callService('postgres-service', {
         template: 'SELECT 1 AS id WHERE false',
@@ -109,8 +109,8 @@ export async function testPostgres_EmptyResult() {
 
 export async function testPostgres_MultipleRows() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       const result = await callService('postgres-service', {
         template: 'SELECT generate_series(1, 5) AS num',
@@ -128,8 +128,8 @@ export async function testPostgres_MultipleRows() {
 
 export async function testPostgres_NullParameter() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       const result = await callService('postgres-service', {
         template: 'SELECT :val::text IS NULL AS is_null',
@@ -142,8 +142,8 @@ export async function testPostgres_NullParameter() {
 
 export async function testPostgres_MissingPlaceholder() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       await assertErr(
         async () => callService('postgres-service', {
@@ -159,8 +159,8 @@ export async function testPostgres_MissingPlaceholder() {
 
 export async function testPostgres_ReusedPlaceholder() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       const result = await callService('postgres-service', {
         template: 'SELECT :x::integer AS a, :x::integer + 1 AS b',
@@ -176,8 +176,8 @@ export async function testPostgres_ReusedPlaceholder() {
 
 export async function testPostgres_MissingTemplate() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       await assertErr(
         async () => callService('postgres-service', {
@@ -192,8 +192,8 @@ export async function testPostgres_MissingTemplate() {
 
 export async function testPostgres_MissingData() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       await assertErr(
         async () => callService('postgres-service', {
@@ -209,8 +209,8 @@ export async function testPostgres_MissingData() {
 
 export async function testPostgres_SqlError() {
   await terminateAfter(
-    await registryServer(),
-    await createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => registryServer(),
+    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       await assertErr(
         async () => callService('postgres-service', {

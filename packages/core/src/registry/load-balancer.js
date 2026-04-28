@@ -123,3 +123,11 @@ export function resetRoundRobinState() {
   roundRobinState.clear()
 }
 
+/**
+ * Clear round-robin cursor when a service's instance set changes (unregister / scale).
+ * Avoids stale index vs fewer addresses; pairs with gateway pull after unregister.
+ */
+export function clearRoundRobinForService (serviceName) {
+  roundRobinState.delete(serviceName)
+}
+

@@ -15,12 +15,16 @@
  */
 
 import Logger from '../utils/logger.js'
+import { getDefaultResponseSecurityHeaders } from '../shared/csp.js'
 import crypto from 'crypto'
 import { COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
+import readStream from '../http-primitives/read-stream.js'
+import { createSsrHandlerRegistry } from '../service/ssr-handler-registry.js'
 import { createPubSubManager } from '../service/pubsub-manager.js'
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
 import { buildEnhancedContext, updateContext, bindServiceFunction } from '../service/service-context.js'
 import { createCacheAwareHandler } from '../service/cache-handler.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 import {
   createAndRegisterService,
   unregisterServiceFromRegistry
@@ -109,6 +113,8 @@ export default async function createEventSourceService(serviceName, handlers = {
   const { onConnect, onDisconnect, channels } = handlers
   const accessControl = options.accessControl || 'public'
   const heartbeatInterval = options.heartbeatInterval !== undefined ? options.heartbeatInterval : 30000
+  const renderMode = options.renderMode === 'html-handlers'
+  const ssr = renderMode ? createSsrHandlerRegistry(serviceName) : null
   
   if (accessControl === 'pure' || accessControl === 'local') {
     throw new Error(
@@ -142,7 +148,35 @@ export default async function createEventSourceService(serviceName, handlers = {
    * Non-SSE requests get service info
    */
   async function sseServiceHandler(payload, request, response) {
-    
+    if (ssr) {
+      const { command } = parseCommandHeaders(request.headers || {})
+      if (request.method === 'POST' && command === COMMANDS.SSR_INVOKE_HANDLER) {
+        let p = payload
+        if (p == null && String(request.headers['content-type'] || '').includes('application/json')) {
+          const raw = await readStream(request)
+          try {
+            p = raw && raw.length ? JSON.parse(raw.toString('utf8')) : {}
+          } catch {
+            p = null
+          }
+        }
+        const r = await ssr.invoke(p, context)
+        // Short-circuits before http-server's default response (returns false); align with slice A via same helper it uses.
+        const sec = getDefaultResponseSecurityHeaders({ csp: options.csp })
+        if (r.status === 204) {
+          response.writeHead(204, sec)
+          response.end()
+        } else {
+          response.writeHead(r.status, {
+            ...sec,
+            'content-type': 'application/json'
+          })
+          response.end(typeof r.body === 'string' ? r.body : JSON.stringify(r.body))
+        }
+        return false
+      }
+    }
+
     const accept = request.headers['accept'] || ''
 
     if (!accept.includes('text/event-stream')) {
@@ -209,7 +243,8 @@ export default async function createEventSourceService(serviceName, handlers = {
   Object.defineProperty(sseServiceHandler, 'name', { value: serviceName, writable: false })
 
   const boundHandler = bindServiceFunction(sseServiceHandler, context)
-  const cacheHandler = createCacheAwareHandler(boundHandler, cache, context)
+  const shutdownTerminateRef = { terminate: null }
+  const cacheHandler = createCacheAwareHandler(boundHandler, cache, context, { shutdownTerminateRef })
   Object.defineProperty(cacheHandler, 'name', { value: serviceName, writable: false })
 
   // Register in local state
@@ -260,10 +295,11 @@ export default async function createEventSourceService(serviceName, handlers = {
       if (typeof handler !== 'function') {
         throw new Error(`Channel handler for "${channel}" must be a function`)
       }
-      await pubSubManager.subscribe(channel, async (data) => {
+      const channelFn = async function (data) {
         const clientHandles = Array.from(clients.values()).map(c => c.client)
-        await handler.call(context, data, clientHandles)
-      })
+        return await handler.call(this, data, clientHandles)
+      }
+      await pubSubManager.subscribe(channel, bindServiceFunction(channelFn, context))
     }
   }
 
@@ -277,6 +313,22 @@ export default async function createEventSourceService(serviceName, handlers = {
   server.accessControl = accessControl
   server.cache = cache
   server.context = context
+
+  if (ssr) {
+    server.ssr = {
+      getBindings: () => ssr.getBindings(),
+      /**
+       * @param {string} html
+       * @param {object} [opts]
+       * @param {string} [opts.target] - CSS selector for client patch target
+       */
+      broadcastRender (html, { target = 'body' } = {}) {
+        return server.broadcast('render', { patch: html, target })
+      }
+    }
+  } else {
+    server.ssr = null
+  }
 
   /**
    * Broadcast an event to all connected clients
@@ -328,7 +380,7 @@ export default async function createEventSourceService(serviceName, handlers = {
 
   // Override terminate for graceful cleanup
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runSseShutdown = async () => {
     logger.debug(`Terminating SSE service: ${serviceName}`)
 
     if (heartbeatTimer) {
@@ -336,30 +388,34 @@ export default async function createEventSourceService(serviceName, handlers = {
       heartbeatTimer = null
     }
 
-    // Close all client connections
     for (const [id, { client }] of clients) {
       client.close()
     }
     clients.clear()
 
+    ssr?.destroy()
+
     unregisterLocalService(serviceName)
-
     removeFromCache(cache, { service: serviceName, location })
-
     if (pubSubManager) {
       await pubSubManager.cleanup()
     }
-
-    await unregisterServiceFromRegistry(serviceName, location)
+    try {
+      await unregisterServiceFromRegistry(serviceName, location)
+    } catch (err) {
+      if (err.code !== 'ECONNREFUSED' && err.code !== 'ECONNRESET' && err.code !== 'ENOTFOUND') {
+        throw err
+      }
+    }
     await httpServerTerminate()
-
     logger.info(`SSE service "${serviceName}" terminated`)
   }
-
-  process.once('SIGTERM', async () => {
-    logger.debug('SIGTERM received for service', serviceName)
-    await server.terminate()
-  })
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runSseShutdown, { priority: 10 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runSseShutdown()
+  }
+  shutdownTerminateRef.terminate = () => server.terminate()
 
   return server
 }

@@ -105,8 +105,8 @@ export function updateCache(cache, registryData) {
 export function updateCacheEntry(cache, { subscription, service, accessControl, location, contract }) {
   logger.debug('updateCacheEntry', { subscription, service, accessControl, location })
   
-  // Handle service registration updates
-  if (subscription === 'undefined' && service && service !== 'undefined') {
+  // New service in registry: subscription omitted/legacy (null/undefined) or literal string "undefined"
+  if ((subscription == null || subscription === 'undefined') && service && service !== 'undefined') {
     cache.addresses.set(location, service)
     
     if (!cache.services.has(service)) {

@@ -1,0 +1,27 @@
+---
+description: YAMF documentation map — which markdown to read first
+globs: yamf/**
+alwaysApply: false
+---
+
+# YAMF doc map
+
+Use these in rough priority order; **read the full path** in the file tree, not a summary from chat.
+
+| Topic | Doc |
+|-------|-----|
+| Layout, build, patterns, quick reference | `yamf/LLM_ONBOARDING.md` |
+| `yamf test`, `.env.test`, `withEnv`, `terminateAfter`, `registryServer` | `yamf/docs/TESTING.md` |
+| Direction, registry/gateway, planned work | `yamf/docs/ROADMAP.md` |
+| Monorepo packages | `yamf/README.md` |
+| Test helpers API | `yamf/packages/test/README.md` |
+| Core tests (integration layout) | `yamf/packages/core/tests/README.md` |
+| New / editing services | `yamf/packages/services/docs/CRUD-SERVICE-DESIGN.md` and the service’s `README.md` |
+| File server, upload, cache, user, etc. | `yamf/packages/services/<name>/README.md` |
+| Examples | `yamf/packages/core/examples/README.md` |
+| Client | `yamf/packages/client/README.md` |
+| CLI | `yamf/packages/cli/README.md` |
+| Python service examples | `yamf/packages/core/examples/python-services/README.md`, `QUICKSTART.md` |
+| API language shims (Go, Python) | `yamf/packages/core/src/api/languages/README.md` and language subfolder `README.md` |
+
+If a change affects security, public HTTP surface, or multi-process tests, re-check **TESTING.md** and **LLM_ONBOARDING** sections on `terminateAfter` and server startup.

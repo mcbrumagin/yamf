@@ -3,6 +3,7 @@ import { PM3 } from '../lib/pm3.js'
 import { watchFile, unwatchFile, statSync, openSync, readSync, closeSync } from 'node:fs'
 import { basename, relative } from 'node:path'
 import parseArgs from '../lib/parse-args.js'
+import { createRemotePm3Cli, requireRegistryUrlForRemote } from '../lib/remote-pm3-adapter.js'
 
 const logger = new Logger()
 
@@ -11,7 +12,8 @@ const ARGS = {
   lines: { flags: ['-n', '--lines'], type: 'number', default: 50 },
   all:   { flags: ['--all'] },
   watch: { flags: ['-w', '--watch'] },
-  list:  { flags: ['-l', '--list'] }
+  list:  { flags: ['-l', '--list'] },
+  remote: { flags: ['-r', '--remote'] }
 }
 
 function getLogsHelp() {
@@ -26,7 +28,8 @@ Options:
   -l, --list            List log file locations
   -n, --lines <num>     Number of lines to show (default: 50)
   --all                 Show all log lines
-  -w, --watch           Watch for new log output (live tail)
+  -w, --watch           Watch for new log output (live tail; not available with --remote)
+  -r, --remote          Read logs from the node via YAMF_REGISTRY_URL (path from yamf list --remote)
   -h, --help            Show this help
 `
 }
@@ -41,6 +44,23 @@ export async function runLogsCommand(args) {
   }
 
   const pm3 = new PM3()
+
+  if (options.remote) {
+    if (options.list) {
+      throw new Error('Use `yamf list --remote -v` to see filepaths and log paths on the remote node.')
+    }
+    if (options.watch) {
+      throw new Error('--watch is not supported with --remote.')
+    }
+    const registryUrl = requireRegistryUrlForRemote()
+    if (!filename) {
+      throw new Error('A filepath on the remote host is required. Usage: yamf logs <path> --remote')
+    }
+    const remote = createRemotePm3Cli({ registryUrl })
+    const output = await remote.logs(filename, { lines: options.all ? 0 : options.lines })
+    if (output) console.log(output)
+    return
+  }
 
   if (options.list) {
     const files = pm3.logFiles({ all: options.all })

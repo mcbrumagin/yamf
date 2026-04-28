@@ -19,9 +19,10 @@ import parseArgs from '../lib/parse-args.js'
 const EXCLUDED_DIRS = ['node_modules', '.git', 'coverage', 'dist', 'build']
 
 const ARGS = {
-  help:    { flags: ['-h', '--help'] },
-  verbose: { flags: ['-v', '--verbose'] },
-  list:    { flags: ['--list'] },
+  help:     { flags: ['-h', '--help'] },
+  verbose:  { flags: ['-v', '--verbose'] },
+  list:     { flags: ['--list'] },
+  timings:  { flags: ['--timings'] },
   dir:     { flags: ['-d', '--dir'], type: 'string', default: process.cwd() },
   file:    { flags: ['-f', '--file'], type: 'string' },
   name:    { flags: ['-n', '--name'], type: 'string' }
@@ -42,6 +43,7 @@ Options:
   -f, --file <glob>  Filter files by name (substring or * wildcard)
   -n, --name <regex> Filter tests by name (regex or * wildcard)
   --list              List discovered suites/files without running
+  --timings           After the run, print a slowest-first per-test table (or set YAMF_TEST_TIMINGS=1)
   -v, --verbose       Verbose output
   -h, --help          Show this help
 `
@@ -233,6 +235,10 @@ export async function runTestCommand(args) {
     console.error('No test files found.')
     console.error('Test files must import @yamf/test and export plain functions.')
     process.exit(1)
+  }
+
+  if (options.timings) {
+    process.env.YAMF_TEST_TIMINGS = '1'
   }
 
   const nameRegex = getTestNameRegex(options.name)

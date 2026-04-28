@@ -215,8 +215,8 @@ export async function testValidatePayloadSkipsWhenNotEnforced() {
 export async function testContractPropagatedToRegistry() {
   const registry = await registryServer()
   await terminateAfter(
-    registry,
-    await createService('contract-test-svc', function handler(payload) {
+    () => registry,
+    () => createService('contract-test-svc', function handler(payload) {
       return { ok: true }
     }, { useContract: true }),
     async () => {
@@ -232,11 +232,11 @@ export async function testContractPropagatedToRegistry() {
 
 export async function testContractAvailableInCallerCache() {
   await terminateAfter(
-    await registryServer(),
-    await createService('contract-provider', function handler({ userId, action }) {
+    () => registryServer(),
+    () => createService('contract-provider', function handler({ userId, action }) {
       return { userId, action }
     }, { useContract: true }),
-    await createService('contract-consumer', async function handler(payload) {
+    () => createService('contract-consumer', async function handler(payload) {
       return await this.call('contract-provider', payload)
     }),
     async (registry, provider, consumer) => {
@@ -254,11 +254,11 @@ export async function testContractAvailableInCallerCache() {
 
 export async function testContractEnforcesPayloadType() {
   await terminateAfter(
-    await registryServer(),
-    await createService('typed-svc', function handler({ userId }) {
+    () => registryServer(),
+    () => createService('typed-svc', function handler({ userId }) {
       return { userId }
     }, { useContract: true }),
-    await createService('caller-type-test', async function caller(payload) {
+    () => createService('caller-type-test', async function caller(payload) {
       return await this.call('typed-svc', payload.forward)
     }),
     async () => {
@@ -272,11 +272,11 @@ export async function testContractEnforcesPayloadType() {
 
 export async function testContractEnforcesExpectedKeys() {
   await terminateAfter(
-    await registryServer(),
-    await createService('keyed-svc', function handler({ userId, action }) {
+    () => registryServer(),
+    () => createService('keyed-svc', function handler({ userId, action }) {
       return { userId, action }
     }, { useContract: true }),
-    await createService('caller-key-test', async function caller(payload) {
+    () => createService('caller-key-test', async function caller(payload) {
       return await this.call('keyed-svc', payload.forward)
     }),
     async () => {
@@ -291,11 +291,11 @@ export async function testContractEnforcesExpectedKeys() {
 
 export async function testContractPassesValidPayload() {
   await terminateAfter(
-    await registryServer(),
-    await createService('valid-svc', function handler({ userId, action }) {
+    () => registryServer(),
+    () => createService('valid-svc', function handler({ userId, action }) {
       return { userId, action, processed: true }
     }, { useContract: true }),
-    await createService('caller-valid-test', async function caller(payload) {
+    () => createService('caller-valid-test', async function caller(payload) {
       return await this.call('valid-svc', payload.forward)
     }),
     async () => {
@@ -311,11 +311,11 @@ export async function testContractPassesValidPayload() {
 
 export async function testNoContractNoEnforcement() {
   await terminateAfter(
-    await registryServer(),
-    await createService('no-contract-svc', function handler(payload) {
+    () => registryServer(),
+    () => createService('no-contract-svc', function handler(payload) {
       return { got: typeof payload }
     }),
-    await createService('caller-no-contract', async function caller(payload) {
+    () => createService('caller-no-contract', async function caller(payload) {
       return await this.call('no-contract-svc', payload.forward)
     }),
     async () => {
@@ -327,11 +327,11 @@ export async function testNoContractNoEnforcement() {
 
 export async function testContractAllowsNonObjectForNonDestructured() {
   await terminateAfter(
-    await registryServer(),
-    await createService('flex-svc', function handler(payload) {
+    () => registryServer(),
+    () => createService('flex-svc', function handler(payload) {
       return { got: typeof payload }
     }, { useContract: true }),
-    await createService('caller-flex-test', async function caller(payload) {
+    () => createService('caller-flex-test', async function caller(payload) {
       return await this.call('flex-svc', payload.forward)
     }),
     async () => {
@@ -343,11 +343,11 @@ export async function testContractAllowsNonObjectForNonDestructured() {
 
 export async function testCustomContractEnforcement() {
   await terminateAfter(
-    await registryServer(),
-    await createService('custom-contract-svc', function handler(payload) {
+    () => registryServer(),
+    () => createService('custom-contract-svc', function handler(payload) {
       return { ok: true }
     }, { useContract: { expectedKeys: ['token', 'scope'] } }),
-    await createService('caller-custom-test', async function caller(payload) {
+    () => createService('caller-custom-test', async function caller(payload) {
       return await this.call('custom-contract-svc', payload.forward)
     }),
     async () => {
@@ -614,8 +614,8 @@ export async function testValidatorContractPropagatedToRegistry() {
 
   const registry = await registryServer()
   await terminateAfter(
-    registry,
-    await createService('validator-svc', function handler(payload) {
+    () => registry,
+    () => createService('validator-svc', function handler(payload) {
       return { ok: true }
     }, { useContract: validateAction }),
     async () => {
@@ -638,11 +638,11 @@ export async function testValidatorContractEnforcesSchema() {
   })
 
   await terminateAfter(
-    await registryServer(),
-    await createService('validated-svc', function handler(payload) {
+    () => registryServer(),
+    () => createService('validated-svc', function handler(payload) {
       return { received: payload }
     }, { useContract: validatePayload }),
-    await createService('caller-validated', async function caller(payload) {
+    () => createService('caller-validated', async function caller(payload) {
       return await this.call('validated-svc', payload.forward)
     }),
     async () => {
@@ -675,11 +675,11 @@ export async function testValidatorContractFromNamedServiceContextCall() {
   })
 
   await terminateAfter(
-    await registryServer(),
-    await createService(function namedService(payload) {
+    () => registryServer(),
+    () => createService(function namedService(payload) {
       return { received: payload }
     }, { useContract: validatePayload }),
-    await createService('caller-validated', async function caller(payload) {
+    () => createService('caller-validated', async function caller(payload) {
       return await this.namedService(payload.forward)
     }),
     async () => {

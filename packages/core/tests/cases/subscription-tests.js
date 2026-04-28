@@ -26,7 +26,7 @@ const logger = new Logger()
  */
 export async function testBasicSubscription() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => {
       const messages = []
       
@@ -73,7 +73,7 @@ export async function testBasicSubscription() {
  */
 export async function testMultipleSubscriptionsToSameChannel() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => {
       const messages1 = []
       const messages2 = []
@@ -111,7 +111,7 @@ export async function testMultipleSubscriptionsToSameChannel() {
  */
 export async function testMultipleChannelSubscriptions() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => {
       const channelAMessages = []
       const channelBMessages = []
@@ -146,7 +146,7 @@ export async function testMultipleChannelSubscriptions() {
  */
 export async function testSubscriptionTermination() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => {
       const messages = []
       
@@ -180,7 +180,7 @@ export async function testSubscriptionTermination() {
  */ 
 export async function testInvalidHandler() {
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => {
       await assertErr(
         async () => createSubscriptionService('test-service', { 'test-channel': 'not-a-function' }),
@@ -205,8 +205,8 @@ export async function testInvalidHandler() {
  */
 export async function testSubscriptionHandlerError() {
   await terminateAfter(
-    registryServer(),
-    createSubscriptionService('error-service', {
+    () => registryServer(),
+    () => createSubscriptionService('error-service', {
       'error-channel': async (message) => {
         if (message.shouldError) {
           throw new Error('Intentional handler error')
@@ -234,8 +234,8 @@ export async function testComplexMessagePayloads() {
   const messages = []
   
   await terminateAfter(
-    registryServer(),
-    createSubscriptionService('complex-service', {
+    () => registryServer(),
+    () => createSubscriptionService('complex-service', {
       'complex-channel': async (message) => {
         messages.push(message)
       }
@@ -275,8 +275,8 @@ export async function testComplexMessagePayloads() {
  */
 export async function testSubscriptionPublishResults() {
   await terminateAfter(
-    registryServer(),
-    createSubscriptionService('rpc-service', {
+    () => registryServer(),
+    () => createSubscriptionService('rpc-service', {
       'rpc-channel': async (message) => {
         return { echo: message, processed: true }
       }
@@ -302,8 +302,8 @@ export async function testConcurrentMessages() {
   const messages = []
   
   await terminateAfter(
-    registryServer(),
-    createSubscriptionService('concurrent-service', {
+    () => registryServer(),
+    () => createSubscriptionService('concurrent-service', {
       'concurrent-channel': async (message) => {
         await sleep(10) // Simulate async processing
         messages.push(message.id)
@@ -334,7 +334,7 @@ export async function testSubscriptionStartsClean() {
   const messages = []
   
   await terminateAfter(
-    registryServer(),
+    () => registryServer(),
     async () => {
       // Publish before subscription exists
       await publishMessage('clean-channel', { id: 0 })

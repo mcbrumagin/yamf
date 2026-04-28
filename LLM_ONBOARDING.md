@@ -2,6 +2,8 @@
 
 This document provides AI assistants with essential context for working on the YAMF codebase. It covers coding conventions, testing patterns, and architectural concepts.
 
+For **test runner defaults**, **`withEnv` vs `.env.test`**, **`registryServer` / ports**, and **filter gotchas**, see **`docs/TESTING.md`**.
+
 ## Project Overview
 
 YAMF (Yet Another Microservice Framework) keeps **`@yamf/core`** free of npm dependencies at runtime (zero third-party packages for the server stack). Optional packages (e.g. **`@yamf/client`**) add their own dependencies (e.g. **morphdom**). The codebase prioritizes:
@@ -35,13 +37,11 @@ import {
 ```javascript
 export async function testMyFeature() {
   await terminateAfter(
-    await registryServer(), // start registry first
-    await gatewayServer(), // gateway pulls from registry (requires brief sleep for registry state propagation if we need to call it)
-    await createService('my-service', handler, options),  // services register with registry (which tells gateway to do a fresh pull)
+    () => registryServer(), // thunks — do not await; see packages/test/README.md (terminateAfter)
+    () => gatewayServer(),
+    () => createService('my-service', handler, options),
     async (registry, myService, gateway) => {
-      // Test logic here - servers are passed as arguments in order
-      
-      // Perform multiple assertions
+      // Test logic — server instances are passed in order as arguments
       assert(result,
         r => r.status === 'ok',
         r => r.data !== undefined
@@ -52,9 +52,9 @@ export async function testMyFeature() {
 ```
 
 **Key points:**
-- Servers should be `await`ed before passing to `terminateAfter`
-- The callback receives servers in the same order they were passed
-- All servers are automatically cleaned up after the test (success or failure)
+- Pass **thunks** (`() => serverPromise`) so startup runs in order; do not `await` servers before `terminateAfter` (see `packages/test/src/helpers.js`).
+- The callback receives resolved servers in the same order.
+- Teardown is automatic after the test (success or failure).
 
 ### Multi-Assertion Pattern
 
@@ -135,21 +135,17 @@ assertSequence(steps,
 
 ### Environment Configuration
 
-Use `withEnv` for tests requiring specific environment variables:
+Default values for `yamf test` live in **`.env.test`** (e.g. `packages/core/.env.test`). Prefer that and **`terminateAfter`** teardown instead of repeating the same vars in `withEnv`.
+
+Use **`withEnv`** only when a test must **change** env (missing vars, feature flags, per-test secrets). See **`docs/TESTING.md`**.
 
 ```javascript
-export async function testWithCustomEnv() {
-  await withEnv({
-    YAMF_GATEWAY_URL: 'http://localhost:8080',
-    YAMF_REGISTRY_URL: 'http://localhost:8081',
-    YAMF_REGISTRY_TOKEN: 'test-token'
-  }, async () => {
-    // Test runs with these env vars
+export async function testRequiresMissingRegistryUrl() {
+  await withEnv({ YAMF_REGISTRY_URL: undefined /* ... */ }, async () => {
+    // assert startup or request failure
   })
 }
 ```
-
-For integration tests using the default test environment, env vars are typically configured in the test runner.
 
 ### Test File Organization
 
@@ -166,33 +162,17 @@ packages/core/tests/
 
 ## Architecture
 
-### Component Hierarchy
+**Spine and muscle memory:** the **registry** is the **spine** (authoritative state, pub/sub, convergence). Each peer keeps a **replicated in-process service cache** — **muscle memory** — so `callService` and similar paths resolve **locally** for steady work; the registry and cache path **re-teach** on deploy, register/unregister, or `REGISTRY_PULL` when needed. The **gateway** **pulls** the same state for external HTTP; it does not replace the registry as source of truth.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Service Registry                         │
-│  - Service Discovery (register, lookup, unregister)         │
-│  - Pub/Sub Routing                                          │
-│  - State Management (source of truth)                       │
-│  - Notifies Gateway of changes                              │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ (notify: "re-pull state")
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     API Gateway                              │
-│  - Pull-only model (never pushes to registry)               │
-│  - "Dumb" registry - same state, lookups, routing           │
-│  - Cannot register or propagate services                    │
-│  - Secure public entrypoint                                 │
-└─────────────────────────────────────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-     ┌─────────┐    ┌─────────┐    ┌─────────┐
-     │Service A│    │Service B│    │Service C│
-     │ (Node)  │    │ (Node)  │    │(Python) │
-     └─────────┘    └─────────┘    └─────────┘
-```
+**Bird’s eye (anchor — no control-plane hop on hot paths):**
+
+- **Service → register → Registry** (and **re-teach** with pub/sub, `REGISTRY_PULL`, or deploy).
+- **Registry → (pub/sub cache line updates) → each process that holds a service cache.**
+- **Service A → (HTTP, address from in-process cache) → Service B** (peer; hot path).
+- **Client → gateway → service** (gateway’s routing is **pulled** from the registry, read-only, not a second authority).
+- **Registry and gateway = siblings in roles** — not a vertical “gateway owns services” data-plane stack.
+- **Heavy cache fan-out:** `YAMF_CACHE_COALESCE_MS` — [ROADMAP](docs/ROADMAP.md).
+- The root [README](README.md) ASCII is optional garnish for human readers; this list is the signal for tools.
 
 ### Startup Sequence
 
@@ -358,8 +338,8 @@ await createRoute('/api/auth/*', 'auth-service')  // Wildcard routing
 Rate limiting is configured via server options, not imperative function calls. This supports custom key functions (e.g., rate limit by username) since they stay on the server.
 
 ```javascript
-// Registry with pre-bound rate limits
-await registryServer(null, {
+// Registry with pre-bound rate limits (single options object; port from YAMF_REGISTRY_URL if omitted)
+await registryServer({
   rateLimit: {
     default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 10000 },
     services: {
@@ -393,11 +373,11 @@ await createService('auth-service', handler, {
 
 ## Testing Tips
 
-1. **Always await servers** before passing to `terminateAfter`
-2. **Use `sleep()`** sparingly - only when waiting for async propagation
-3. **Rate limits are per-server instance** - each test creates fresh state
-4. **Use `envConfig.get()`** for environment-dependent URLs/values
-5. **Order matters** in `terminateAfter` - registry → services → gateway
+1. **Use thunks** in `terminateAfter` (see above); do not pre-`await` server startups into the wrong order.
+2. **Use `sleep()`** sparingly — only when waiting for async propagation.
+3. **Rate limits are per-server instance** — each test creates fresh state.
+4. **Use `envConfig.get()`** for environment-dependent URLs/values.
+5. **Order matters** in `terminateAfter` — typically registry first, then services, then gateway when all three are used.
 
 ## File Locations
 

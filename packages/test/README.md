@@ -277,6 +277,8 @@ async function testWithEnv() {
 }
 ```
 
+**YAMF integration tests:** Prefer defaults from the suite’s `.env.test` and `terminateAfter` for cleanup. Use `withEnv` only when a case must *change* the environment (missing vars, feature flags, per-test secrets, etc.). See [../../docs/TESTING.md](../../docs/TESTING.md) in the YAMF repo.
+
 ## Solo and Mute Flags
 
 Focus on specific tests or skip others during development.
@@ -361,7 +363,7 @@ function TODOtestNewFeature() {
 ✔ testDirectValue (1ms)
 ✔ testFunctionResult (0ms)
 ✔ testAsyncFunction (15ms)
-✘ testFailingAssertion
+✘ testFailingAssertion (12ms)
 
 ----- Testing Complete -----
 ✔ ✔ ✔  Success Report  ✔ ✔ ✔
@@ -384,6 +386,8 @@ testFailingAssertion failed with error: AssertionFailure: ...
 ℹ todo 0
 ℹ duration_ms 42
 ```
+
+Each `✔` / `✘` line includes wall time for that test. For a **slowest-first table** (e.g. profiling), run `yamf test --timings` or set `YAMF_TEST_TIMINGS=1`, then use `-f` / `-n` to focus one file or test: `yamf test -d packages/cli -f cli-rolling --timings -n testRestart`.
 
 ## API Reference
 

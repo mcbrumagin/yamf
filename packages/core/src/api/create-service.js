@@ -16,6 +16,7 @@ import envConfig from '../shared/env-config.js'
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
 import { buildEnhancedContext, updateContext, bindServiceFunction } from '../service/service-context.js'
 import { createCacheAwareHandler } from '../service/cache-handler.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 import { validateServiceName } from '../service/service-validator.js'
 import { createServiceBatch } from '../service/service-batch.js'
 import { buildContract } from '../service/service-contract.js'
@@ -37,12 +38,17 @@ import crypto from 'crypto'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
+function isExtractServiceContract () {
+  const v = envConfig.get('YAMF_EXTRACT_SERVICE_CONTRACT')
+  return v === '1' || v === 1 || v === true
+}
+
 /**
  * Configuration for service setup
  */
 const DEFAULT_CONFIG = {
   tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
-  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 20),
+  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 100),
   muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false),
   sharedCache: null, // Optional pre-created cache for batch operations
   streamPayload: false, // If true, don't buffer request body - pass raw stream to handler
@@ -108,10 +114,15 @@ export default async function createService(name, serviceFn, options = {}) {
   validateServiceName(name)
 
   const config = { ...DEFAULT_CONFIG, ...options }
+  config.metadata = { cacheBulk: true, ...(config.metadata || {}) }
   config.useAuthService = config.useAuthService?.name || config.useAuthService
 
   const contract = buildContract(config.useContract, serviceFn)
   if (contract) config.contract = contract
+
+  if (isExtractServiceContract()) {
+    return { yamfContractExtract: true, name, contract: contract || null }
+  }
   
   const cache = config.sharedCache || createServiceState()
 
@@ -143,7 +154,8 @@ export default async function createService(name, serviceFn, options = {}) {
   // Register in local state for direct calls (with HTTP server)
   registerLocalService(name, boundServiceFn, config.accessControl)
 
-  const handler = createCacheAwareHandler(boundServiceFn, cache, context)
+  const shutdownTerminateRef = { terminate: null }
+  const handler = createCacheAwareHandler(boundServiceFn, cache, context, { shutdownTerminateRef })
 
   // override handler name
   Object.defineProperty(handler, 'name', { value: name, writable: false })
@@ -180,26 +192,7 @@ export default async function createService(name, serviceFn, options = {}) {
   server.accessControl = config.accessControl
 
   let originalHandler = server.handler
-  let pubSubManager = null
-  let subscriptionIds = {}
-
-  let pubsubHandler = null
   let overrideHandler = null
-
-  // TODO: Remove this deprecated method and related code (pubSubManager, subscriptionIds, pubsubHandler variables above)
-  // Use createSubscriptionService instead for pub/sub functionality
-  /**
-   * @deprecated Use createSubscriptionService instead.
-   * Dynamic subscriptions on regular services are being removed in favor of
-   * the cleaner separation: createService for RPC, createSubscriptionService for pub/sub.
-   */
-  server.createSubscription = async function createSubscriptionForService(channelOrMap, handler) {
-    throw new Error(
-      'DEPRECATED: server.createSubscription() is deprecated. ' +
-      'Use createSubscriptionService() instead for pub/sub functionality. ' +
-      'This method will be removed in a future version.'
-    )
-  }
 
   /**
    * Add a preprocessing function that runs before the main service handler
@@ -245,24 +238,29 @@ export default async function createService(name, serviceFn, options = {}) {
         return await originalHandler(processedPayload, request, response)
       }
     }
-    if (!pubsubHandler) {
-      server.handler = overrideHandler
-    } // else, we already have a reference setup
+    server.handler = overrideHandler
   }
 
   // override terminate to gracefully unregister
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runServiceShutdown = async () => {
     unregisterLocalService(name)
     removeFromCache(cache, { service: name, location })
-    await unregisterServiceFromRegistry(name, location)
+    try {
+      await unregisterServiceFromRegistry(name, location)
+    } catch (err) {
+      if (err.code !== 'ECONNREFUSED' && err.code !== 'ECONNRESET' && err.code !== 'ENOTFOUND') {
+        throw err
+      }
+    }
     await httpServerTerminate()
   }
-
-  process.once('SIGTERM', async () => {
-    logger.debug('SIGTERM received for service', name)
-    await server.terminate()
-  })
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runServiceShutdown, { priority: 10 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runServiceShutdown()
+  }
+  shutdownTerminateRef.terminate = () => server.terminate()
 
   return server
 }
@@ -279,7 +277,6 @@ export default async function createService(name, serviceFn, options = {}) {
  * @returns {Promise<Object>} Minimal service object with expected interface
  */
 async function createPureService(name, boundServiceFn, cache, context, config) {
-  // Check for existing local service
   if (hasLocalService(name)) {
     const existingAccess = getLocalServiceAccess(name)
     throw new Error(
@@ -288,7 +285,6 @@ async function createPureService(name, boundServiceFn, cache, context, config) {
     )
   }
 
-  // Register in local state
   registerLocalService(name, boundServiceFn, 'pure')
   
   // Notify registry for observability (registry tracks pure services for awareness)

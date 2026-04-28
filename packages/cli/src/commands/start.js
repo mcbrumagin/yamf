@@ -1,13 +1,14 @@
-import { httpRequest, HEADERS, COMMANDS, Logger } from '@yamf/core'
+import { Logger } from '@yamf/core'
 import { PM3 } from '../lib/pm3.js'
 import parseArgs from '../lib/parse-args.js'
+import { createRemotePm3Cli, requireRegistryUrlForRemote } from '../lib/remote-pm3-adapter.js'
 
 const logger = new Logger()
 
 const ARGS = {
   help:      { flags: ['-h', '--help'] },
   verbose:   { flags: ['-v', '--verbose'] },
-  remote:    { flags: ['-r', '--remote'], type: 'string' },
+  remote:    { flags: ['-r', '--remote'] },
   env:       { flags: ['-e', '--env'], type: 'string' },
   instances: { flags: ['-i', '--instances'], type: 'number', default: 1 }
 }
@@ -25,7 +26,7 @@ New services require a filepath.
 
 Options:
   -i, --instances <N>    Start N instances of the script (default: 1)
-  -r, --remote <target>  Start on a remote node via pm3-service
+  -r, --remote            Start on the node reached via YAMF_REGISTRY_URL → pm3-service
   -e, --env <KEY=VALUE>  Set environment variable for child process(es)
   -v, --verbose          Verbose output
   -h, --help             Show this help
@@ -34,7 +35,7 @@ Examples:
   yamf start ./my-service.js
   yamf start ./my-service.js --instances 4
   yamf start simple-service
-  yamf start ./my-service.js --remote 127.0.0.1
+  yamf start /var/lib/yamf/svc.mjs --remote
   yamf start ./my-service.js --env YAMF_SERVICE_URL=http://127.0.0.1
 `
 }
@@ -57,21 +58,28 @@ export async function runStartCommand(args) {
   }
 
   if (options.remote) {
-    const registryUrl = process.env.YAMF_REGISTRY_URL
-    if (!registryUrl) {
-      throw new Error('YAMF_REGISTRY_URL is required for remote start')
+    const registryUrl = requireRegistryUrlForRemote()
+    if (!looksLikeFilepath(filename)) {
+      throw new Error(
+        'Remote start requires a filepath on the target host. Use: yamf list --remote, then pass that exact path.'
+      )
     }
-    const result = await httpRequest(registryUrl, {
-      headers: {
-        [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-        // TODO need to test this
-        // TODO this likely needs new yamf header for explicit location
-        //   new header would normally be optional, except for this use-case
-        [HEADERS.SERVICE_NAME]: 'pm3-service'
-      },
-      body: { command: 'start', filepath: filename }
-    })
-    logger.info(`Remote start on ${options.remote}:`, result)
+    const remote = createRemotePm3Cli({ registryUrl })
+    let env
+    if (options.env) {
+      const eqIndex = options.env.indexOf('=')
+      if (eqIndex === -1) throw new Error('--env expects KEY=VALUE format')
+      env = { [options.env.slice(0, eqIndex)]: options.env.slice(eqIndex + 1) }
+    }
+    const count = Math.max(1, Math.floor(options.instances))
+    for (let i = 0; i < count; i++) {
+      const result = await remote.startFile(filename, env ? { env } : undefined)
+      if (options.verbose) {
+        console.log(result)
+      } else {
+        logger.info('Remote start:', result)
+      }
+    }
     return
   }
 

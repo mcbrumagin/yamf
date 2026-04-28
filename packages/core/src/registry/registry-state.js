@@ -56,7 +56,36 @@ export function createRegistryState() {
     },
     
     // Rate limiter runtime state (registry-local, not synced)
-    rateLimiter: createRateLimiterState()
+    rateLimiter: createRateLimiterState(),
+
+    /** @type {string|null} set when this registry process starts */
+    registryInstanceId: null,
+    /** When true, new registrations are rejected (503) while calls/reads still work */
+    draining: false,
+
+    /** Monotonic id for coalesced cache-update windows (slice E) */
+    cacheUpdateSeq: 0,
+
+    /** @type {Map<string, { handler: Function, service: string, location: string }>} plugin yamf-command handlers (slice F) */
+    pluginCommands: new Map(),
+
+    /** @type {Map<string, number>} consecutive failed cache push windows per subscriber location */
+    cachePushFailures: new Map(),
+
+    /** @type {Set<string>} subscriber locations that stopped receiving cache pushes (slice E) */
+    cacheUpdateStaleSubscribers: new Set(),
+
+    /**
+     * Per-subscriber coalesce buffers (slice E)
+     * @type {Map<string, { items: Array<{ subscription: string, service: string, location: string, contract: * }>, firstAt: number | null, debounceTimer: ReturnType<typeof setTimeout> | null, maxTimer: ReturnType<typeof setTimeout> | null }>}
+     */
+    cacheCoalesceBySubscriber: new Map(),
+
+    /**
+     * Per replica instance (Phase 2) — key `${service}\0${location}` → { sourceHash?, configVersion?, registeredAt }
+     * @type {Map<string, { sourceHash?: string, configVersion?: string, registeredAt: number }>}
+     */
+    replicaMetadata: new Map()
   }
 }
 
@@ -75,12 +104,26 @@ export function resetState(state) {
   state.serviceContracts.clear()
   state.serviceTypes.clear()
   state.serviceTimeouts.clear()
-  
+  state.cacheUpdateSeq = 0
+  state.pluginCommands?.clear()
+  state.cachePushFailures?.clear()
+  state.cacheUpdateStaleSubscribers?.clear()
+  if (state.cacheCoalesceBySubscriber) {
+    for (const p of state.cacheCoalesceBySubscriber.values()) {
+      if (p.debounceTimer) clearTimeout(p.debounceTimer)
+      if (p.maxTimer) clearTimeout(p.maxTimer)
+    }
+    state.cacheCoalesceBySubscriber.clear()
+  }
+  state.replicaMetadata?.clear()
+
   // Note: rateLimitConfig is NOT reset - it's configuration set at startup
   // Only reset the runtime rate limiter state
   if (state.rateLimiter) {
     resetRateLimiterState(state.rateLimiter)
   }
+  state.draining = false
+  // registryInstanceId kept for debugging until next server boot
 }
 
 /**
@@ -99,5 +142,24 @@ export function serializeServicesMap(servicesMap) {
     result[serviceName] = setToArray(locations)
   }
   return result
+}
+
+/**
+ * Build `replicas` object for REGISTRY_PULL (per-instance source hash / config version).
+ * @param {ReturnType<typeof createRegistryState>} state
+ * @returns {Record<string, Array<{ location: string, sourceHash?: string, configVersion?: string, registeredAt: number }>>}
+ */
+export function serializeReplicaMetadata(state) {
+  const out = {}
+  if (!state.replicaMetadata) return out
+  for (const [key, v] of state.replicaMetadata) {
+    const nul = key.indexOf('\0')
+    if (nul === -1) continue
+    const service = key.slice(0, nul)
+    const location = key.slice(nul + 1)
+    if (!out[service]) out[service] = []
+    out[service].push({ location, ...v })
+  }
+  return out
 }
 

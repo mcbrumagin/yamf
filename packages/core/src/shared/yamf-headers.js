@@ -1,8 +1,8 @@
 /**
  * Yamf Headers
- * Constants and utilities for header-based command routing
- * 
- * Phase 1-Light: Essential headers only for streaming support
+ * Constants and utilities for header-based command routing.
+ * Covers core protocol (SERVICE_CALL, REGISTER, UNREGISTER, lookup), pub/sub,
+ * rate limiting, contracts, and the rolling-registry drain/shutdown handoff.
  */
 
 /**
@@ -14,6 +14,8 @@ export const HEADERS = {
   
   // Service operations
   SERVICE_NAME: 'yamf-service-name',
+  /** When set, registry SERVICE_CALL may route to this pm3-service instance (must be a registered location for the service) */
+  SERVICE_PREFER_LOCATION: 'yamf-prefer-service-location',
   SERVICE_LOCATION: 'yamf-service-location',
   USE_AUTH_SERVICE: 'yamf-use-auth-service',
   SERVICE_HOME: 'yamf-service-home',
@@ -22,6 +24,14 @@ export const HEADERS = {
   // Authentication // TODO Authorization: Bearer <token>
   AUTH_TOKEN: 'yamf-auth-token',           // User auth token for service calls
   REGISTRY_TOKEN: 'yamf-registry-token',   // Internal registry/service token
+  /** Separate blast radius for deploy plan/bundle (slice C3) */
+  DEPLOY_TOKEN: 'yamf-deploy-token',
+  /** Content hash for streamed bundle (sha256-…) */
+  DEPLOY_HASH: 'yamf-deploy-hash',
+  /** Opaque deploy actor (e.g. user@host) */
+  DEPLOYER: 'yamf-deployer',
+  /** base64(64-byte Ed25519 signature) over the UTF-8 content hash string (C6 / ROADMAP Tier 2) */
+  BUNDLE_ED25519_SIG: 'yamf-bundle-ed25519-sig',
   
   // TODO VERIFY
   // Route operations (for registration only - routes use request.url for routing)
@@ -37,11 +47,30 @@ export const HEADERS = {
 
   // Service contracts
   SERVICE_CONTRACT: 'yamf-service-contract', // JSON-serialized contract object
+  /** Cross-cut 2: new replica registers a breaking contract; registry allows if header present */
+  ALLOW_BREAKING_CONTRACT: 'yamf-allow-breaking-contract',
 
   // Service type and timeout (for SSE, future WebSocket, etc.)
   SERVICE_TYPE: 'yamf-service-type',   // 'standard', 'sse', etc.
-  TIMEOUT: 'yamf-timeout'             // Per-service timeout in ms (0 = no timeout)
+  TIMEOUT: 'yamf-timeout',            // Per-service timeout in ms (0 = no timeout)
+
+  // Rolling registry
+  REGISTRY_INSTANCE_ID: 'yamf-registry-instance-id',
+  SHUTDOWN_REASON: 'yamf-shutdown-reason',
+
+  /** JSON object: e.g. `{ "cacheBulk": true }` */
+  SERVICE_METADATA: 'yamf-service-metadata',
+
+  /** Bulk cache update window (registry → subscriber) */
+  CACHE_BULK: 'yamf-cache-bulk',
+  CACHE_WINDOW_ID: 'yamf-cache-window-id'
 }
+
+/**
+ * Well-known global pub/sub channel: `yamf dev` publishes here after a successful local/remote
+ * deploy; {@link @yamf/services-dev-hmr} subscribes and fans out SSE `reload` (ROADMAP Phase 4 D2).
+ */
+export const PUBSUB_CHANNEL_YAMF_DEV_RELOAD = 'yamf:dev-reload'
 
 /**
  * Command types (values for yamf-command header)
@@ -73,7 +102,16 @@ export const COMMANDS = {
   AUTH_LOGOUT: 'auth-logout',
 
   // Service
-  CACHE_UPDATE: 'cache-update'
+  CACHE_UPDATE: 'cache-update',
+  SERVICE_SHUTDOWN: 'service-shutdown',
+
+  // Registry rolling handoff
+  REGISTRY_DRAIN: 'registry-drain',
+  /** CLI/orchestrator: fan out {@link COMMANDS.SERVICE_SHUTDOWN} to all registered HTTP services (registry still up). */
+  REGISTRY_BROADCAST_SHUTDOWN: 'registry-broadcast-shutdown',
+
+  // Server-rendered / signed handler round-trip (SSR invoke)
+  SSR_INVOKE_HANDLER: 'ssr-invoke-handler'
 }
 
 /**
@@ -113,12 +151,18 @@ export function buildRegisterHeaders(serviceName, location, {
   rateLimit = false,  // true = require rate limit config exists
   contract = true,
   serviceType = null, // 'sse', etc. -- null means standard
-  timeout = null      // per-service timeout in ms (0 = no timeout)
-}) {
+  timeout = null,    // per-service timeout in ms (0 = no timeout)
+  metadata = null,
+  allowBreakingContract = false
+} = {}) {
   // TODO: Hybrid rate limiting - if rateLimit is an object, serialize it
   // For now, only support boolean (true = require config exists)
   const rateLimitRequired = rateLimit === true
-  
+  const meta =
+    metadata && typeof metadata === 'object' && Object.keys(metadata).length > 0
+      ? JSON.stringify(metadata)
+      : null
+
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
@@ -129,7 +173,9 @@ export function buildRegisterHeaders(serviceName, location, {
     ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' }),
     ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) }),
     ...(serviceType && { [HEADERS.SERVICE_TYPE]: serviceType }),
-    ...(timeout !== null && { [HEADERS.TIMEOUT]: String(timeout) })
+    ...(timeout !== null && { [HEADERS.TIMEOUT]: String(timeout) }),
+    ...(meta && { [HEADERS.SERVICE_METADATA]: meta }),
+    ...(allowBreakingContract && { [HEADERS.ALLOW_BREAKING_CONTRACT]: '1' })
   }
 }
 
@@ -241,6 +287,31 @@ export function buildCacheUpdateHeaders(pubsubChannel, serviceName, location, re
 }
 
 /**
+ * Bulk cache update (one POST with JSON body; headers identify command only).
+ */
+export function buildBulkCacheUpdateHeaders(windowId, registryToken = null) {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.CACHE_UPDATE,
+    [HEADERS.CACHE_BULK]: '1',
+    [HEADERS.CACHE_WINDOW_ID]: windowId,
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
+  }
+}
+
+/**
+ * Build headers for registry-issued graceful shutdown to a service HTTP endpoint
+ */
+export function buildShutdownHeaders(serviceName, location, registryToken, reason = 'registry-broadcast') {
+  return {
+    [HEADERS.COMMAND]: COMMANDS.SERVICE_SHUTDOWN,
+    [HEADERS.SERVICE_NAME]: serviceName,
+    [HEADERS.SERVICE_LOCATION]: location,
+    [HEADERS.SHUTDOWN_REASON]: String(reason),
+    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
+  }
+}
+
+/**
  * Build headers for gateway registry update notification
  */
 export function buildRegistryUpdatedHeaders(registryToken = null) {
@@ -311,6 +382,12 @@ export function parseCommandHeaders(headers) {
   if (contractHeader) {
     try { contract = JSON.parse(contractHeader) } catch {}
   }
+
+  let serviceMetadata = null
+  const metaHeader = headers[HEADERS.SERVICE_METADATA]
+  if (metaHeader) {
+    try { serviceMetadata = JSON.parse(metaHeader) } catch {}
+  }
   
   // Parse timeout from header (string -> number or null)
   const timeoutHeader = headers[HEADERS.TIMEOUT]
@@ -330,7 +407,11 @@ export function parseCommandHeaders(headers) {
     rateLimitRequired,
     contract,
     serviceType: headers[HEADERS.SERVICE_TYPE] || null,
-    timeout
+    timeout,
+    serviceMetadata,
+    cacheBulk: headers[HEADERS.CACHE_BULK] === '1',
+    cacheWindowId: headers[HEADERS.CACHE_WINDOW_ID] || null,
+    allowBreakingContract: headers[HEADERS.ALLOW_BREAKING_CONTRACT] === '1'
   }
 }
 

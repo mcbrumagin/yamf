@@ -6,13 +6,23 @@
  * This process is managed by pm3 itself (tagged as internal).
  */
 
-import { registryServer, Logger } from '@yamf/core'
+import { registryServer, Logger, lifecycle } from '@yamf/core'
+import { DEFAULT_LOCAL_REGISTRY_URL } from './registry-url.js'
 
 const logger = new Logger({ logGroup: 'yamf-dev' })
 
 async function bootstrap() {
   const registry = await registryServer()
   logger.info('Registry running')
+
+  try {
+    const { attachDeployRouter } = await import('@yamf/services-deploy-router/service.js')
+    const regUrl = process.env.YAMF_REGISTRY_URL || DEFAULT_LOCAL_REGISTRY_URL
+    attachDeployRouter(registry, { location: regUrl, bundleStore: registry._bundleStore })
+    logger.info('Deploy router attached (deploy-plan, deploy-bundle)')
+  } catch (err) {
+    logger.warn('Deploy router not available —', err?.message || err)
+  }
 
   let cacheService = null
   try {
@@ -36,29 +46,42 @@ async function bootstrap() {
     logger.warn('pm3-service (@yamf/services-pm3) not available — skipping')
   }
 
-  process.once('SIGTERM', async () => {
-    logger.info('Shutting down dev environment...')
+  if (process.env.YAMF_DEV === 'on' && process.env.NODE_ENV !== 'production') {
     try {
-      if (pm3Service) await pm3Service.terminate()
-      if (cacheService) await cacheService.terminate()
-      await registry.terminate()
-    } catch (err) {
-      logger.error('Error during shutdown:', err)
+      const { default: createYamfDevHmrService } = await import('@yamf/services-dev-hmr')
+      const devHmr = await createYamfDevHmrService()
+      if (devHmr) logger.info('dev-hmr (SSE reload) running — yamf dev will publish to yamf:dev-reload')
+    } catch (e) {
+      logger.warn('dev-hmr (@yamf/services-dev-hmr) not available —', e?.message || e)
     }
-    process.exit(0)
-  })
+  }
 
-  process.once('SIGINT', async () => {
-    logger.info('Shutting down dev environment...')
-    try {
-      if (pm3Service) await pm3Service.terminate()
-      if (cacheService) await cacheService.terminate()
-      await registry.terminate()
-    } catch (err) {
-      logger.error('Error during shutdown:', err)
-    }
-    process.exit(0)
-  })
+  // Registry is already on lifecycle (priority 0). Add app pieces before exit.
+  if (pm3Service) {
+    lifecycle.registerTerminable(
+      async () => {
+        logger.info('Shutting down pm3-service...')
+        await pm3Service.terminate()
+      },
+      { priority: 12 }
+    )
+  }
+  if (cacheService) {
+    lifecycle.registerTerminable(
+      async () => {
+        logger.info('Shutting down cache service...')
+        await cacheService.terminate()
+      },
+      { priority: 10 }
+    )
+  }
+  lifecycle.registerTerminable(
+    async () => {
+      logger.info('Shutting down dev process...')
+      process.exit(0)
+    },
+    { priority: -1 }
+  )
 }
 
 bootstrap().catch(err => {

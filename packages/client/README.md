@@ -2,7 +2,7 @@
 
 **It's *actually* just JavaScript** - A lightweight, reactive HTML-as-JavaScript library for both client and server-side rendering.
 
-[![Version](https://img.shields.io/badge/version-0.0.7-blue.svg)](https://github.com/your-repo/@yamf/client)
+[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](https://github.com/mcbrumagin/yamf/tree/master/packages/client)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -535,6 +535,17 @@ const renderer = createRenderHelper('#app', {
   }
 })
 ```
+
+## Vite and YAMF `yamf:dev-reload` (D2 / D3 / D4)
+
+For **Vite** dev servers, the optional plugin **`@yamf/client/vite-plugin-yamf-dev`** (`yamfVitePluginDev`) debounces Vite `handleHotUpdate` and **publishes** to the registry pub/sub channel `yamf:dev-reload` (with `{ source: 'vite', at }` when the process has `YAMF_REGISTRY_URL` and `YAMF_DEV=on`). The [`@yamf/services-dev-hmr`](../services/dev-hmr/) service subscribes and pushes **`reload`** events over **SSE** to connected browsers (same as `yamf dev` after a service redeploy, which uses `source: 'yamf-dev'` and `service` / `hash`).
+
+In the **browser**, import from **`@yamf/client/dev-hmr`**:
+
+- **`connectYamfDevHmr({ url, applyPatch, onReload })`** — `EventSource` to the dev-hmr service; if `applyPatch` resolves to **`false`**, the default `location.reload` is skipped.
+- **`createYamfDevHmrSpaPatch({ onRerender, preserveWhen })`** (D4) — default `preserveWhen` only treats **`source === 'vite'`** as soft-refresh; **`yamf dev` redeploys** still full-reload the tab (safer for new server processes).
+
+Narrative and SoundClone-style wiring: [D4-SPA-HMR-ANALYSIS.md](../../docs/D4-SPA-HMR-ANALYSIS.md), root [README](../../README.md) (*Dev and deploy in practice*). Tests: `yamf test -d . -f dev-hmr` from `packages/client` (see [TESTING.md](../../docs/TESTING.md)).
 
 ## 🔮 Future Features
 

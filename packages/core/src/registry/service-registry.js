@@ -8,14 +8,51 @@ import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
 import { serializeServicesMap, setToArray } from './registry-state.js'
 import { publishCacheUpdate, subscribe, removeAllSubscriptionsForLocation } from './pubsub-manager.js'
-import { selectServiceLocation } from './load-balancer.js'
-import { HEADERS } from '../shared/yamf-headers.js'
+import { clearRoundRobinForService, getServiceAddresses, selectServiceLocation } from './load-balancer.js'
+import { HEADERS, buildShutdownHeaders } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
+import { isBackwardCompatibleServiceContract, areServiceContractsEqual } from '../service/contract-compatibility.js'
 import net from 'node:net'
 import { localState } from '../shared/local-state.js'
 import readStream from '../http-primitives/read-stream.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
+
+/**
+ * Ask every registered non-pure HTTP service to self-terminate (registry shutdown path).
+ * Pure services are skipped. Failures (except connection refused) are logged.
+ */
+export async function broadcastShutdown(state, { reason = 'registry-shutdown' } = {}) {
+  const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
+  const timeout = Number(envConfig.get('YAMF_SHUTDOWN_BROADCAST_TIMEOUT_MS', 2000))
+  const jobs = []
+  for (const [service, locations] of state.services) {
+    const access = state.serviceAccess.get(service) || 'private'
+    if (access === 'pure') continue
+    for (const location of locations) {
+      if (!location || !location.startsWith('http')) continue
+      const h = buildShutdownHeaders(service, location, registryToken, reason)
+      jobs.push(
+        httpRequest(location, {
+          method: 'POST',
+          body: {},
+          timeout,
+          headers: {
+            ...h,
+            'content-type': 'application/json',
+            'mute-internal-error': '1'
+          }
+        }).catch((err) => {
+          if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET' || err.code === 'ENOTFOUND') {
+            return
+          }
+          logger.debugErr(`broadcastShutdown: ${service} @ ${location}:`, err.message)
+        })
+      )
+    }
+  }
+  await Promise.allSettled(jobs)
+}
 
 /**
  * Pre-register an already-running Gateway server
@@ -189,8 +226,18 @@ export function allocateServicePort(state, { service, domain, home }, defaultSta
  * @param {Object} [options.metadata] - Service metadata (for special services like gateway)
  * @param {Object} [options.rateLimit] - Rate limit configuration for this service
  */
-export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit, contract, serviceType, timeout }) {
+export async function registerService(state, { service, location, useAuthService, accessControl, metadata = {}, rateLimit, contract, serviceType, timeout, allowBreakingContract = false }) {
   logger.debug(`registerService - service "${service}" registering for ${location} (accessControl: ${accessControl})`)
+  
+  const existingContract = state.serviceContracts.get(service)
+  if (contract && existingContract && !areServiceContractsEqual(existingContract, contract)) {
+    if (!isBackwardCompatibleServiceContract(existingContract, contract) && !allowBreakingContract) {
+      throw new HttpError(409,
+        `Service "${service}": new registration contract is not backward compatible with the contract already in the registry. ` +
+        'Deploy with contract overrides or re-register the old version first, or have the new replica send the yamf-allow-breaking-contract header (e.g. YAMF_DEPLOY_ALLOW_BREAKING=1 in its environment).'
+      )
+    }
+  }
   
   // Check for pure service load-balancing attempt
   if (accessControl === 'pure') {
@@ -268,18 +315,36 @@ export async function registerService(state, { service, location, useAuthService
     logger.info(`Stored timeout for "${service}":`, timeout)
   }
 
-  // Store metadata if provided (for special services like gateway)
-  if (Object.keys(metadata).length > 0) {
-    state.serviceMetadata.set(service, { 
-      ...metadata, 
-      registeredAt: Date.now() 
+  const replicaKey = `${service}\0${location}`
+  const metaObj = metadata && typeof metadata === 'object' ? metadata : {}
+  const { sourceHash, configVersion, node, ...metadataForService } = metaObj
+
+  if (sourceHash != null || configVersion != null || node != null) {
+    const prevR = state.replicaMetadata.get(replicaKey) || {}
+    state.replicaMetadata.set(replicaKey, {
+      ...prevR,
+      ...(sourceHash != null ? { sourceHash } : {}),
+      ...(configVersion != null ? { configVersion: String(configVersion) } : {}),
+      ...(node != null ? { node: String(node) } : {}),
+      registeredAt: Date.now()
     })
-    logger.info(`Stored metadata for "${service}":`, metadata)
+  }
+
+  if (Object.keys(metadataForService).length > 0) {
+    // Merges with any prior row; re-registering with a subset does not remove absent keys. To
+    // clear a key on re-registration, send an explicit `null` for that key in `yamf-service-metadata`.
+    const prev = state.serviceMetadata.get(service) || {}
+    state.serviceMetadata.set(service, {
+      ...prev,
+      ...metadataForService,
+      registeredAt: prev.registeredAt || Date.now()
+    })
+    logger.info(`Stored metadata for "${service}":`, metadataForService)
   }
   
   // Check if this service should receive push notifications
   // Gateway and other pull-only services should not be subscribed to push events
-  const isPullOnly = metadata.pullOnly === true
+  const isPullOnly = metadataForService.pullOnly === true
   
   // Notify other services about the new registration using cache update headers
   await publishCacheUpdate(state, { service, location, contract: state.serviceContracts.get(service) })
@@ -302,10 +367,15 @@ export async function registerService(state, { service, location, useAuthService
 
 /**
  * Unregister a service instance
+ * Notifies the gateway (via {@link publishCacheUpdate}) the same as {@link registerService},
+ * so pull-only gateways do not keep stale locations — otherwise round-robin can hit a dead
+ * address (~50% 502) after rolling deploys.
  */
-export function unregisterService(state, { service, location }) {
+export async function unregisterService (state, { service, location }) {
   logger.info(`Service "${service}" unregistered from ${location}`)
-  
+
+  state.replicaMetadata?.delete(`${service}\0${location}`)
+
   // Remove from reverse lookup
   state.addresses.delete(location)
   
@@ -316,6 +386,7 @@ export function unregisterService(state, { service, location }) {
   }
   
   serviceInstances.delete(location)
+  clearRoundRobinForService(service)
   
   // Clean up empty service entries
   if (serviceInstances.size === 0) {
@@ -326,6 +397,21 @@ export function unregisterService(state, { service, location }) {
   
   // Clean up all subscriptions for this location
   removeAllSubscriptionsForLocation(state, location)
+
+  if (state.pluginCommands?.size) {
+    for (const [cmd, entry] of [...state.pluginCommands.entries()]) {
+      if (entry.service === service && entry.location === location) {
+        state.pluginCommands.delete(cmd)
+        logger.debug(`unregisterService: removed plugin command "${cmd}"`)
+      }
+    }
+  }
+
+  await publishCacheUpdate(state, {
+    service,
+    location,
+    contract: state.serviceContracts.get(service)
+  })
 }
 
 /**
@@ -446,7 +532,11 @@ const headerWhitelist = [
   'yamf-command',
   'yamf-service-name',
   'yamf-auth-token',
-  'yamf-registry-token'
+  'yamf-registry-token',
+  'yamf-deploy-token',
+  'yamf-deploy-hash',
+  'yamf-bundle-ed25519-sig',
+  'yamf-prefer-service-location'
 ]
 
 const filterForUsefulHeaders = (headers) => {
@@ -471,8 +561,19 @@ export async function streamProxyServiceCall(state, { name, request, response })
   const authToken = request.headers?.[HEADERS.AUTH_TOKEN]
   await verifyAuthToken(state, name, authToken)
 
-  // use round-robin for proxy calls
-  const location = selectServiceLocation(state, name, 'round-robin')
+  // use round-robin for proxy calls; optional sticky routing for multi-replica (e.g. remote pm3 CLI)
+  const prefer = request.headers?.[HEADERS.SERVICE_PREFER_LOCATION]
+  let location
+  if (prefer) {
+    try {
+      const addrs = getServiceAddresses(state, name)
+      location = addrs.includes(prefer) ? prefer : selectServiceLocation(state, name, 'round-robin')
+    } catch {
+      location = selectServiceLocation(state, name, 'round-robin')
+    }
+  } else {
+    location = selectServiceLocation(state, name, 'round-robin')
+  }
   const endpoint = request.url
   const url = new URL(location + (endpoint ? endpoint : ''))
 

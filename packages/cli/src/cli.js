@@ -15,8 +15,9 @@
  *   yamf stop <filename>
  *   yamf restart <filename>
  *   yamf logs <filename>
- *   yamf list [--all]
+ *   yamf list [--all] [-L]
  *   yamf delete <filename>
+ *   yamf clean
  *   yamf lookup <service-filter>
  *   yamf state <state-property>
  *   yamf test [options]
@@ -80,6 +81,11 @@ async function main() {
       await runHealthCommand(subcommandArgs)
       break
     }
+    case 'drain': {
+      const { runDrainCommand } = await import('./commands/drain.js')
+      await runDrainCommand(subcommandArgs)
+      break
+    }
     case 'route': {
       const { runRouteCommand } = await import('./commands/route.js')
       await runRouteCommand(subcommandArgs)
@@ -116,6 +122,11 @@ async function main() {
       await runListCommand(subcommandArgs)
       break
     }
+    case 'describe': {
+      const { runDescribeCommand } = await import('./commands/describe.js')
+      await runDescribeCommand(subcommandArgs)
+      break
+    }
     case 'logs': {
       const { runLogsCommand } = await import('./commands/logs.js')
       await runLogsCommand(subcommandArgs)
@@ -136,11 +147,35 @@ async function main() {
       await runDeleteCommand(subcommandArgs)
       break
     }
-
+    case 'clean': {
+      const { runCleanCommand } = await import('./commands/clean.js')
+      await runCleanCommand(subcommandArgs)
+      break
+    }
 
     case 'test': {
       const { runTestCommand } = await import('./commands/test.js')
       await runTestCommand(subcommandArgs)
+      break
+    }
+    case 'build': {
+      const { runBuildCommand } = await import('./commands/build.js')
+      await runBuildCommand(subcommandArgs)
+      break
+    }
+    case 'deploy': {
+      const { runDeployCommand } = await import('./commands/deploy.js')
+      await runDeployCommand(subcommandArgs)
+      break
+    }
+    case 'dev': {
+      const { runDevCommand } = await import('./commands/dev.js')
+      await runDevCommand(subcommandArgs)
+      break
+    }
+    case 'config': {
+      const { runConfigCommand } = await import('./commands/config.js')
+      await runConfigCommand(subcommandArgs)
       break
     }
     case '--help':
@@ -183,6 +218,7 @@ API:
 
 Registry:
   health              Get health of yamf environment
+  drain               Ask the registry to drain (reject new registrations)
   route <path> <svc>  Register a route (--remove to unregister)
   lookup <filter>     Look up services, routes, or channels
   state <property>    Get registry state
@@ -191,13 +227,22 @@ Process Management (pm3):
   start <filename>    Start a script as a managed process (-i N for instances)
   stop <filename>     Stop managed process(es)
   restart <filename>  Restart managed process(es)
-  list                List processes (--services, --locations, --all)
+  list                List processes (--services, --locations, --all, --remote)
+  describe <target>   JSON state for one process (same as --remote list + other commands)
   logs <filename>     View logs for a managed process
   delete <filename>   Stop and remove from process list
+  clean               Stop all processes and remove .yamf/ (same as delete --all + rm)
 
 Utilities:
   run <filename>      Run a script directly with Node
   test                Run tests (requires @yamf/test)
+
+Deploy:
+  build [name]        Bundle services with esbuild into .yamf/build/ (needs yamf.config.js)
+  deploy --local SVC  Plan/apply a local deploy (YAMF_SOURCE_HASH + pm3)
+  deploy --remote SVC  Remote deploy (registry bundle + pm3-service; needs YAMF_DEPLOY_TOKEN)
+  dev [name|entry.js] Watch and redeploy; optional one service (see yamf dev --help)
+  config get|set|list  Config-service overlay for deploys
 
 Options:
   --help, -h          Show this help

@@ -1,0 +1,14 @@
+---
+description: YAMF tests — env, terminateAfter, registry
+globs: yamf/**/tests/**/*,yamf/**/*-tests.js,yamf/**/test/**/*
+alwaysApply: false
+---
+
+# YAMF testing
+
+- **Conventions and pitfalls:** `yamf/docs/TESTING.md` (defaults, `withEnv` vs `.env.test`, `registryServer({ ... })`, port/EADDRINUSE, `-f` filter gotchas).
+- **Helpers:** `yamf/packages/test/README.md` — especially **`terminateAfter`**: pass **thunks** `() => registryServer()` / `() => gatewayServer()`, not pre-`await`ed values (see `packages/test/src/helpers.js`).
+- **Core integration tests:** `yamf/packages/core/tests/README.md` when adding or moving integration tests.
+- **Registry in tests:** `registryServer({ port?, broadcastShutdownOnTerminate?, rateLimit? })` — options object only; do not use a legacy two-argument form.
+
+When debugging flaky multi-server tests, prefer aligning with **TESTING.md** before adding sleeps.

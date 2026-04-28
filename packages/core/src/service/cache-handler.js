@@ -10,6 +10,8 @@ import { HEADERS, COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.j
 import envConfig from '../shared/env-config.js'
 import Logger from '../utils/logger.js'
 import readStream from '../http-primitives/read-stream.js'
+import { validateRegistryToken as validateRegistryTokenOrThrow403 } from '../registry/registry-auth.js'
+import HttpError from '../http-primitives/http-error.js'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
@@ -30,6 +32,15 @@ export function isCacheUpdateRequest(request) {
 }
 
 /**
+ * Registry-issued graceful shutdown to this service
+ */
+export function isServiceShutdownRequest(request) {
+  if (!request?.headers) return false
+  const { command } = parseCommandHeaders(request.headers)
+  return command === COMMANDS.SERVICE_SHUTDOWN
+}
+
+/**
  * Check if request is a subscription message from registry
  * Uses yamf headers to identify pubsub subscription messages
  * 
@@ -45,13 +56,11 @@ export function isSubscriptionMessage(request) {
   return command === COMMANDS.PUBSUB_PUBLISH
 }
 
-function validateRegistryToken(request) {
+function validateCacheMessageRegistryToken(request) {
   const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
   if (!registryToken) {
-    // if no token is configured, skip validation
     return true
   }
-  
   const authHeader = request?.headers?.[HEADERS.REGISTRY_TOKEN]
   if (authHeader !== registryToken) {
     throw new Error('Unauthorized cache update attempt')
@@ -71,18 +80,73 @@ function validateRegistryToken(request) {
  * @param {Function} serviceFn - The actual service handler function
  * @param {Object} cache - Service cache object
  * @param {Object} context - Service execution context
+ * @param {Object} [serviceOptions]
+ * @param {{ terminate: () => void | Promise<void> } | { terminate: null }} [serviceOptions.shutdownTerminateRef] — set `.terminate` to `server.terminate` after the server is created
  * @returns {Function} Wrapped handler
  */
-export function createCacheAwareHandler(serviceFn, cache, context) {
+export function createCacheAwareHandler(serviceFn, cache, context, serviceOptions = {}) {
   return async function cacheAwareHandler(payload, request, response) {
+    if (isServiceShutdownRequest(request)) {
+      const ref = serviceOptions.shutdownTerminateRef
+      try {
+        validateRegistryTokenOrThrow403(request)
+      } catch (err) {
+        const e = new HttpError(401, 'Invalid or missing registry token for service shutdown')
+        e.stack = err.stack
+        throw e
+      }
+      if (typeof ref?.terminate !== 'function') {
+        throw new HttpError(500, 'Service shutdown not available')
+      }
+      response.writeHead(202)
+      response.end()
+      queueMicrotask(() => {
+        Promise.resolve()
+          .then(() => ref.terminate())
+          .catch((err) => { logger.debugErr('service-shutdown terminate:', err) })
+      })
+      return false
+    }
+
     // Check if this is a cache update from registry using yamf headers
     if (isCacheUpdateRequest(request)) {
-      validateRegistryToken(request)
-      const { pubsubChannel, serviceName, accessControl, serviceLocation, contract } = parseCommandHeaders(request.headers)
+      validateCacheMessageRegistryToken(request)
+      const h = parseCommandHeaders(request.headers)
+
+      if (h.cacheBulk) {
+        let p = payload
+        if (p == null || p === undefined) {
+          const raw = await readStream(request)
+          const s = raw && raw.length ? raw.toString('utf8') : '{}'
+          try {
+            p = JSON.parse(s)
+          } catch {
+            p = {}
+          }
+        }
+        const updates = Array.isArray(p?.updates) ? p.updates : []
+        for (const u of updates) {
+          logger.debug('cacheAwareHandler - bulk cache update', u)
+          updateCacheEntry(cache, {
+            subscription: u.subscription,
+            service: u.service,
+            accessControl: u.accessControl,
+            location: u.location,
+            contract: u.contract != null ? u.contract : null
+          })
+        }
+        updateContext(context, cache)
+        return {
+          status: 'cache_updated_bulk',
+          count: updates.length,
+          windowId: p?.windowId
+        }
+      }
+
+      const { pubsubChannel, serviceName, accessControl, serviceLocation, contract } = h
       
       logger.debug('cacheAwareHandler - cache update request', { pubsubChannel, serviceName, serviceLocation })
 
-      // Update local cache
       updateCacheEntry(cache, {
         subscription: pubsubChannel,
         service: serviceName,
@@ -91,10 +155,8 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
         contract
       })
       
-      // Update context to reflect new services
       updateContext(context, cache)
       
-      // Return success response
       return {
         status: 'cache_updated',
         subscription: pubsubChannel,
@@ -103,28 +165,23 @@ export function createCacheAwareHandler(serviceFn, cache, context) {
       }
     }
     
-    // Check if this is a subscription message from registry
     if (isSubscriptionMessage(request)) {
-      validateRegistryToken(request)
+      validateCacheMessageRegistryToken(request)
       const { pubsubChannel } = parseCommandHeaders(request.headers)
-      
+
       if (context._pubSubManager) {
-        // Check if pubsub manager has handlers for this channel
         const subscriptions = context._pubSubManager.listSubscriptions()
         if (subscriptions[pubsubChannel]) {
-          // Route to pubsub manager handlers
-          // in case the server is in stream mode, we need to read the stream and parse the body
-          if (request.headers['content-type'] === 'application/json') {
-            payload = await readStream(request)
-            try { payload = JSON.parse(payload) } catch { /* don't care */ }
+          // If the server is in stream mode (payload === null) and we have a JSON
+          // content-type, drain the body so we can dispatch the parsed message.
+          if (payload == null && request.headers['content-type'] === 'application/json') {
+            const raw = await readStream(request)
+            try { payload = JSON.parse(raw) } catch { payload = raw }
           }
           return await context._pubSubManager.handleIncomingMessage(pubsubChannel, payload)
         }
       }
-      
-      // No pubsub manager or no handlers for this channel
-      // Pass through to normal service handler (for direct registry subscriptions)
-      // The service handler is called directly and should return its result
+
       return await serviceFn(payload, request, response)
     }
     

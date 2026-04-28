@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-file-server",
-  "version": "0.1.5",
+  "version": "0.3.0",
   "type": "module",
   "description": "Static file serving service for YAMF microservices",
   "main": "service.js",
@@ -30,6 +30,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/mcbrumagin/yamf"
+  },
+  "dependencies": {
+    "@yamf/shared": "workspace:*"
   },
   "peerDependencies": {
     "@yamf/core": "workspace:*"

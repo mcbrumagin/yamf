@@ -12,6 +12,7 @@ import { createGatewayState, resetState } from './gateway-state.js'
 import { routeCommand } from './command-router.js'
 import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
 import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 
 const logger = new Logger({ logGroup: 'yamf-gateway' })
 
@@ -165,7 +166,8 @@ export default async function createGatewayServer(port, options = {}) {
       const status = err.status || 500
       
       if (!response.writableEnded) {
-        response.writeHead(status, { 'content-type': 'text/plain' })
+        const extra = err.responseHeaders && typeof err.responseHeaders === 'object' ? err.responseHeaders : {}
+        response.writeHead(status, { 'content-type': 'text/plain', ...extra })
         response.end(err.stack || err.message)
       }
     }
@@ -173,15 +175,17 @@ export default async function createGatewayServer(port, options = {}) {
   
   // Override terminate to clean up state and handlers
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runGatewayShutdown = async () => {
     logger.info('Gateway shutting down')
-    
-    // Remove global error handlers
     process.off('unhandledRejection', unhandledRejectionHandler)
     process.off('uncaughtException', uncaughtExceptionHandler)
-    
     resetState(state)
     await httpServerTerminate()
+  }
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runGatewayShutdown, { priority: 0 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runGatewayShutdown()
   }
   
   server.isGateway = true
@@ -190,29 +194,55 @@ export default async function createGatewayServer(port, options = {}) {
   // Note: In production, access to state should be restricted
   server._state = state
   
-  // Do initial pull from registry if available
+  // Initial pull from registry — waits for a non-draining registry before pulling state.
+  // During a rolling k3s deploy, DNS may briefly still resolve to an old registry that is
+  // in drain. Pulling from a draining registry gives us stale / partial state, so we prefer
+  // to wait for a ready peer. We do not block gateway startup indefinitely; if the registry
+  // never becomes ready, REGISTRY_UPDATED push notifications will still reconcile us.
   const registryUrl = envConfig.get('YAMF_REGISTRY_URL')
   if (registryUrl) {
     const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
-    try {
-      const { buildRegistryPullHeaders } = await import('../shared/yamf-headers.js')
-      const httpRequest = (await import('../http-primitives/http-request.js')).default
-      
-      logger.info('Gateway performing initial state pull from registry...')
-      const registryState = await httpRequest(registryUrl, {
-        headers: buildRegistryPullHeaders(registryToken)
-      })
-      
-      // Import the update function from command-router
-      const { updateGatewayStateFromRegistry } = await import('./command-router.js')
-      updateGatewayStateFromRegistry(state, registryState)
-      
-      logger.info(`Gateway initialized with ${Object.keys(registryState.services || {}).length} services, ${Object.keys(registryState.routes || {}).length} routes`)
-    } catch (err) {
-      // Don't fail gateway startup if initial pull fails (registry might not be ready yet)
-      logger.warn('Gateway initial pull failed (registry may not be ready):', err.message)
+    const { buildRegistryPullHeaders } = await import('../shared/yamf-headers.js')
+    const httpRequest = (await import('../http-primitives/http-request.js')).default
+    const { updateGatewayStateFromRegistry } = await import('./command-router.js')
+
+    const readyWaitMs = Number(envConfig.get('YAMF_GATEWAY_READY_WAIT_MS', 10000))
+    const pollIntervalMs = Number(envConfig.get('YAMF_GATEWAY_READY_POLL_MS', 250))
+    const deadline = Date.now() + readyWaitMs
+
+    async function registryIsReady() {
+      try {
+        const health = await httpRequest(registryUrl, {
+          headers: { 'yamf-command': 'health' }
+        })
+        return !!health && health.draining !== true
+      } catch {
+        return false
+      }
+    }
+
+    logger.info('Gateway waiting for ready (non-draining) registry...')
+    let ready = await registryIsReady()
+    while (!ready && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, pollIntervalMs))
+      ready = await registryIsReady()
+    }
+
+    if (!ready) {
+      logger.warn(`Gateway: no ready registry after ${readyWaitMs}ms; will rely on REGISTRY_UPDATED push notifications to populate state.`)
+    } else {
+      try {
+        logger.info('Gateway performing initial state pull from registry...')
+        const registryState = await httpRequest(registryUrl, {
+          headers: buildRegistryPullHeaders(registryToken)
+        })
+        updateGatewayStateFromRegistry(state, registryState)
+        logger.info(`Gateway initialized with ${Object.keys(registryState.services || {}).length} services, ${Object.keys(registryState.routes || {}).length} routes`)
+      } catch (err) {
+        logger.warn('Gateway initial pull failed:', err.message)
+      }
     }
   }
-  
+
   return server
 }

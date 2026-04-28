@@ -46,3 +46,5 @@ export {
   createColumnMapping,
   createFieldMapping
 } from './utils/case-mapper.js'
+
+export { sanitizePathSegment, isPathUnderRoot, URL_PATH_DANGEROUS_CTRL_RE } from './path-safety.js'

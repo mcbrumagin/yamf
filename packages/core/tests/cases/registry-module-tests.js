@@ -266,7 +266,7 @@ export async function testUnregisterService() {
   state.addresses.set('loc1', 'svc')
   state.addresses.set('loc2', 'svc')
   
-  unregisterService(state, { service: 'svc', location: 'loc1' })
+  await unregisterService(state, { service: 'svc', location: 'loc1' })
   
   await assert(state,
     s => !s.services.get('svc').has('loc1'),

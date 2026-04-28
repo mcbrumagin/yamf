@@ -1,6 +1,6 @@
 {
   "name": "@yamf/client",
-  "version": "0.1.6",
+  "version": "0.2.1",
   "type": "module",
   "description": "Isomorphic HTML-as-JavaScript library with conditional exports for browser and server",
   "main": "src/index.js",
@@ -14,7 +14,12 @@
     "./load-client": "./src/loadClient.js",
     "./utils": "./src/utils.js",
     "./patch-dom": "./src/patch-dom.js",
-    "./event-source": "./src/event-source.js"
+    "./event-source": "./src/event-source.js",
+    "./ssr-render": "./src/ssr-render.js",
+    "./ssr-hydrate": "./src/ssr-hydrate.js",
+    "./render-context": "./src/render-context.js",
+    "./dev-hmr": "./src/dev-hmr.js",
+    "./vite-plugin-yamf-dev": "./src/vite-plugin-yamf-dev.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -34,9 +39,19 @@
     "@yamf/shared": "workspace:*",
     "morphdom": "^2.7.8"
   },
+  "peerDependencies": {
+    "@yamf/core": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@yamf/core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@yamf/cli": "workspace:*",
-    "@yamf/test": "workspace:*"
+    "@yamf/core": "workspace:*",
+    "@yamf/test": "workspace:*",
+    "jsdom": "^24.1.3"
   },
   "files": [
     "src",

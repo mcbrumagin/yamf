@@ -39,8 +39,8 @@ export async function testEnsureDbPath_SkipsMemory() {
 
 export async function testSchema_RunsOnInit() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({
+    () => registryServer(),
+    () => createSqliteService({
       sqliteConfig: ':memory:',
       schema: `
         CREATE TABLE _schema_test (
@@ -64,8 +64,8 @@ export async function testSchema_RunsOnInit() {
 
 export async function testSeed_RunsAfterSchema() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({
+    () => registryServer(),
+    () => createSqliteService({
       sqliteConfig: ':memory:',
       schema: `
         CREATE TABLE _seed_test (
@@ -93,8 +93,8 @@ export async function testBackup_ExportsToFile() {
   const backupPath = join(baseDir, 'backup.sqlite')
 
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({
+    () => registryServer(),
+    () => createSqliteService({
       sqliteConfig: ':memory:',
       schema: `
         CREATE TABLE _backup_test (id INTEGER PRIMARY KEY, data TEXT);
@@ -118,8 +118,8 @@ export async function testFileDb_InitAndBackup() {
   await ensureDbPath(dbPath)
 
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({
+    () => registryServer(),
+    () => createSqliteService({
       sqliteConfig: dbPath,
       schema: `
         CREATE TABLE _persist_test (id INTEGER PRIMARY KEY, label TEXT);

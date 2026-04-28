@@ -14,8 +14,11 @@
  */
 
 import Logger from '../utils/logger.js'
-import { COMMANDS, parseCommandHeaders } from '../shared/yamf-headers.js'
+import { lifecycle } from '../shared/process-lifecycle.js'
 import { createPubSubManager } from '../service/pubsub-manager.js'
+import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
+import { buildEnhancedContext, updateContext, bindServiceFunction } from '../service/service-context.js'
+import { createCacheAwareHandler } from '../service/cache-handler.js'
 import {
   createAndRegisterService,
   unregisterServiceFromRegistry,
@@ -145,58 +148,52 @@ export default async function createSubscriptionService(serviceName, channelOrMa
     )
   }
   
-  // We need to declare pubSubManager in outer scope so it's accessible in handler
+  // Cache + context so subscription services participate in cache-update pushes and can call peers.
+  const cache = options.sharedCache || createServiceState()
+  const context = buildEnhancedContext(cache, serviceName)
   let pubSubManager = null
-  
-  // Setup service infrastructure (allocate port, create server, register)
-  const { location, server, registryData } = await createAndRegisterService(
-    serviceName,
-    async function subscriptionServiceHandler(message, request, response) {
-      const { command, pubsubChannel } = parseCommandHeaders(request.headers)
-      
-      // Handle incoming subscription messages
-      if (command === COMMANDS.PUBSUB_PUBLISH) {
-        if (!pubSubManager) {
-          logger.debugErr(`PubSub manager not initialized for ${serviceName}`)
-          return { results: [], errors: [{ error: 'PubSub manager not ready' }] }
-        }
-        return await pubSubManager.handleIncomingMessage(pubsubChannel, message)
-      }
-      
-      // For non-pubsub requests, return service info
-      return {
-        service: serviceName,
-        type: 'subscription-service',
-        channels: Object.keys(channelMap),
-        subscriptionCount: channels.length,
-        accessControl
-      }
-    },
-    options
-  )
-  
-  // Register in local state for direct calls
-  registerLocalService(serviceName, async (message, channel) => {
-    if (pubSubManager) {
-      return await pubSubManager.handleIncomingMessage(channel, message)
+
+  // Non-pubsub/non-internal requests: respond with service info.
+  const subscriptionInfoHandler = async function subscriptionInfoHandler() {
+    return {
+      service: serviceName,
+      type: 'subscription-service',
+      channels: Object.keys(channelMap),
+      subscriptionCount: channels.length,
+      accessControl
     }
-    return { error: 'PubSub manager not ready' }
-  }, accessControl)
-  
-  // Create pubsub manager for routing messages to handlers
+  }
+
+  const shutdownTerminateRef = { terminate: null }
+  const cacheHandler = createCacheAwareHandler(
+    subscriptionInfoHandler,
+    cache,
+    context,
+    { shutdownTerminateRef }
+  )
+
+  const { location, server, registryData } = await createAndRegisterService(serviceName, cacheHandler, options)
+
+  updateCache(cache, registryData)
+  updateContext(context, cache)
+
   pubSubManager = createPubSubManager(serviceName, location)
-  
-  // Subscribe to all channels upfront
+  context._pubSubManager = pubSubManager
+
+  registerLocalService(serviceName, async (message, channel) => {
+    return await pubSubManager.handleIncomingMessage(channel, message)
+  }, accessControl)
+
   const subscriptionIds = {}
   for (const [channel, handler] of Object.entries(channelMap)) {
     logger.debug(`Subscribing to channel: ${channel}`)
-    subscriptionIds[channel] = await pubSubManager.subscribe(channel, handler)
+    const boundHandler = bindServiceFunction(handler, context)
+    subscriptionIds[channel] = await pubSubManager.subscribe(channel, boundHandler)
   }
-  
+
   logger.info(`Subscription service "${serviceName}" running at ${location}`)
   logger.info(`Subscribed to ${channels.length} channels: ${channels.join(', ')}`)
-  
-  // Add metadata to server instance
+
   server.name = serviceName
   server.location = location
   server.service = serviceName
@@ -204,32 +201,32 @@ export default async function createSubscriptionService(serviceName, channelOrMa
   server.channels = channels
   server.subscriptionIds = subscriptionIds
   server.accessControl = accessControl
-  
-  // Override terminate to handle cleanup
+  server.cache = cache
+  server.context = context
+
   const httpServerTerminate = server.terminate.bind(server)
-  server.terminate = async () => {
+  const runSubShutdown = async () => {
     logger.debug(`Terminating subscription service: ${serviceName}`)
-    
-    // Cleanup local registration
     unregisterLocalService(serviceName)
-    
-    // Cleanup subscriptions first (unsubscribes from all channels)
+    removeFromCache(cache, { service: serviceName, location })
     await pubSubManager.cleanup()
-    
-    // Unregister from registry
-    await unregisterServiceFromRegistry(serviceName, location)
-    
-    // Stop HTTP server
+    try {
+      await unregisterServiceFromRegistry(serviceName, location)
+    } catch (err) {
+      if (err.code !== 'ECONNREFUSED' && err.code !== 'ECONNRESET' && err.code !== 'ENOTFOUND') {
+        throw err
+      }
+    }
     await httpServerTerminate()
-    
     logger.info(`Subscription service "${serviceName}" terminated`)
   }
+  const unregisterFromLifecycle = lifecycle.registerTerminable(runSubShutdown, { priority: 10 })
+  server.terminate = async () => {
+    unregisterFromLifecycle()
+    await runSubShutdown()
+  }
+  shutdownTerminateRef.terminate = () => server.terminate()
 
-  process.once('SIGTERM', async () => {
-    logger.debug('SIGTERM received for service', serviceName)
-    await server.terminate()
-  })
-  
   return server
 }
 

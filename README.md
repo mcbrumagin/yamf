@@ -2,7 +2,7 @@
 
 A lightweight microservices framework for Node.js with built-in service discovery, API gateway, pub/sub messaging, and multi-language support. **`@yamf/core`** has **zero npm dependencies** at runtime (pure Node.js built-ins). Optional packages such as **`@yamf/client`** add their own small dependency set (e.g. **morphdom** for DOM patching in the browser).
 
-[![Tests](https://img.shields.io/badge/tests-436%2F436%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-pnpm%20test-brightgreen)]()
 [![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
@@ -31,9 +31,9 @@ console.log(result.message) // "Hello, World"
 ## ✨ Core Features
 
 - **Zero Dependencies (`@yamf/core` runtime)** - The core server ships with no npm packages—only Node.js built-ins—so the registry, gateway, and RPC stack avoid third-party supply-chain risk. Other packages (e.g. `@yamf/client`) may declare dependencies as needed.
-- **Service Discovery** - Automatic registration and dynamic service lookup
+- **Service discovery** - Services **register** with a central registry; each peer keeps a **replicated service cache** so steady-state `callService` is direct HTTP to the right instance (the registry is still source of truth and reconciliation).
 - **API Gateway** - Built-in reverse proxy with HTTP routing
-- **Pub/Sub Messaging** - Event-driven communication between services
+- **Pub/Sub messaging** - Event-driven communication; includes cache **invalidation and bulk/coalesced** update paths (see [roadmap](docs/ROADMAP.md))
 - **Load Balancing** - Round-robin distribution across service instances
 - **Multi-Language Support** - Python client available, seamless interoperability
 - **Modular Architecture** - Use only what you need
@@ -58,9 +58,19 @@ YAMF is organized as a monorepo with independently versioned packages:
 - **[@yamf/services-postgres](./packages/services/postgres/)** - Postgres.js wrapper with parameterized templates and camelCase mapping
 - **[@yamf/services-user](./packages/services/user/)** - User CRUD, self-signup, admin-invite, registration tokens, verification
 
-### Development Tools
+### CLI and orchestration (build, deploy, dev)
 
-- **[@yamf/test](./packages/test/)** - Custom testing framework with multi-assertion support
+- **[@yamf/cli](./packages/cli/)** - `yamf build`, `yamf deploy` (local / remote), `yamf dev` (watch + rolling deploy to PM3 + `yamf:dev-reload` pub), `yamf test`, and lifecycle helpers. See the [CLI README](./packages/cli/README.md) and the [framework roadmap](docs/ROADMAP.md) (what is shipped and what is next).
+
+- **[@yamf/services-config](./packages/services/config/)** - Encrypted config overlay for deploy-time secrets (used with the deploy driver).
+
+- **[@yamf/services-dev-hmr](./packages/services/dev-hmr/)** - Dev-only **SSE** service subscribed to `yamf:dev-reload` so browsers can get `reload` events when `yamf dev` redeploys a service or the Vite dev plugin fans out a change.
+
+- **[@yamf/services/deploy-router](./packages/services/deploy-router/)** - In-process `registerCommand` handlers for `deploy-plan` / `deploy-bundle` (signed bundles, placement hooks).
+
+### Development tools
+
+- **[@yamf/test](./packages/test/)** - Custom testing framework with multi-assertion support. See [Testing conventions](./docs/TESTING.md) for YAMF-specific `withEnv` and `.env.test` usage.
 
 ## 🎯 Use Cases
 
@@ -93,10 +103,12 @@ create_service_sync("pythonService", python_service)
 
 ## 🏗️ Architecture
 
+**Spine and muscle memory:** the **registry** is the long-lived **spine** — authoritative state, registration, and pub/sub so the system always **converges** when topology or contracts change. Each service keeps a local **in-process service cache** (replicated from the registry): that’s **muscle memory** for steady work — `callService` can go **direct to the right instance** without a control-plane hop on every request. On a miss, inconsistency, or update, the registry and cache path **re-teach** the muscle (pull, or push via pub/sub). The **gateway** in front is the same idea for **HTTP clients**: a stable edge that **pulls** registry state and routes; see [Core framework](./packages/core/README.MD) for details.
+
 ```
 ┌────────────────────────┐  ┌─────────────────────────┐
 │ -- Service Registry -- │  │ --- API Gateway ------- │
-│  - Service Discovery   │  │ - Pulls Regsitry State  │
+│  - Service discovery   │  │ - Pulls registry state  │
 │  - Pub/Sub Routing     │  │ - API Routing           │
 │  - Load Balancing      │  │ - Also Load Balancing   │
 └──────────────────┬─────┘  └─────┬───────────────────┘
@@ -112,9 +124,14 @@ create_service_sync("pythonService", python_service)
 
 ## 📚 Documentation
 
-### Getting Started
-- [Core Framework](./packages/core/README.MD) - Complete API reference and examples
-- [Client Library](./packages/client/README.md) - UI development guide
+### Roadmap and deep dives
+- [Framework roadmap](docs/ROADMAP.md) - What shipped (orchestrator, deploy, cache coalescing), **active** follow-on work, and deferred horizon items.
+- [D4 SPA / dev HMR](docs/D4-SPA-HMR-ANALYSIS.md) - Vite HMR vs `yamf:dev-reload` vs `connectYamfDevHmr` / `createYamfDevHmrSpaPatch` (state-preserving tab on Vite-originated reloads; full reload after `yamf dev` service deploy).
+- [Testing](docs/TESTING.md) - Where the tests live; filters for `yamf test -d <pkg> -f <pattern>`.
+
+### Getting started
+- [Core Framework](./packages/core/README.MD) - API reference and examples
+- [Client Library](./packages/client/README.md) - UI development; includes **Vite + YAMF HMR** notes
 - [Shared Library](./packages/shared/README.md) - Validator, utilities, and isomorphic helpers
 - [Examples](./packages/core/examples/README.md) - Sample applications and patterns
 
@@ -132,33 +149,33 @@ create_service_sync("pythonService", python_service)
 
 For a full stack using **Postgres + User + Auth** together (self-signup, admin-invite, login), see the [psql-user-auth example](./packages/core/examples/psql-user-auth/).
 
-## 🛠️ Development
+## 🛠️ In this monorepo
 
 ```bash
-# Clone the repository
 git clone https://github.com/mcbrumagin/yamf.git
 cd yamf
-
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Run specific package tests
-cd packages/core && npm test
+pnpm install
+pnpm test
 ```
+
+The repo uses **pnpm** workspaces. Per-package: `cd packages/core && pnpm test` (or `yamf test -d <dir>` — see [CLI](./packages/cli/README.md)).
+
+## 🧭 Dev and deploy in practice
+
+At a high level, **one mental model** covers local and production:
+
+1. **Registry** — services register; everyone else **pulls** or receives **pub/sub** cache updates to stay in sync.
+2. **`yamf build` / `yamf deploy --local` or `--remote`** — content-addressed bundles, `YAMF_SOURCE_HASH` (and config version) on replicas; the deploy driver’s **decision** table chooses scale vs rolling (see [roadmap](docs/ROADMAP.md)).
+3. **`yamf dev` (watch + deploy)** — same `planAndApply` path; after a successful (re)deploy it **publishes** `yamf:dev-reload` with `{ source: 'yamf-dev', service, hash, at }` so dev browsers and tooling can react.
+4. **Browser (optional)** — the **Vite** plugin `yamfVitePluginDev` (from `@yamf/client`) can also publish to `yamf:dev-reload` with `{ source: 'vite', at }` when the dev server HMR graph changes, so the **yamf-dev** SSE can coordinate **all tabs** the same way as a backend roll. Client apps use `@yamf/client/dev-hmr` (`connectYamfDevHmr`, D4’s `createYamfDevHmrSpaPatch`) to **avoid** a full `location.reload` for Vite-originated events while still **full-reloading** after a service redeploy. Details: [D4-SPA-HMR-ANALYSIS.md](docs/D4-SPA-HMR-ANALYSIS.md).
+5. **Cache pressure** — for large registries, set `YAMF_CACHE_COALESCE_MS` (default `0` = legacy; `>0` = coalesced + bulk) — [ROADMAP](docs/ROADMAP.md) (env table and orchestrator *What shipped*).
 
 ## 🚢 Deployment
 
-YAMF is designed for cloud-native deployments:
+YAMF targets **k8s, bare PM3, or plain Node** with the same primitives (no vendor lock for “rolling”): signed bundles, deploy router, registry drain, gateway readiness. For examples and layout:
 
-- **Docker** - Multi-container examples included
-- **Kubernetes** - K8s manifests and examples provided
-- **AWS ECS/Fargate** - Production-ready configuration samples
-- **Standalone** - Run as regular Node.js processes
-
-See [deployment examples](./packages/core/examples/) for detailed guides.
+- [Deployment / examples](./packages/core/examples/)
+- [Framework roadmap](docs/ROADMAP.md) for remote deploy, canary, and follow-ups
 
 ## 🌟 Real-World Examples
 

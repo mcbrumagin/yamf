@@ -24,8 +24,8 @@ const SQLITE_CONFIG = ':memory:'
 
 export async function testSqlite_BasicQuery() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: 'SELECT 1 + 1 AS sum',
@@ -42,8 +42,8 @@ export async function testSqlite_BasicQuery() {
 
 export async function testSqlite_ParameterizedQuery() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: 'SELECT CAST(:a AS INTEGER) + CAST(:b AS INTEGER) AS sum',
@@ -56,8 +56,8 @@ export async function testSqlite_ParameterizedQuery() {
 
 export async function testSqlite_PostgresStyleCast() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: 'SELECT :a::integer + :b::integer AS sum',
@@ -70,8 +70,8 @@ export async function testSqlite_PostgresStyleCast() {
 
 export async function testSqlite_CaseMapping() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: `SELECT 'test' AS my_column_name, 123 AS another_value`,
@@ -87,8 +87,8 @@ export async function testSqlite_CaseMapping() {
 
 export async function testSqlite_MapCaseFalse() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: `SELECT 'raw' AS snake_case_key`,
@@ -102,8 +102,8 @@ export async function testSqlite_MapCaseFalse() {
 
 export async function testSqlite_EmptyResult() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: 'SELECT 1 AS id WHERE 0',
@@ -119,8 +119,8 @@ export async function testSqlite_EmptyResult() {
 
 export async function testSqlite_MultipleRows() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: `WITH RECURSIVE nums(n) AS (
@@ -143,8 +143,8 @@ export async function testSqlite_MultipleRows() {
 
 export async function testSqlite_NullParameter() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: 'SELECT CAST(:val AS TEXT) IS NULL AS is_null',
@@ -157,8 +157,8 @@ export async function testSqlite_NullParameter() {
 
 export async function testSqlite_MissingPlaceholder() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       await assertErr(
         async () => callService('sqlite-service', {
@@ -174,8 +174,8 @@ export async function testSqlite_MissingPlaceholder() {
 
 export async function testSqlite_ReusedPlaceholder() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       const result = await callService('sqlite-service', {
         template: 'SELECT CAST(:x AS INTEGER) AS a, CAST(:x AS INTEGER) + 1 AS b',
@@ -191,8 +191,8 @@ export async function testSqlite_ReusedPlaceholder() {
 
 export async function testSqlite_MissingTemplate() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       await assertErr(
         async () => callService('sqlite-service', {
@@ -207,8 +207,8 @@ export async function testSqlite_MissingTemplate() {
 
 export async function testSqlite_MissingData() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       await assertErr(
         async () => callService('sqlite-service', {
@@ -224,8 +224,8 @@ export async function testSqlite_MissingData() {
 
 export async function testSqlite_SqlError() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       await assertErr(
         async () => callService('sqlite-service', {
@@ -241,8 +241,8 @@ export async function testSqlite_SqlError() {
 
 export async function testSqlite_InsertReturning() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       await callService('sqlite-service', {
         template: `CREATE TABLE _test_insert (
@@ -270,8 +270,8 @@ export async function testSqlite_InsertReturning() {
 
 export async function testSqlite_InsertReturnsEmpty() {
   await terminateAfter(
-    await registryServer(),
-    await createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
+    () => registryServer(),
+    () => createSqliteService({ sqliteConfig: SQLITE_CONFIG }),
     async () => {
       await callService('sqlite-service', {
         template: `CREATE TABLE _test_write (

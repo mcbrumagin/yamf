@@ -34,8 +34,8 @@ const testDir = path.join(__dirname)
  */
 export async function testManualFileAddition() {
   await terminateAfter(
-    await registryServer(),
-    await createStaticFileService({
+    () => registryServer(),
+    () => createStaticFileService({
       rootDir: testDir,
       fileMap: { '/*': 'data' },
       autoRefresh: false
@@ -92,8 +92,8 @@ export async function testPubSubMode() {
   let fileAddedCalled = false
   
   await terminateAfter(
-    await registryServer(),
-    await createStaticFileService({
+    () => registryServer(),
+    () => createStaticFileService({
       rootDir: testDir,
       fileMap: { '/*': 'data' },
       autoRefresh: {
@@ -148,8 +148,8 @@ export async function testFileDeletionEvent() {
   let fileRemovedCalled = false
   
   await terminateAfter(
-    await registryServer(),
-    await createStaticFileService({
+    () => registryServer(),
+    () => createStaticFileService({
       rootDir: testDir,
       fileMap: { '/*': 'data' },
       autoRefresh: {
@@ -206,8 +206,8 @@ export async function testFileDeletionEvent() {
  */
 export async function testFullIndexRefresh() {
   await terminateAfter(
-    await registryServer(),
-    await createStaticFileService({
+    () => registryServer(),
+    () => createStaticFileService({
       rootDir: testDir,
       fileMap: { '/*': 'data' },
       autoRefresh: false
@@ -250,8 +250,8 @@ export async function testFullIndexRefresh() {
  */
 export async function testPauseResumeAutoRefresh() {
   await terminateAfter(
-    await registryServer(),
-    await createStaticFileService({
+    () => registryServer(),
+    () => createStaticFileService({
       rootDir: testDir,
       fileMap: { '/*': 'data' },
       autoRefresh: {
@@ -286,14 +286,14 @@ export async function testIntegratedUploadAndStatic() {
   let fileAddedCount = 0
   
   await terminateAfter(
-    await registryServer(),
-    await createFileUploadService({
+    () => registryServer(),
+    () => createFileUploadService({
       uploadDir: path.join(testDir, 'data'),  // Upload directly to data dir
       publishFileEvents: true,
       updateChannel: 'test:upload-event',
       urlPathPrefix: '/'  // URLs will be like /uploaded.txt
     }),
-    await createStaticFileService({
+    () => createStaticFileService({
       rootDir: testDir,
       fileMap: { '/*': 'data' },  // Maps /* to data directory
       autoRefresh: {

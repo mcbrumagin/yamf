@@ -1,6 +1,6 @@
 {
   "name": "@yamf/cli",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "Command-line interface for yamf",
   "main": "src/index.js",
@@ -15,14 +15,22 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "test": "yamf test -d ."
+    "test": "yamf test -d .",
+    "test:hash": "yamf test -d . -f bundle-hash",
+    "test:build-deploy": "yamf test -d . -f cli-build-deploy",
+    "perf:measure": "node ./perf/measure.mjs",
+    "perf:baseline0": "node ./perf/measure.mjs --baseline0",
+    "perf:phase1": "node ./perf/measure.mjs --phase1"
   },
   "files": [
     "src/cli.js",
     "src/commands",
     "src/example",
     "src/index.js",
-    "src/lib"
+    "src/lib",
+    "perf/measure.mjs",
+    "perf/README.md",
+    "perf/baselines/README.md"
   ],
   "keywords": [
     "yamf",
@@ -48,6 +56,10 @@
   "dependencies": {
     "@yamf/core": "workspace:*",
     "@yamf/services-cache": "workspace:*",
-    "@yamf/services-pm3": "workspace:*"
+    "@yamf/services-deploy-router": "workspace:*",
+    "@yamf/services-dev-hmr": "workspace:*",
+    "@yamf/services-pm3": "workspace:*",
+    "chokidar": "^4.0.3",
+    "esbuild": "^0.25.12"
   }
 }

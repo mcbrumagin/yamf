@@ -6,24 +6,26 @@
  */
 
 import { publish, subscribe, unsubscribe, notifyGatewayOfUpdate } from './pubsub-manager.js'
-import { 
-  allocateServicePort, 
-  registerService, 
-  unregisterService, 
+import {
+  allocateServicePort,
+  registerService,
+  unregisterService,
   findServiceLocation,
-  streamProxyServiceCall
+  streamProxyServiceCall,
+  broadcastShutdown
 } from './service-registry.js'
 import { registerRoute, unregisterRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
 import { HEADERS,COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/yamf-headers.js'
 import HttpError from '../http-primitives/http-error.js'
-import { validateRegistryToken } from './registry-auth.js'
+import { validateRegistryToken, validateDeployToken } from './registry-auth.js'
 import envConfig from '../shared/env-config.js'
 
 import { localState } from '../shared/local-state.js'
 import readStream from '../http-primitives/read-stream.js'
 
 import Logger from '../utils/logger.js'
+import { serializeReplicaMetadata } from './registry-state.js'
 
 // Rate limiter imports
 import { 
@@ -33,6 +35,53 @@ import {
 import { serializeConfig } from '../rate-limiter/rate-limiter-config.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
+
+function assertNotDrainingForNewRegistrations(state) {
+  if (!state.draining) return
+  const drainMs = Number(envConfig.get('YAMF_DRAIN_MS', 3000))
+  const retryAfter = String(Math.ceil(drainMs / 1000) + 1)
+  throw new HttpError(503, 'Registry is draining; retry registration', { 'Retry-After': retryAfter })
+}
+
+/**
+ * Instruct this registry to reject new setup/register; used by a rolling replacement instance.
+ * Response includes {@link HEADERS#REGISTRY_INSTANCE_ID} for the drained peer.
+ */
+async function handleRegistryDrainRequest(state, request, response) {
+  const drainerId = request.headers[HEADERS.REGISTRY_INSTANCE_ID]
+  if (!drainerId) {
+    if (!response.writableEnded) {
+      response.writeHead(400, { 'content-type': 'text/plain' })
+      response.end('REGISTRY_DRAIN requires yamf-registry-instance-id')
+    }
+    return false
+  }
+  if (!state.registryInstanceId) {
+    if (!response.writableEnded) {
+      response.writeHead(500, { 'content-type': 'text/plain' })
+      response.end('REGISTRY instance id not assigned')
+    }
+    return false
+  }
+  if (drainerId === state.registryInstanceId) {
+    if (!response.writableEnded) {
+      response.writeHead(400, { 'content-type': 'text/plain' })
+      response.end('Cannot drain: instance id matches this registry')
+    }
+    return false
+  }
+  state.draining = true
+  logger.info(`Registry entering drain mode (drainer instance ${drainerId})`)
+  if (!response.writableEnded) {
+    const body = JSON.stringify({ draining: true, instanceId: state.registryInstanceId })
+    response.writeHead(200, {
+      'content-type': 'application/json',
+      [HEADERS.REGISTRY_INSTANCE_ID]: state.registryInstanceId
+    })
+    response.end(body)
+  }
+  return false
+}
 
 /**
  * Commands that require registry token validation
@@ -46,14 +95,14 @@ const PROTECTED_COMMANDS = new Set([
   COMMANDS.PUBSUB_PUBLISH,
   COMMANDS.PUBSUB_SUBSCRIBE,
   COMMANDS.PUBSUB_UNSUBSCRIBE,
-  COMMANDS.REGISTRY_PULL  // Gateway pulls registry state
+  COMMANDS.REGISTRY_PULL // Gateway pulls registry state
 ])
 
 /**
  * Health check command
  */
-function handleHealthCheck() {
-  return { status: 'ready', timestamp: Date.now() }
+function handleHealthCheck(state) {
+  return { status: 'ready', timestamp: Date.now(), draining: !!state?.draining }
 }
 
 /**
@@ -82,6 +131,7 @@ function handleRegistryPull(state) {
         Array.from(locations)
       ])
     ),
+    replicas: serializeReplicaMetadata(state),
     routes: Object.fromEntries(state.routes),
     controllerRoutes: Object.fromEntries(state.controllerRoutes),
     serviceAuth: Object.fromEntries(state.serviceAuth),
@@ -102,6 +152,7 @@ function handleRegistryPull(state) {
  * Setup command - allocate port for new service
  */
 function handleSetup(state, payload, headers, defaultStartPort) {
+  assertNotDrainingForNewRegistrations(state)
   const { serviceName, serviceHome, rateLimitRequired } = parseCommandHeaders(headers)
   if (!serviceName) {
     throw new HttpError(400, 'SERVICE_SETUP requires yamf-service-name header')
@@ -138,11 +189,14 @@ async function handleRegister(state, payload, headers = {}) {
     useAuthService, accessControl,
     routePath, routeDataType, routeType,
     rateLimitRequired, contract,
-    serviceType, timeout
+    serviceType, timeout,
+    serviceMetadata,
+    allowBreakingContract
   } = parseCommandHeaders(headers)
   
   // Header-based registration
   if (command === COMMANDS.SERVICE_REGISTER) {
+    assertNotDrainingForNewRegistrations(state)
     if (!serviceName) {
       throw new HttpError(400, 'SERVICE_REGISTER requires yamf-service-name header')
     }
@@ -160,7 +214,9 @@ async function handleRegister(state, payload, headers = {}) {
       accessControl,
       contract,
       serviceType,
-      timeout
+      timeout,
+      metadata: serviceMetadata && typeof serviceMetadata === 'object' ? serviceMetadata : {},
+      allowBreakingContract: !!allowBreakingContract
     })
   } else if (command === COMMANDS.ROUTE_REGISTER) {
     if (!serviceName) {
@@ -314,13 +370,25 @@ async function routeCommandByHeaders(state, payload, request, response, options)
   
   logger.debug('command:', command)
 
+  if (command === COMMANDS.REGISTRY_DRAIN) {
+    validateRegistryToken(request)
+    return await handleRegistryDrainRequest(state, request, response)
+  }
+
+  if (command === COMMANDS.REGISTRY_BROADCAST_SHUTDOWN) {
+    validateRegistryToken(request)
+    const reason = headers[HEADERS.SHUTDOWN_REASON] || 'registry-broadcast-shutdown'
+    await broadcastShutdown(state, { reason: String(reason) })
+    return { ok: true, reason: String(reason) }
+  }
+
   if (PROTECTED_COMMANDS.has(command)) {
     validateRegistryToken(request)
   }
   
   switch (command) {
     case COMMANDS.HEALTH:
-      return handleHealthCheck()
+      return handleHealthCheck(state)
     
     case COMMANDS.REGISTRY_PULL:
       return handleRegistryPull(state)
@@ -333,7 +401,7 @@ async function routeCommandByHeaders(state, payload, request, response, options)
       return handleRegister(state, payload, headers)
     
     case COMMANDS.SERVICE_UNREGISTER:
-      return unregisterService(state, { 
+      return await unregisterService(state, { 
         service: serviceName, 
         location: serviceLocation 
       })
@@ -394,22 +462,71 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     
     case COMMANDS.AUTH_LOGIN:
     case COMMANDS.AUTH_REFRESH:
-    case COMMANDS.AUTH_LOGOUT:
-      // Default to 'auth-service' if no specific auth service is configured
-      // TODO should make certain the serviceName is an auth service
-      const authServiceName = 'auth-service' || serviceName
+    case COMMANDS.AUTH_LOGOUT: {
+      // Allow caller to target a non-default auth service via yamf-service-name, as long as
+      // that name is a known auth service (registered with serviceType === 'auth-service').
+      // Absent a valid override, fall back to the conventional 'auth-service'.
+      const DEFAULT_AUTH_SERVICE = 'auth-service'
+      let authServiceName = DEFAULT_AUTH_SERVICE
+      if (serviceName && serviceName !== DEFAULT_AUTH_SERVICE) {
+        const requestedType = state.serviceTypes.get(serviceName)
+        if (requestedType === 'auth-service') authServiceName = serviceName
+      }
       if (!state.services.has(authServiceName)) {
         throw new HttpError(503, `Auth service "${authServiceName}" not found`)
       }
-      
-      // Proxy the auth request to the auth service
-      return streamProxyServiceCall(state, { 
-        name: authServiceName, 
-        request, 
-        response 
+      return streamProxyServiceCall(state, {
+        name: authServiceName,
+        request,
+        response
       })
+    }
     
-    default:
+    default: {
+      const plugin = state.pluginCommands?.get(command)
+      if (plugin) {
+        if (plugin.requireDeployToken) {
+          validateDeployToken(request)
+        } else if (plugin.requireRegistryToken !== false) {
+          validateRegistryToken(request)
+        }
+        const requesterLocation =
+          request.headers?.[HEADERS.SERVICE_LOCATION] ||
+          request.headers?.['x-forwarded-for'] ||
+          null
+        return await plugin.handler({ headers, body: payload, request, requesterLocation, response })
+      }
       throw new HttpError(400, `Unknown command`)
+    }
   }
+}
+
+const RESERVED_YAMF_COMMANDS = new Set(Object.values(COMMANDS))
+
+/**
+ * Register a custom `yamf-command` handler (slice F). Built-in COMMANDS values are reserved.
+ * Cleared when the owning service+location unregisters (see service-registry).
+ */
+export function registerCommand(state, name, handler, { service, location, requireRegistryToken = true, requireDeployToken = false, parseJsonBody = true } = {}) {
+  if (!name || typeof name !== 'string' || !handler) {
+    throw new Error('registerCommand(name, handler, { service, location }): name and handler are required')
+  }
+  if (!service || !location) {
+    throw new Error('registerCommand: service and location are required for lifecycle cleanup')
+  }
+  if (RESERVED_YAMF_COMMANDS.has(name)) {
+    throw new HttpError(400, `Command "${name}" is reserved`)
+  }
+  if (!state.pluginCommands) {
+    state.pluginCommands = new Map()
+  }
+  if (state.pluginCommands.has(name)) {
+    throw new HttpError(409, `Command "${name}" is already registered`)
+  }
+  state.pluginCommands.set(name, { handler, service, location, requireRegistryToken, requireDeployToken, parseJsonBody })
+  logger.debug('registerCommand', name, service, location)
+}
+
+export function unregisterCommand(state, name) {
+  state.pluginCommands?.delete(name)
 }

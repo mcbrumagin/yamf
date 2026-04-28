@@ -68,7 +68,6 @@ export const ed25519 = {
 // 64 byte hash = 88 base64 chars (vs 128 hex chars)
 
 
-const argon2 = promisify(crypto.argon2)
 const argon2Parameters = {
   parallelism: 4,
   tagLength: 64,
@@ -76,35 +75,45 @@ const argon2Parameters = {
   passes: 3
 }
 
+/** `crypto.argon2` exists in Node.js 24+ (see `engines` in @yamf/core). */
+let argon2AsyncCached
+function getArgon2Async() {
+  if (typeof crypto.argon2 !== 'function') return null
+  if (!argon2AsyncCached) argon2AsyncCached = promisify(crypto.argon2)
+  return argon2AsyncCached
+}
+
+function requireArgon2() {
+  const fn = getArgon2Async()
+  if (!fn) {
+    throw new Error(
+      'crypto.argon2 is not available. Use Node.js 24+ for Argon2 password hashing (createArgonSaltAndHash / checkArgonPassword).'
+    )
+  }
+  return fn
+}
+
 export async function createArgonSaltAndHash(password) {
-
+  const argon2 = requireArgon2()
   const saltBytes = randomBytes(16)
-
-  let derivedKey = await argon2('argon2id', {
+  const salt = saltBytes.toString('base64')
+  const derivedKey = await argon2('argon2id', {
     ...argon2Parameters,
     message: password,
     nonce: saltBytes,
   })
-
-  const hash = derivedKey.toString('base64')
-  const salt = saltBytes.toString('base64')
-  // console.warn('createArgonSaltAndHash', { salt, hash })
-
-  return { salt, hash }
+  return { salt, hash: derivedKey.toString('base64') }
 }
 
 export async function checkArgonPassword(passToCheck, salt, hash) {
-
-  // console.warn('checkArgonPassword', { salt, hash })
-  let saltBytes = Buffer.from(salt, 'base64')
-  let derivedKey = await argon2('argon2id', {
+  const argon2 = requireArgon2()
+  const saltBytes = Buffer.from(salt, 'base64')
+  const derivedKey = await argon2('argon2id', {
     ...argon2Parameters,
     message: passToCheck,
     nonce: saltBytes,
   })
-
-  const hashToCheck = derivedKey.toString('base64')
-  return hashToCheck === hash
+  return derivedKey.toString('base64') === hash
 }
 
 // export createArgon2Hash
@@ -155,7 +164,7 @@ export function encryptAES256GCM(plaintext, key) {
   }
 }
 
-export function decryptAES256GCM(encryptedData, ivHex, authTagHex) {
+export function decryptAES256GCM(encryptedData, ivHex, authTagHex, key) {
   const iv = Buffer.from(ivHex, 'hex')
   const authTag = Buffer.from(authTagHex, 'hex')
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv)
@@ -166,6 +175,49 @@ export function decryptAES256GCM(encryptedData, ivHex, authTagHex) {
   decrypted += decipher.final('utf8')
 
   return decrypted
+}
+
+/**
+ * Derive a 32-byte AES-256 key from a passphrase (e.g. `YAMF_CONFIG_KEY`) using scrypt.
+ * @param {string|Buffer} passphrase
+ * @param {string|Buffer} salt
+ * @param {object} [options] scrypt options (e.g. N, r, p)
+ * @returns {Buffer}
+ */
+export function deriveKeyScrypt32 (passphrase, salt, options = { N: 16384, r: 8, p: 1 }) {
+  return crypto.scryptSync(passphrase, salt, 32, options)
+}
+
+/**
+ * AEAD-encrypt JSON to a single UTF-8 string (uses existing AES-256-GCM helpers).
+ * For at-rest secrets (e.g. config store). Do not invent ciphers; use this + Node `crypto` only.
+ * @param {Buffer} key - 32 bytes
+ * @param {object} obj
+ * @returns {string}
+ */
+export function sealJsonAesGcm256 (key, obj) {
+  const { encryptedData, iv, authTag } = encryptAES256GCM(JSON.stringify(obj), key)
+  return JSON.stringify({
+    v: 1,
+    alg: 'aes-256-gcm',
+    iv,
+    tag: authTag,
+    d: encryptedData
+  })
+}
+
+/**
+ * @param {Buffer} key - 32 bytes
+ * @param {string} sealedJson
+ * @returns {object}
+ */
+export function openJsonAesGcm256 (key, sealedJson) {
+  const p = JSON.parse(sealedJson)
+  if (p.v !== 1 || p.alg !== 'aes-256-gcm' || !p.iv || !p.tag || p.d == null) {
+    throw new Error('Invalid sealed payload (expected v1 aes-256-gcm)')
+  }
+  const text = decryptAES256GCM(p.d, p.iv, p.tag, key)
+  return JSON.parse(text)
 }
 
 // TODO quantum-ready encryption (PQC) - https://csrc.nist.gov/pubs/fips/205/final

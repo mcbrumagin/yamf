@@ -14,12 +14,19 @@ import { hasLocalService, getLocalServiceAccess } from '../shared/local-state.js
 
 const logger = new Logger({ logGroup: 'yamf-service-helpers' })
 
+function allowBreakingContractFromEnv () {
+  return (
+    envConfig.get('YAMF_DEPLOY_ALLOW_BREAKING') === '1' ||
+    envConfig.get('YAMF_DEPLOY_ALLOW_BREAKING') === true
+  )
+}
+
 /**
  * Default configuration for service operations
  */
 const DEFAULT_RETRY_CONFIG = {
   tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
-  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 20),
+  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 100),
   muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false)
 }
 
@@ -120,10 +127,25 @@ export async function setupServiceWithRegistry(serviceName, serviceHome, options
  */
 export async function registerServiceWithRegistry(serviceName, location, options = {}) {
   const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService, accessControl, rateLimit, contract, serviceType, timeout /* TODO?, pubsubChannels */ } = options
-  
+  const { useAuthService, accessControl, rateLimit, contract, serviceType, timeout, metadata: metadataOpt } = options
+
+  const sourceHash = envConfig.get('YAMF_SOURCE_HASH', null)
+  const configVersion = envConfig.get('YAMF_CONFIG_VERSION', null)
+  const nodeId = envConfig.get('YAMF_NODE_ID', null)
+  let metadata = metadataOpt
+  if (sourceHash || configVersion || nodeId) {
+    metadata = {
+      ...(metadataOpt && typeof metadataOpt === 'object' ? metadataOpt : {}),
+      ...(sourceHash ? { sourceHash: String(sourceHash) } : {}),
+      ...(configVersion != null && configVersion !== ''
+        ? { configVersion: String(configVersion) }
+        : {}),
+      ...(nodeId != null && nodeId !== '' ? { node: String(nodeId) } : {})
+    }
+  }
+
   logger.debug(`registerServiceWithRegistry - ${serviceName} at ${location}`)
-  
+
   // TODO build pubsubChannels header for createSubscriptionService?
   return await httpRequest(registryHost, {
     headers: buildRegisterHeaders(serviceName, location, {
@@ -133,7 +155,9 @@ export async function registerServiceWithRegistry(serviceName, location, options
       rateLimit,
       contract,
       serviceType,
-      timeout
+      timeout,
+      metadata,
+      allowBreakingContract: allowBreakingContractFromEnv()
     })
   })
 }
@@ -160,7 +184,8 @@ export async function notifyRegistryOfPureService(serviceName, options = {}) {
         useAuthService,
         accessControl: 'pure',
         registryToken,
-        contract
+        contract,
+        allowBreakingContract: allowBreakingContractFromEnv()
       })
     })
   } catch (err) {
@@ -206,8 +231,12 @@ export async function createServiceHttpServer(port, handler, options = {}) {
  * @param {Object} options - Configuration options
  * @returns {Promise<Object>} Service instance with { name, location, port, server, registryData }
  */
-const serviceRegistrationRetryLimit = envConfig.get('YAMF_REGISTRATION_RETRY_LIMIT', 50)
+const serviceRegistrationRetryLimit = envConfig.get('YAMF_REGISTRATION_RETRY_LIMIT', 120)
 export async function createAndRegisterService(serviceName, handler, options = {}, retryInfo) {
+  options = {
+    ...options,
+    metadata: { cacheBulk: true, ...(options.metadata || {}) }
+  }
   validateServiceName(serviceName)
   
   // Check for local service name collision before proceeding
@@ -259,6 +288,8 @@ export async function createAndRegisterService(serviceName, handler, options = {
   const serverOptions = { streamPayload: options.streamPayload || false }
   if (options.requestTimeout !== undefined) serverOptions.requestTimeout = options.requestTimeout
   if (options.headersTimeout !== undefined) serverOptions.headersTimeout = options.headersTimeout
+  if (options.csp !== undefined) serverOptions.csp = options.csp
+  if (options.frameOptions !== undefined) serverOptions.frameOptions = options.frameOptions
   try {
     server = await createServiceHttpServer(port, handler, serverOptions)
   } catch (err) {

@@ -94,6 +94,32 @@ fileMap: {
 }
 ```
 
+### SPA Mode (First-Class Fallback)
+
+Use `spa` when you want client-side routes to resolve to a single entry file (`index.html`) while keeping API/data routes as real 404s.
+
+```javascript
+await createStaticFileService({
+  rootDir: './public',
+  fileMap: {
+    '/': 'index.html',
+    '/assets/*': 'assets'
+  },
+  spa: {
+    entry: 'index.html',
+    excludePrefixes: ['/api', '/assets', '/audio', '/images'],
+    excludeExtensions: true
+  }
+})
+```
+
+Behavior:
+- Unknown routes like `/dashboard` fall back to `index.html`
+- Missing extension paths like `/missing.js` remain 404
+- Excluded prefixes (for APIs or data paths) remain 404 when missing
+
+`fileMap['/*']` still works for legacy behavior, but `spa` is now the recommended pattern for SPAs.
+
 ## Advanced Features
 
 ### Range Requests (Audio/Video Streaming)
@@ -135,6 +161,8 @@ await createStaticFileService({
 // - /files/%00.txt
 // - /files/..%2F..%2Fetc%2Fpasswd
 ```
+
+`simpleSecurityCheck` blocks sensitive system directories by path segment (for example `/etc`), while allowing normal paths that only contain those strings (for example `/library/app.js`).
 
 ## MIME Types
 

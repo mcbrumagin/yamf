@@ -5,3 +5,4 @@ packages:
   - 'packages/client'
   - 'packages/shared'
   - 'packages/services/*'
+  - 'examples/*'

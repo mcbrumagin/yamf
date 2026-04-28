@@ -1,0 +1,21 @@
+{
+  "name": "yamf-example-minimal-hmr",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal yamf build/deploy + Vite dev UI. Full integration lives in soundclone.",
+  "scripts": {
+    "gateway": "node ./scripts/gateway.mjs",
+    "dev:ui": "vite",
+    "dev:yamf": "yamf dev",
+    "build:api": "yamf build minimal-api",
+    "deploy:local": "yamf deploy --local minimal-api"
+  },
+  "dependencies": {
+    "@yamf/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@yamf/cli": "workspace:*",
+    "vite": "^6.0.0"
+  }
+}

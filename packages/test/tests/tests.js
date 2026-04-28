@@ -15,8 +15,7 @@ import {
   AssertionFailure,
   AssertionFailureDetail,
   MultiAssertionFailure,
-  terminateAfter,
-  withEnv
+  terminateAfter
 } from '@yamf/test'
 
 
@@ -76,8 +75,8 @@ export async function testMultipleAssertFailuresPrintsFns() {
 
 export async function testSingleAssertAsyncFailurePrintsFn() {
   await terminateAfter(
-    await registryServer(),
-    await createService('test', async () => ({ value: 5 })),
+    () => registryServer(),
+    () => createService('test', async () => ({ value: 5 })),
     async () => {
       try {
         await assert(
@@ -99,8 +98,8 @@ export async function testSingleAssertAsyncFailurePrintsFn() {
 
 export async function testMultipleAssertAsyncFailuresPrintsFns() {
   await terminateAfter(
-    await registryServer(),
-    await createService('test', async () => ({ status: 'error', code: 500 })),
+    () => registryServer(),
+    () => createService('test', async () => ({ status: 'error', code: 500 })),
     async () => {
       try {
         await assert(
@@ -163,8 +162,8 @@ export async function testMultipleAssertErrFailuresPrintsFns() {
 
 export async function testSingleAssertErrAsyncFailurePrintsFn() {
   await terminateAfter(
-    await registryServer(),
-    await createService('failing', async () => {
+    () => registryServer(),
+    () => createService('failing', async () => {
       throw new HttpError(404, 'Not Found')
     }),
     async () => {
@@ -187,8 +186,8 @@ export async function testSingleAssertErrAsyncFailurePrintsFn() {
 
 export async function testMultipleAssertErrAsyncFailuresPrintsFns() {
   await terminateAfter(
-    await registryServer(),
-    await createService('failing', async () => {
+    () => registryServer(),
+    () => createService('failing', async () => {
       throw new HttpError(403, 'Forbidden')
     }),
     async () => {
@@ -220,8 +219,8 @@ export async function testMultipleAssertErrAsyncFailuresPrintsFns() {
 
 export async function testAssertWithPromiseReturningFunction() {
   await terminateAfter(
-    await registryServer(),
-    await createService('test', async () => ({ value: 10 })),
+    () => registryServer(),
+    () => createService('test', async () => ({ value: 10 })),
     async () => {
       // Promise-returning function (not async, but returns a promise)
       await assert(
@@ -234,8 +233,8 @@ export async function testAssertWithPromiseReturningFunction() {
 
 export async function testAssertErrWithPromiseRejectingFunction() {
   await terminateAfter(
-    await registryServer(),
-    await createService('failing', async () => {
+    () => registryServer(),
+    () => createService('failing', async () => {
       throw new HttpError(500, 'Internal Error')
     }),
     async () => {
@@ -377,11 +376,11 @@ export async function testAssertErrEach_AsyncThrowingFunctions() {
 
 export async function testAssertErrEach_WithServices() {
   await terminateAfter(
-    await registryServer(),
-    await createService('failing1', async () => {
+    () => registryServer(),
+    () => createService('failing1', async () => {
       throw new HttpError(404, 'Not Found')
     }),
-    await createService('failing2', async () => {
+    () => createService('failing2', async () => {
       throw new HttpError(500, 'Server Error')
     }),
     async () => {
@@ -451,11 +450,11 @@ export async function testAssertErrSequence_AsyncThrowingFunctions() {
 
 export async function testAssertErrSequence_WithServices() {
   await terminateAfter(
-    await registryServer(),
-    await createService('notFound', async () => {
+    () => registryServer(),
+    () => createService('notFound', async () => {
       throw new HttpError(404, 'Not Found')
     }),
-    await createService('serverError', async () => {
+    () => createService('serverError', async () => {
       throw new HttpError(500, 'Server Error')
     }),
     async () => {

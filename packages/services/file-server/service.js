@@ -6,6 +6,7 @@ import {
   next,
   detectContentType
 } from '@yamf/core'
+import { isPathUnderRoot, URL_PATH_DANGEROUS_CTRL_RE } from '@yamf/shared'
 
 import path from 'node:path'
 import fs from 'node:fs'
@@ -147,6 +148,41 @@ function normalizePath(path) {
   return path
 }
 
+function getPathnameFromUrl(url) {
+  if (!url) return '/'
+  if (typeof url !== 'string') return '/'
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      return new URL(url).pathname || '/'
+    } catch {
+      return '/'
+    }
+  }
+  const withoutQuery = url.split('?')[0] || '/'
+  return withoutQuery || '/'
+}
+
+function hasFileExtension(pathname = '') {
+  const parts = pathname.split('/')
+  const lastPart = parts[parts.length - 1] || ''
+  return /\.[a-zA-Z0-9]+$/.test(lastPart)
+}
+
+function shouldUseSpaFallback(pathname, spaConfig = {}) {
+  if (!spaConfig?.enabled) return false
+  if (!pathname) return false
+  const normalizedPath = normalizePath(pathname)
+  const excludePrefixes = spaConfig.excludePrefixes || []
+  for (const prefix of excludePrefixes) {
+    const normalizedPrefix = normalizePath(prefix)
+    if (normalizedPath === normalizedPrefix || normalizedPath.startsWith(`${normalizedPrefix}/`)) {
+      return false
+    }
+  }
+  if (spaConfig.excludeExtensions && hasFileExtension(normalizedPath)) return false
+  return true
+}
+
 
 function sanityCheckRootDir(rootDir, externalRootDir = false) {
   if (!externalRootDir && !rootDir.startsWith(process.cwd())) {
@@ -165,26 +201,71 @@ function sanityCheckRootDir(rootDir, externalRootDir = false) {
 }
 
 function simpleSecurityCheck(url, preventSystemFileAccess = true) {
-  if (url.includes('..') // prevent path traversal
-    || url.split('/').some(segment => segment.startsWith('.')) // prevent access to hidden files/directories
-    || url.includes('%2e%2e') // prevent encoded path traversal ".."
-    || url.includes('%2e') // prevent encoded dot
-    || url.includes('\\') // prevent backslash
-    || url.includes('%5c') // prevent encoded double-backslash
-    || url.includes('%2f') // prevent encoded forward slash
+  const lowerUrl = String(url || '').toLowerCase()
+  const pathname = getPathnameFromUrl(lowerUrl)
+  const segments = pathname.split('/').filter(Boolean)
+  const systemSegments = new Set(['etc', 'boot', 'lib', 'bin', 'sbin', 'usr', 'var'])
 
-    // prevent access to typical system files
-    || (preventSystemFileAccess && (
-         url.includes('/etc')
-      || url.includes('/boot')
-      || url.includes('/lib')
-      || url.includes('/bin')
-      || url.includes('/sbin')
-      || url.includes('/usr')
-      || url.includes('/var')
-    ))
+  if (URL_PATH_DANGEROUS_CTRL_RE.test(String(url || ''))
+    || lowerUrl.includes('..') // prevent path traversal
+    || segments.some(segment => segment.startsWith('.')) // prevent access to hidden files/directories
+    || lowerUrl.includes('%2e%2e') // prevent encoded path traversal ".."
+    || lowerUrl.includes('%2e') // prevent encoded dot
+    || lowerUrl.includes('\\') // prevent backslash
+    || lowerUrl.includes('%5c') // prevent encoded double-backslash
+    || lowerUrl.includes('%2f') // prevent encoded forward slash
+    || (preventSystemFileAccess && segments.some(segment => systemSegments.has(segment)))
   ) throw new HttpError(403, 'url contains invalid characters')
-  else return true
+  else   return true
+}
+
+/**
+ * Allowed directory roots for resolved file paths (slice B + Soundclone): includes `rootDir` and
+ * every directory that contains a mapped file, including paths outside `rootDir` when fileMap
+ * uses `..` (e.g. `../data`) or absolute targets.
+ */
+function addPathToAllowedServeRoots(roots, fsPath) {
+  if (!fsPath) return
+  const abs = path.resolve(fsPath)
+  try {
+    if (fs.existsSync(abs)) {
+      const st = fs.statSync(abs)
+      if (st.isDirectory()) {
+        roots.add(abs)
+      } else {
+        roots.add(path.resolve(path.dirname(abs)))
+      }
+    } else {
+      roots.add(path.resolve(path.dirname(abs)))
+    }
+  } catch {
+    roots.add(path.resolve(path.dirname(abs)))
+  }
+}
+
+function buildAllowedStaticServeRootDirs(quickLookup, catchAllFallbackPath, spaEntryPath, rootDir) {
+  const roots = new Set()
+  addPathToAllowedServeRoots(roots, rootDir)
+  for (const fp of Object.values(quickLookup)) {
+    addPathToAllowedServeRoots(roots, fp)
+  }
+  if (catchAllFallbackPath) {
+    addPathToAllowedServeRoots(roots, catchAllFallbackPath)
+  }
+  if (spaEntryPath) {
+    addPathToAllowedServeRoots(roots, spaEntryPath)
+  }
+  return roots
+}
+
+function isPathUnderAllowedServeRoots(resolvedFile, allowedDirRoots) {
+  const abs = path.resolve(resolvedFile)
+  for (const r of allowedDirRoots) {
+    if (isPathUnderRoot(abs, r)) {
+      return true
+    }
+  }
+  return false
 }
 
 function getLastModified(filePath) {
@@ -232,6 +313,7 @@ export default async function createStaticFileService({
   customSecurityCheck = null,
   simpleSecurity = true,
   preventSystemFileAccess = true,
+  spa = null,
   useAuthService = null,
   autoRefresh = false  // NEW: false | { mode, ...options }
 }, resolverFn, defaultFn = $404) {
@@ -249,8 +331,47 @@ export default async function createStaticFileService({
     fileMap = { '/' : fileMap }
   }
 
-  const { quickLookup, catchAllFallbackPath } = generateQuickLookupMap(fileMap, urlRoot, rootDir)
+  const legacyCatchAllConfigured = Object.prototype.hasOwnProperty.call(fileMap, '/*')
+  const spaEnabled = !!spa
+  if (spaEnabled && legacyCatchAllConfigured) {
+    logger.warn('SPA mode is enabled while fileMap contains "/*". SPA mode takes precedence and catch-all route is deprecated.')
+  }
+
+  const spaConfig = {
+    enabled: spaEnabled,
+    entryPath: null,
+    excludePrefixes: [],
+    excludeExtensions: true
+  }
+  if (spaEnabled) {
+    const spaInput = typeof spa === 'object' ? spa : {}
+    spaConfig.entryPath = targetToFsPath(rootDir, normalizePath(spaInput.entry || 'index.html'))
+    spaConfig.excludePrefixes = Array.isArray(spaInput.excludePrefixes)
+      ? spaInput.excludePrefixes.map(normalizePath)
+      : []
+    spaConfig.excludeExtensions = spaInput.excludeExtensions !== false
+    if (!fs.existsSync(spaConfig.entryPath)) {
+      throw new Error(`spa.entry file does not exist: "${spaInput.entry || 'index.html'}"`)
+    }
+  }
+
+  let { quickLookup, catchAllFallbackPath } = generateQuickLookupMap(fileMap, urlRoot, rootDir)
   logger.info(`Static files mapped for "${urlRoot}" ${prettyPrintQuickLookup(quickLookup)}${catchAllFallbackPath ? ` (catch-all: ${path.relative(process.cwd(), catchAllFallbackPath)})` : ''}`)
+
+  let allowedStaticServeRootDirs = buildAllowedStaticServeRootDirs(
+    quickLookup,
+    catchAllFallbackPath,
+    spaConfig.enabled ? spaConfig.entryPath : null,
+    rootDir
+  )
+  const syncAllowedStaticServeRoots = () => {
+    allowedStaticServeRootDirs = buildAllowedStaticServeRootDirs(
+      quickLookup,
+      catchAllFallbackPath,
+      spaConfig.enabled ? spaConfig.entryPath : null,
+      rootDir
+    )
+  }
   
   // Auto-refresh state tracking
   let refreshStats = {
@@ -262,18 +383,33 @@ export default async function createStaticFileService({
   let refreshInterval = null
   let isPaused = false
 
-  async function getLocalFile(url) {
-    const normalizedUrl = normalizePath(url)
+  function resolveFilePath(url) {
+    const pathname = getPathnameFromUrl(url)
+    const normalizedUrl = normalizePath(pathname)
     let filePath = quickLookup[normalizedUrl]
 
-    if (!filePath && catchAllFallbackPath) {
+    if (!filePath && spaConfig.enabled && shouldUseSpaFallback(normalizedUrl, spaConfig)) {
+      filePath = spaConfig.entryPath
+      logger.debug(`using spa fallback for url: "${url}"`)
+    } else if (!filePath && catchAllFallbackPath) {
       filePath = catchAllFallbackPath
       logger.debug(`using catch-all fallback for url: "${url}"`)
     }
 
+    return { filePath, normalizedUrl }
+  }
+
+  async function getLocalFile(url) {
+    const { filePath } = resolveFilePath(url)
+
     if (!filePath) {
       logger.debug(`file not found in lookup for url: "${url}"`)
       throw new HttpError(404, 'Not found')
+    }
+
+    const absRead = path.resolve(filePath)
+    if (!isPathUnderAllowedServeRoots(absRead, allowedStaticServeRootDirs)) {
+      throw new HttpError(403, 'path not under allowed static roots')
     }
 
     return await fsAsync.readFile(filePath)
@@ -293,13 +429,7 @@ export default async function createStaticFileService({
 
     if (!url) throw new HttpError(400, 'url is required')
 
-    const normalizedUrl = normalizePath(url)
-    let filePath = quickLookup[normalizedUrl]
-
-    if (!filePath && catchAllFallbackPath) {
-      filePath = catchAllFallbackPath
-      logger.debug(`using catch-all fallback for url: "${url}"`)
-    }
+    const { filePath } = resolveFilePath(url)
 
     // TODO optional eager lookup of file path before resolver
     // eager lookup should also update quickLookup if it's not already present
@@ -337,6 +467,11 @@ export default async function createStaticFileService({
       } else {
         return defaultResult
       }
+    }
+
+    const absServe = path.resolve(filePath)
+    if (!isPathUnderAllowedServeRoots(absServe, allowedStaticServeRootDirs)) {
+      throw new HttpError(403, 'path not under allowed static roots')
     }
 
     logger.debug('staticFileService - filePath:', filePath)
@@ -433,6 +568,7 @@ export default async function createStaticFileService({
     
     quickLookup[urlPath] = filePath
     refreshStats.totalFiles = Object.keys(quickLookup).length
+    syncAllowedStaticServeRoots()
     
     if (autoRefresh?.onFileAdded) {
       autoRefresh.onFileAdded({ urlPath, filePath })
@@ -518,6 +654,7 @@ export default async function createStaticFileService({
           logger.error(`Error refreshing path ${dirPath}:`, err)
           throw err
         }
+        syncAllowedStaticServeRoots()
       }
     }
     
@@ -540,6 +677,8 @@ export default async function createStaticFileService({
       const result = generateQuickLookupMap(fileMap, urlRoot, rootDir)
       for (const k of Object.keys(quickLookup)) delete quickLookup[k]
       for (const k in result.quickLookup) quickLookup[k] = result.quickLookup[k]
+      catchAllFallbackPath = result.catchAllFallbackPath
+      syncAllowedStaticServeRoots()
       
       // Calculate changes
       const oldUrls = new Set(Object.keys(oldLookup))
