@@ -194,7 +194,7 @@ examples/python-services/
 
 - Full documentation: [README.md](./README.md)
 - Python client API: [../../languages/python/README.md](../../languages/python/README.md)
-- Main project docs: [../../README.MD](../../README.MD)
+- Main project docs: [../../README.md](../../README.md)
 
 ## Need Help?
 

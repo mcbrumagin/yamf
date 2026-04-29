@@ -2,7 +2,10 @@
   "name": "@yamf/services-user",
   "version": "0.2.1",
   "description": "",
-  "license": "ISC",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "author": "",
   "type": "module",
   "main": "service.js",

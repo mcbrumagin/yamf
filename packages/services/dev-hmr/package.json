@@ -2,7 +2,10 @@
   "name": "@yamf/services-dev-hmr",
   "version": "0.1.0",
   "description": "SSE dev reload fan-out for yamf dev (Phase 4 D2)",
-  "license": "ISC",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "type": "module",
   "main": "service.js",
   "scripts": {

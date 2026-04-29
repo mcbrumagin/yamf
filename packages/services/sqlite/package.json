@@ -2,7 +2,10 @@
   "name": "@yamf/services-sqlite",
   "version": "0.1.0",
   "description": "SQLite database service for YAMF",
-  "license": "ISC",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "type": "module",
   "main": "service.js",
   "scripts": {

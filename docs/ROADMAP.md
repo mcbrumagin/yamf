@@ -10,6 +10,7 @@ Living document. Framework‑level plans (YAMF) live here; product roadmaps for 
 
 ## Index
 
+- **v1 scope and triaged gaps** — [V1-READINESS.md](./V1-READINESS.md): must-fix vs documented limits vs post-v1 backlog.
 - **This doc** — YAMF framework plan: **What shipped** (including orchestrator slice summary), **Active follow‑on** (cross‑cuts, config refinements), **Shipped slice specifications (reference)**, and **Deferred** (horizon).
 - **Test coverage follow-up (near-term debt)** — [TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md): optional tests and coverage not covered by the main gap plan (e.g. `replica-helpers`, browser-only `patch-dom` paths, gateway e2e SSR). **Earlier than horizon** R&D; pick up alongside related slices.
 - **SoundClone product roadmaps** (under `soundclone-deployment/docs/`):

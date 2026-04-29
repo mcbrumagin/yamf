@@ -2,7 +2,7 @@
 
 Shared utilities for YAMF - truly isomorphic code that works in both browser and Node.js.
 
-[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## Validator

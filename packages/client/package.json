@@ -22,7 +22,7 @@
     "./vite-plugin-yamf-dev": "./src/vite-plugin-yamf-dev.js"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "keywords": [
     "html",

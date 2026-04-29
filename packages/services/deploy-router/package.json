@@ -2,6 +2,9 @@
   "name": "@yamf/services-deploy-router",
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "description": "Registry plugin: deploy-plan + deploy-bundle (slice C3)",
   "main": "service.js",
   "scripts": {

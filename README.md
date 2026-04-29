@@ -3,7 +3,7 @@
 A lightweight microservices framework for Node.js with built-in service discovery, API gateway, pub/sub messaging, and multi-language support. **`@yamf/core`** has **zero npm dependencies** at runtime (pure Node.js built-ins). Optional packages such as **`@yamf/client`** add their own small dependency set (e.g. **morphdom** for DOM patching in the browser).
 
 [![Tests](https://img.shields.io/badge/tests-pnpm%20test-brightgreen)]()
-[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## 🚀 Quick Start
@@ -37,7 +37,7 @@ console.log(result.message) // "Hello, World"
 - **Load Balancing** - Round-robin distribution across service instances
 - **Multi-Language Support** - Python client available, seamless interoperability
 - **Modular Architecture** - Use only what you need
-- **Production Ready** - Comprehensive test coverage (90%+) and battle-tested
+- **Well-tested** — Strong automated tests for core and client; see [Testing](docs/TESTING.md) and [CI](.github/workflows/ci.yml) on the default branch.
 
 ## 📦 Packages
 
@@ -103,7 +103,7 @@ create_service_sync("pythonService", python_service)
 
 ## 🏗️ Architecture
 
-**Spine and muscle memory:** the **registry** is the long-lived **spine** — authoritative state, registration, and pub/sub so the system always **converges** when topology or contracts change. Each service keeps a local **in-process service cache** (replicated from the registry): that’s **muscle memory** for steady work — `callService` can go **direct to the right instance** without a control-plane hop on every request. On a miss, inconsistency, or update, the registry and cache path **re-teach** the muscle (pull, or push via pub/sub). The **gateway** in front is the same idea for **HTTP clients**: a stable edge that **pulls** registry state and routes; see [Core framework](./packages/core/README.MD) for details.
+**Spine and muscle memory:** the **registry** is the long-lived **spine** — authoritative state, registration, and pub/sub so the system always **converges** when topology or contracts change. Each service keeps a local **in-process service cache** (replicated from the registry): that’s **muscle memory** for steady work — `callService` can go **direct to the right instance** without a control-plane hop on every request. On a miss, inconsistency, or update, the registry and cache path **re-teach** the muscle (pull, or push via pub/sub). The **gateway** in front is the same idea for **HTTP clients**: a stable edge that **pulls** registry state and routes; see [Core framework](./packages/core/README.md) for details.
 
 ```
 ┌────────────────────────┐  ┌─────────────────────────┐
@@ -130,7 +130,7 @@ create_service_sync("pythonService", python_service)
 - [Testing](docs/TESTING.md) - Where the tests live; filters for `yamf test -d <pkg> -f <pattern>`.
 
 ### Getting started
-- [Core Framework](./packages/core/README.MD) - API reference and examples
+- [Core Framework](./packages/core/README.md) - API reference and examples
 - [Client Library](./packages/client/README.md) - UI development; includes **Vite + YAMF HMR** notes
 - [Shared Library](./packages/shared/README.md) - Validator, utilities, and isomorphic helpers
 - [Examples](./packages/core/examples/README.md) - Sample applications and patterns
@@ -187,15 +187,11 @@ YAMF targets **k8s, bare PM3, or plain Node** with the same primitives (no vendo
 
 ## 🤝 Contributing
 
-Contributions are welcome! This project is designed to be:
-- Simple and maintainable
-- Zero npm dependencies for `@yamf/core` server runtime (optional packages may add deps)
-- Well-tested and documented
-- Production-ready
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for features, examples, tests, dependency rules, and release notes expectations.
 
 ## 📄 License
 
-MIT - see [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ## 🙏 Credits
 

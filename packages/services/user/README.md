@@ -2,7 +2,7 @@
 
 User management service for YAMF: CRUD, self-signup, admin-invite with registration tokens, and optional verification workflows.
 
-[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## Installation
@@ -12,6 +12,8 @@ npm install @yamf/services-user @yamf/services-postgres @yamf/core
 ```
 
 The user service stores data via **@yamf/services-postgres** (it calls the postgres service by default). You must run a Postgres service and ensure the `yamf.user` table exists (the service creates it if not present).
+
+**Password hashes** come from `@yamf/core` (`createArgonSaltAndHash` / `checkArgonPassword`): **Argon2** on Node.js 24+ (`crypto.argon2`), **scrypt** (hashes prefixed with `scrypt1:`) on Node 22–23. Rows produced on Node 24 remain Argon2-only until passwords are reset if you later run only Node 22.
 
 ## Quick Start
 

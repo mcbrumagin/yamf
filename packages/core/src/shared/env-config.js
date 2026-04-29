@@ -1,4 +1,4 @@
-// Modern environment configuration utility for Node.js 24+
+// Modern environment configuration utility for Node.js 22+
 import { readFile } from 'node:fs/promises'
 // NOTE no custom logger here, this config is required for Logger initialization
 
@@ -64,7 +64,7 @@ class EnvConfig {
     return this.config.has(key)
   }
 
-  // Load additional configuration from .env file (Node.js 24+ --env-file alternative)
+  // Load additional configuration from .env file (Node.js --env-file style alternative)
   async loadEnvFile(filePath = '.env') {
     try {
       const envContent = await readFile(filePath, 'utf8')

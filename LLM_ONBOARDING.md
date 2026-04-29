@@ -4,6 +4,8 @@ This document provides AI assistants with essential context for working on the Y
 
 For **test runner defaults**, **`withEnv` vs `.env.test`**, **`registryServer` / ports**, and **filter gotchas**, see **`docs/TESTING.md`**.
 
+For **contribution rules** (features, examples, tests, dependencies, `registerCommand`), see **`CONTRIBUTING.md`** at the repo root.
+
 ## Project Overview
 
 YAMF (Yet Another Microservice Framework) keeps **`@yamf/core`** free of npm dependencies at runtime (zero third-party packages for the server stack). Optional packages (e.g. **`@yamf/client`**) add their own dependencies (e.g. **morphdom**). The codebase prioritizes:

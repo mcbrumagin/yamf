@@ -2,7 +2,10 @@
   "name": "@yamf/services-postgres",
   "version": "0.1.2",
   "description": "",
-  "license": "ISC",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "author": "",
   "type": "module",
   "main": "service.js",

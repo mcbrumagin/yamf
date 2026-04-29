@@ -1,10 +1,17 @@
 {
+  "name": "yamf-monorepo",
+  "private": true,
   "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "test": "c8 pnpm -r --filter=\\!cli test",
     "test:integration": "c8 pnpm -r --filter=cli test",
     "test:all": "c8 pnpm -r test",
-    "test:parallel": "c8 pnpm -r --parallel test"
+    "test:parallel": "c8 pnpm -r --parallel test",
+    "check:metadata": "node scripts/check-yamf-metadata.mjs"
   },
   "devDependencies": {
     "@yamf/cli": "workspace:*"

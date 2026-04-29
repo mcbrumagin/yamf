@@ -8,7 +8,7 @@ export default {
   ],
   build: {
     external: ['@yamf/*'],
-    target: 'node20',
+    target: 'node22',
     sourcemap: true
   }
 }

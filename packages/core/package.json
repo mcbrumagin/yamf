@@ -23,7 +23,7 @@
     "./contract-compatibility": "./src/service/contract-compatibility.js"
   },
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=22.0.0"
   },
   "keywords": [
     "microservices",

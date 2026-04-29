@@ -3,7 +3,7 @@
 A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, pub/sub messaging, HTTP routing, and load balancing.
 
 [![Tests](https://img.shields.io/badge/tests-436%2F436%20passing-brightgreen)]()
-[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## Features

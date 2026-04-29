@@ -8,7 +8,7 @@
     ".": "./service.js"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "license": "MIT",
   "author": "Matthew C Brumagin",
