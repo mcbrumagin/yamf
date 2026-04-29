@@ -2,7 +2,7 @@
 
 In-memory caching service for YAMF microservices with automatic eviction and TTL support.
 
-[![Version](https://img.shields.io/badge/version-0.1.2-blue)]()
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ## Installation

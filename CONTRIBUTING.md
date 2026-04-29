@@ -25,6 +25,7 @@ pnpm install
 | `packages/shared` | Shared helpers used by client and/or services. |
 | `packages/test` | Test harness and assertions (`terminateAfter`, `withEnv`, …). |
 | `examples/*` | **Public-facing** standalone examples (runnable, documented, versioned for copy-paste). |
+| `packages/*/**/*.example.js` | **Package-local smoke examples** run via `yamf test --as-test '*.example.js' -d <pkg>` (see [TESTING.md](docs/TESTING.md)). |
 | `packages/core/examples/*` | Deeper demos, Docker/k8s layouts, polyglot samples. Treat as **integration / reference** unless promoted to `examples/*`. |
 
 **Rule of thumb:** If a feature can ship as an optional **`@yamf/services-*`** package or a **registry command plugin** (see below), it should not land in `packages/core` unless it is required by the kernel (discovery, routing, contracts, shared HTTP/registry semantics).
@@ -42,9 +43,23 @@ pnpm install
 
 ## Examples
 
-- Examples must be **runnable** from their README (commands, env vars, ports).
-- Prefer **automated** coverage: integration tests in the owning package, or a script invoked from CI (see root `package.json` / `.github/workflows`).
-- Promote stable patterns from `packages/core/examples/` into `examples/` when they should be the primary onboarding path for v1.
+Run examples from their README (commands, env vars, ports).
+
+### Three tiers
+
+| Tier | Location | Purpose |
+|------|-----------|---------|
+| **Per-package smoke tests** | `packages/*/**/*.example.js` | Runnable demos next to the owning package; executed via `yamf test --as-test '*.example.js' -d <pkg>` (see root `test:integration`). Use `terminateAfter(() => registryServer(), …)` or `withInlineRegistry` / `pickListenPort` from `@yamf/test` when you need a registry without fixed-port collisions. |
+| **Cross-package integrations** | `packages/core/examples/` | Docker, k8s, polyglot, multi-service demos (reference deployments). |
+| **Public templates** | `examples/` (repo root) | Copy-paste starters (e.g. `minimal-hmr`) promoted from core when they should be primary onboarding. |
+
+Convention: export `export const name = '…'` and `export default async function run () { … }`; optional `setup` / `teardown`.
+
+Prefer **automated** coverage: integration tests in the owning package or root `scripts/run-example-tests.mjs` / CI.
+
+### Promoting examples
+
+Stable patterns from `packages/core/examples/` may move to top-level `examples/` when they become the primary onboarding path for v1.
 
 ## Dependencies
 

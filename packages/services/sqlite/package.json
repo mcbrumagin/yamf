@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-sqlite",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "SQLite database service for YAMF",
   "license": "MIT",
   "engines": {

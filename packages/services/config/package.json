@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-config",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Encrypted config key-value service for YAMF deploys (Phase 2 cross-cut 1)",
   "main": "service.js",
@@ -25,7 +25,8 @@
   },
   "files": [
     "service.js",
-    "storage.js"
+    "storage.js",
+    "README.md"
   ],
   "repository": {
     "type": "git",

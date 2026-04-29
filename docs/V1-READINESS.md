@@ -2,7 +2,7 @@
 
 This document triages **known gaps** before a **1.0.0** tag. The goal is **honest, small-to-medium production** use with an experienced team — not enterprise-grade “boring reliability” or full platform-as-a-product automation.
 
-For process rules (examples, tests, dependencies), see [CONTRIBUTING.md](../CONTRIBUTING.md). For direction and shipped slices, see [ROADMAP.md](./ROADMAP.md).
+For process rules (examples, tests, dependencies), see [CONTRIBUTING.md](../CONTRIBUTING.md). For direction and shipped slices, see [ROADMAP.md](./ROADMAP.md). For the sequenced v1 hardening workstreams (CI, examples, `--as-test`, release checklist), see **[V1-HARDENING.md](./V1-HARDENING.md)**.
 
 ---
 

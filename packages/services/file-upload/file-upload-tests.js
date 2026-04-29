@@ -595,3 +595,31 @@ export async function testValidatorExtensionNormalization() {
   await assert(result1, r => r.valid === true)
   await assert(result2, r => r.valid === true)
 }
+
+export async function testOnSuccessDoubleEndDoesNotCrash () {
+  const uploadDir = await createTempUploadDir()
+  try {
+    await terminateAfter(
+      () => registryServer(),
+      () => createFileUploadService({
+        uploadDir,
+        fileFieldName: 'file',
+        onSuccess: async (data, req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ once: true }))
+          res.end(JSON.stringify({ twice: true }))
+        }
+      }),
+      async () => {
+        const testFilePath = path.join(uploadDir, 'dbl.txt')
+        await fsPromises.writeFile(testFilePath, 'x')
+        const form = new FormData()
+        form.append('file', fs.createReadStream(testFilePath), 'dbl.txt')
+        const result = await createMultipartRequest(form)
+        await assert(result && result.once === true, x => x === true)
+      }
+    )
+  } finally {
+    cleanupTempFiles(uploadDir)
+  }
+}

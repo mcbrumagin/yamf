@@ -1,6 +1,6 @@
 {
   "name": "@yamf/test",
-  "version": "0.1.4",
+  "version": "1.0.0",
   "type": "module",
   "description": "Functional testing module - with polymorphic async/await and simultaneous assertion reports",
   "main": "src/index.js",

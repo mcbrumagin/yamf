@@ -23,15 +23,20 @@ Run tests using auto-discovery. Finds files that import `@yamf/test` and export 
 ```bash
 yamf test                 # Discover and run tests from cwd
 yamf test -d packages/core   # Run tests from specified directory
-yamf test -f "*user*"     # Filter by file name
+yamf test -f "*user*"     # Filter by file name (basename substring or glob)
 yamf test -n "testVerify*"   # Filter by test name
 yamf test --list         # List discovered files without running
+
+# Run package-local example scripts (*.example.js) as tests (basename glob)
+yamf test --as-test '*.example.js' -d packages/services/cache
 ```
 
 **Options:**
 - `-d`, `--dir <path>` - Working directory for discovery (default: cwd)
-- `-f`, `--file <pattern>` - Filter files by name (substring or * wildcard)
+- `-f`, `--file <pattern>` - Filter files by name (substring or * basename glob)
 - `-n`, `--name <regex>` - Filter tests by name (regex or * wildcard)
+- `--as-test <glob>` - Run matching `.js` files without requiring `@yamf/test` in-file (see [TESTING.md](../../docs/TESTING.md)); pattern required when flag is used
+- `--include-e2e` - Include `*.e2e-tests.js` files (default: excluded)
 - `--list` - List discovered suites/files without running
 - `-v`, `--verbose` - Verbose output
 

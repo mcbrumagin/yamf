@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-pm3",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "PM3 process management service for yamf - enables remote CLI capabilities",
   "license": "MIT",
   "engines": {

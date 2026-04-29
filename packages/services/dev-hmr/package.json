@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-dev-hmr",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "SSE dev reload fan-out for yamf dev (Phase 4 D2)",
   "license": "MIT",
   "engines": {

@@ -2,6 +2,7 @@
 
 A lightweight microservices framework for Node.js with built-in service discovery, API gateway, pub/sub messaging, and multi-language support. **`@yamf/core`** has **zero npm dependencies** at runtime (pure Node.js built-ins). Optional packages such as **`@yamf/client`** add their own small dependency set (e.g. **morphdom** for DOM patching in the browser).
 
+[![CI](https://github.com/mcbrumagin/yamf/actions/workflows/ci.yml/badge.svg)](https://github.com/mcbrumagin/yamf/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-pnpm%20test-brightgreen)]()
 [![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()

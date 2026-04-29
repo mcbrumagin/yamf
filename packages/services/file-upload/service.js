@@ -539,7 +539,17 @@ export default async function createFileUploadService({
       }
 
       if (onSuccess) {
-        await onSuccess(successData, req, res)
+        try {
+          await onSuccess(successData, req, res)
+        } catch (err) {
+          const code = err && err.code
+          const msg = (err && err.message) || ''
+          if (code === 'ERR_HTTP_HEADERS_SENT' || /headers.*sent|Cannot set headers/i.test(msg)) {
+            logger.warn('onSuccess tried to write after the response was already sent; ignoring duplicate send', { message: msg })
+            return
+          }
+          throw err
+        }
       } else {
         if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'application/json' })
         if (!res.writableEnded) res.end(JSON.stringify(successData))
@@ -571,10 +581,8 @@ export default async function createFileUploadService({
         : null
     })
     
-    // Return false to indicate that the response is handled by the function itself
-    // This prevents the framework from trying to send another response
-    return false // TODO return next()? preventDefault()? next({ preventDefault: true })?
-    // return next({ reason: 'file upload', file: filePath })
+    // Return false: framework must not send a second response (multipart handler ends the response).
+    return false
   }, {
     useAuthService,
     streamPayload: true // Don't buffer the request - we need the raw stream for multipart uploads

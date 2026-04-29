@@ -248,14 +248,35 @@ import { registryServer, createService } from '@yamf/core'
 
 async function testServices() {
   await terminateAfter(
-    registryServer(),
-    createService(function myService(p) { return { ok: true } }),
+    () => registryServer(),
+    () => createService(function myService(p) { return { ok: true } }),
     async (registry, service) => {
       const result = await callService('myService', {})
       assert(result.ok, v => v === true)
     }
   )
 }
+```
+
+### `withInlineRegistry(...factories, testFn)`
+
+Shorthand for `terminateAfter(() => registryServer(), ...)`.
+
+### `pickListenPort()`
+
+Returns a free TCP port on `127.0.0.1`. Use with `withEnv({ YAMF_REGISTRY_URL: \`http://127.0.0.1:${port}\` }, …)` when fixed ports from `.env.test` conflict (e.g. parallel runs or drain races).
+
+```javascript
+import { pickListenPort, withEnv, terminateAfter } from '@yamf/test'
+import { registryServer } from '@yamf/core'
+
+const port = await pickListenPort()
+await withEnv({ YAMF_REGISTRY_URL: `http://127.0.0.1:${port}` }, async () => {
+  await terminateAfter(
+    () => registryServer(),
+    async () => { /* … */ }
+  )
+})
 ```
 
 ### `withEnv(envVars, testFn)`

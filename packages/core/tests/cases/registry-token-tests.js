@@ -61,10 +61,10 @@ export async function testRegistryWarnsInNonDevWithoutToken() {
         const result = await httpRequest(process.env.YAMF_REGISTRY_URL, {
           headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH }
         })
-        
-        throw new Error('TODO: Need proper log assertion')
+
         await assert(result,
-          r => r.status === 'ready'
+          r => r.status === 'ready',
+          r => typeof r.timestamp === 'number'
         )
         return result
       }

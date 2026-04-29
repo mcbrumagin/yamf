@@ -6,6 +6,20 @@
 
 **Prefer using those defaults** and relying on `terminateAfter` to shut down registry, gateway, and services so the process returns to a clean state. Do not wrap whole tests in `withEnv` just to repeat the same variables.
 
+## `--as-test` (example scripts)
+
+Use when files **do not** import `@yamf/test` for discovery (typical for `*.example.js`):
+
+```bash
+yamf test --as-test '*.example.js' -d packages/services/cache
+```
+
+- **`--as-test <glob>`** — required pattern when the flag is used; basename glob where only `*` is special; literal `.` matches a dot (so `*.example.js` matches `foo.example.js`, not `media-streaming-example.js`).
+- **`-f` / `--file`** narrows the same basename match further.
+- **`--list`** prints matched paths without running.
+
+Each file’s **default export** is one test case (`async function run()`); named exports `export async function testSomething()` are used when there is no default. Optional exports: `name`, `setup`, `teardown`, `mute`, `solo`.
+
 ## When to use `withEnv`
 
 Use [`withEnv` from `@yamf/test`](../packages/test/README.md#withenvvars-testfn) when the test **must temporarily change** environment for its assertions, for example:
@@ -27,7 +41,7 @@ If the only goal is “registry on a different port,” prefer **no** extra `wit
 ## package placement
 
 - Core integration-style tests: `packages/core/tests/`.
-- **CLI (slow, `execSync`):** `packages/cli/src/tests/` — e.g. `cli-journey.js` (pm3 journey), `cli-rolling-commands.js` (`restart --rolling` / `drain` / `status --health`), `cli-build-deploy-tests.js` (`yamf build` + `yamf deploy --local` + `status --versions`, isolated `YAMF_HOME` and port), `remote-pm3-adapter-tests.js` (mocked `fetch` for pm3-service wire protocol), `cli-remote-registry-smoke-tests.js` (`--remote` without `YAMF_REGISTRY_URL`). Run a subset: `pnpm --filter @yamf/cli run test:build-deploy` or `yamf test -d . -f cli-build-deploy` from `packages/cli`.
+- **CLI (slow, `execSync`):** `packages/cli/src/tests/` — e.g. `cli-journey.js`, `cli-as-test-tests.js` (`--as-test` glob behavior). Filter: `yamf test -d packages/cli -f cli-as-test`.
 - **pm3-service (integration, `registryServer` + `createPm3Service`):** `packages/services/pm3/tests/pm3-integration-tests.js` — `pnpm --filter @yamf/services-pm3 test` or `yamf test -d packages/services/pm3 -f pm3-integration`. Broader gap backlog: [TEST-PLAN-UNDER-50.md](./TEST-PLAN-UNDER-50.md).
 - **deploy-router (placement + `attachDeployRouter`):** `packages/services/deploy-router/tests/` — `pnpm --filter @yamf/services-deploy-router test`.
 - **`yamf nodes` / `yamf health` (registry URL):** `packages/cli/src/tests/cli-registry-nodes-health-tests.js` — `yamf test -d . -f registry-nodes` from `packages/cli`.

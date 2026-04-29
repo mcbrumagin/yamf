@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-file-server",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Static file serving service for YAMF microservices",
   "main": "service.js",

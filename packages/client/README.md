@@ -2,7 +2,7 @@
 
 **It's *actually* just JavaScript** - A lightweight, reactive HTML-as-JavaScript library for both client and server-side rendering.
 
-[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](https://github.com/mcbrumagin/yamf/tree/master/packages/client)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/mcbrumagin/yamf/tree/master/packages/client)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
