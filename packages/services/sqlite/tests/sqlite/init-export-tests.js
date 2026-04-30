@@ -29,7 +29,7 @@ export async function testEnsureDbPath_CreatesNestedDir() {
 
   await ensureDbPath(dbPath)
 
-  await assert(existsSync(join(baseDir, 'nested', 'dir')), x => x === true)
+  await assert(join(baseDir, 'nested', 'dir'), p => existsSync(p))
 }
 
 export async function testEnsureDbPath_SkipsMemory() {
@@ -104,8 +104,8 @@ export async function testBackup_ExportsToFile() {
     async (registry, service) => {
       const pages = await service.backup(backupPath)
       await assert(pages, p => typeof p === 'number' && p > 0)
-      await assert(existsSync(backupPath), x => x === true)
-      await assert(readFileSync(backupPath).length > 0, x => x > 0)
+      await assert(backupPath, p => existsSync(p))
+      await assert(readFileSync(backupPath), buf => buf.length > 0)
     }
   )
 }
@@ -134,7 +134,7 @@ export async function testFileDb_InitAndBackup() {
       await assert(result, r => r[0].label === 'from_file')
 
       await service.backup(backupPath)
-      await assert(existsSync(backupPath), x => x === true)
+      await assert(backupPath, p => existsSync(p))
     }
   )
 }

@@ -12,7 +12,7 @@ import { planAndApply, resolveLocalRollingTarget } from '../lib/deploy-driver.js
  * @param {string} [serviceName]
  */
 function makeTestServiceBundle (serviceName = 'sample-svc') {
-  const require = createRequire(fileURLToPath(new URL('../../../package.json', import.meta.url)))
+  const require = createRequire(fileURLToPath(new URL('../../package.json', import.meta.url)))
   const href = pathToFileURL(require.resolve('@yamf/core')).href
   return `import { createService } from ${JSON.stringify(href)}
 export default async function yamfDeployTestEntry () {

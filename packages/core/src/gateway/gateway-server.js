@@ -182,11 +182,17 @@ export default async function createGatewayServer(port, options = {}) {
     resetState(state)
     await httpServerTerminate()
   }
-  const unregisterFromLifecycle = lifecycle.registerTerminable(runGatewayShutdown, { priority: 0 })
+  // Late-bound: lifecycle invokes whatever `server.terminate` resolves to at
+  // shutdown time so wrappers that override `server.terminate` are honored.
+  let unregisterFromLifecycle
   server.terminate = async () => {
-    unregisterFromLifecycle()
+    unregisterFromLifecycle?.()
     await runGatewayShutdown()
   }
+  unregisterFromLifecycle = lifecycle.registerTerminable(
+    () => server.terminate(),
+    { priority: 0 }
+  )
   
   server.isGateway = true
   

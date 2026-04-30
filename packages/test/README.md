@@ -46,6 +46,10 @@ runTests({ testAddition, testAsyncFetch })
 
 Assert that a value or function result passes all assertion functions.
 
+**Failure output:** the runner prints the distilled **first argument** (`for target … value = …`) and each failing predicate (`failed -> …`). Put the value under test first and express expectations in the callbacks — avoid `assert(expr, x => x === true)` where `expr` is already a boolean, or failures only show `true`/`false` with no useful predicate text.
+
+**Errors:** for `Error` values (e.g. a caught `execSync` failure), use **`assertErr(error, …)`** instead of `assert` — see below.
+
 ```javascript
 // Direct value
 assert(5, n => n > 0, n => n < 10)

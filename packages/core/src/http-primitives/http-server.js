@@ -5,10 +5,9 @@ import Logger from '../utils/logger.js'
 import fs from 'node:fs'
 import { detectContentType } from './content-type-detector.js'
 import { getDefaultResponseSecurityHeaders } from '../shared/csp.js'
+import { installTerminate } from './terminate-server.js'
 
 const logger = new Logger({ logGroup: 'http-primitives' })
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 function prependServiceNameToErrorStack(err, serviceName) {
   // helpful for cascading errors
@@ -194,17 +193,7 @@ export default async function createServer(port, serverFn, options = {}) {
       reject(err)
     })
 
-    server.terminate = () => new Promise(resolve => {
-      server.on('close', async () => {
-        // I hate this, but for some reason, in tests,
-        // terminating and restarting causes subsequent create-service registrations to fail.
-        // This should permit whatever outlying OS network freeing outside nodejs
-        await sleep(5) // TODO
-        // not having sleep currently only fails testRouteMissingService
-        resolve()
-      })
-      server.close()
-    })
+    installTerminate(server)
     
     server.listen(port, () => {
       server.port = port

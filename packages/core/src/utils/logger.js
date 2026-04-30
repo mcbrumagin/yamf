@@ -309,7 +309,10 @@ export default class Logger {
 
       if (arg !== color && !logContent.endsWith('\n')) logContent += ' | '
     }
-    logContent = logContent.slice(0, logContent.length - 3) + colors.reset
+    if (logContent.endsWith(' | ')) {
+      logContent = logContent.slice(0, logContent.length - 3)
+    }
+    logContent += colors.reset
 
     if (this.options.includeTimestamp) {
       logContent = `[${new Date().toISOString()}] ${logContent}`

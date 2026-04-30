@@ -13,8 +13,18 @@ class EnvConfig {
   // Load environment variables with validation and type conversion
   loadEnvironmentVariables() {
     for (const [key, value] of Object.entries(process.env)) {
-      this.config.set(key, this.parseValue(value))
+      let parsed = this.parseValue(value)
+      if (key === 'LOG_LEVEL' && typeof parsed === 'string') {
+        parsed = parsed.toLowerCase()
+      }
+      this.config.set(key, parsed)
     }
+  }
+
+  /** Resync from process.env after callers mutate env (e.g. yamf test loading .env.test). */
+  reloadFromProcessEnv () {
+    this.config.clear()
+    this.loadEnvironmentVariables()
   }
 
   // Parse values to appropriate types

@@ -8,10 +8,11 @@
   },
   "scripts": {
     "test": "c8 pnpm -r --filter=!@yamf/cli --filter=!yamf-example-minimal-hmr test",
-    "test:integration": "c8 pnpm --filter @yamf/cli test && node scripts/run-example-tests.mjs",
+    "test:integration": "c8 pnpm --filter @yamf/cli test && node packages/cli/src/cli.js test --as-test -d packages -f \"*.example.js\" && node packages/cli/src/cli.js test --as-test -d examples -f \"*.example.js\"",
     "test:e2e": "node scripts/run-e2e-tests.mjs",
-    "test:all": "pnpm run test && pnpm run test:integration && pnpm run test:e2e",
+    "test:all": "yamf test --as-test -f '*.example.js' && c8 pnpm -r test:all",
     "test:parallel": "c8 pnpm -r --parallel test",
+    "test:all:parallel": "yamf test --as-test -f '*.example.js' && c8 pnpm -r --parallel test:all",
     "check:metadata": "node scripts/check-yamf-metadata.mjs"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-import { Logger, envConfig } from '@yamf/core'
+import { Logger, envConfig, terminateActiveRegistryServers } from '@yamf/core'
 
 const logger = new Logger()
 
@@ -6,6 +6,24 @@ export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 function isThenable (x) {
   return x != null && typeof x.then === 'function'
+}
+
+async function terminateAfterSingleFn (fn) {
+  let bodyError
+  try {
+    await fn()
+  } catch (e) {
+    bodyError = e
+  } finally {
+    try {
+      await terminateActiveRegistryServers()
+    } catch (e) {
+      if (process.env.YAMF_TEST_VERBOSE_TEARDOWN === '1') {
+        console.warn(`[terminateAfter] registry shutdown failed: ${e.message}`)
+      }
+    }
+  }
+  if (bodyError) throw bodyError
 }
 
 /**
@@ -27,7 +45,11 @@ function isThenable (x) {
  *   server-like objects.
  * @param {Function} testFn
  */
-export async function terminateAfter(...args) {
+export async function terminateAfter (...args) {
+  if (args.length === 1 && typeof args[0] === 'function') {
+    return await terminateAfterSingleFn(args[0])
+  }
+
   const testFn = args[args.length - 1]
   const serverInputs = args.slice(0, -1)
   if (typeof testFn !== 'function') {

@@ -11,28 +11,30 @@ import { dirname, join } from 'node:path'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const CLI_CWD = join(__dirname, '..')
+const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
 
 function exec (cmd, env = {}) {
-  return execSync(`node ${CLI} ${cmd}`, {
-    env: { ...process.env, MUTE_LOG_GROUP_OUTPUT: 'true', LOG_LEVEL: 'error', ...env },
+  if (DEBUG) console.log(`\n> (cwd=${CLI_CWD}) yamf ${cmd}`)
+  const out = execSync(`node ${CLI} ${cmd}`, {
+    env: { ...process.env, ...env },
     cwd: CLI_CWD,
     encoding: 'utf8',
     timeout: 15000,
     stdio: ['pipe', 'pipe', 'pipe']
   })
+  if (DEBUG && out) console.log(out)
+  return out
 }
 
 function execErr (cmd, env = {}) {
   try {
-    execSync(`node ${CLI} ${cmd}`, {
-      env: { ...process.env, MUTE_LOG_GROUP_OUTPUT: 'true', LOG_LEVEL: 'error', ...env },
-      cwd: CLI_CWD,
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
+    exec(cmd, env)
     return null
   } catch (e) {
+    if (DEBUG) {
+      const combined = (e.stderr || '') + (e.stdout || '') + (e.message || '')
+      console.log('[ERROR]', combined)
+    }
     return e
   }
 }

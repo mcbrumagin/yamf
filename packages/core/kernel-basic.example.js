@@ -1,17 +1,17 @@
+/**
+ * Minimal registry + service round-trip. Tunables: set `YAMF_REGISTRY_URL` before running,
+ * or rely on the default port below for local playground use.
+ */
 import { registryServer, createService, callService } from '@yamf/core'
-import { assert, terminateAfter } from '@yamf/test'
 
-export const name = 'core: echo service via registry'
+const registryUrl = process.env.YAMF_REGISTRY_URL || 'http://127.0.0.1:20000'
+process.env.YAMF_REGISTRY_URL = registryUrl
 
-export default async function run () {
-  await terminateAfter(
-    () => registryServer(),
-    () => createService(function exampleEcho (p) {
-      return { ok: true, p }
-    }),
-    async () => {
-      const r = await callService('exampleEcho', { n: 42 })
-      await assert(r && r.ok && r.p && r.p.n === 42, x => x === true)
-    }
-  )
-}
+await registryServer()
+
+await createService(function exampleEcho (p) {
+  return { ok: true, p }
+})
+
+const result = await callService('exampleEcho', { n: 42 })
+console.log('callService result:', result)

@@ -1,6 +1,6 @@
 import { assert, terminateAfter } from '@yamf/test'
 import { registryServer, callService } from '@yamf/core'
-import createSqliteService from '../../service.js'
+import createSqliteService from '../service.js'
 
 export async function testSqliteSelectOneE2E () {
   await terminateAfter(
@@ -14,7 +14,7 @@ export async function testSqliteSelectOneE2E () {
         template: 'SELECT 1 as one',
         data: {}
       })
-      await assert(rows?.[0]?.one === 1 || rows?.[0]?.one === '1', x => x === true)
+      await assert(rows, r => r?.[0]?.one === 1 || r?.[0]?.one === '1')
     }
   )
 }

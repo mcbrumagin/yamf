@@ -9,15 +9,17 @@
   },
   "exports": {
     ".": "./src/index.js",
-    "./pm3": "./src/lib/pm3.js"
+    "./pm3": "./src/lib/pm3.js",
+    "./as-test-runner": "./src/lib/as-test-runner.js"
   },
   "engines": {
     "node": ">=22.0.0"
   },
   "scripts": {
     "test": "yamf test -d .",
-    "perf:measure": "node ./perf/measure.mjs",
+    "test:all": "yamf test -d . --include-e2e",
     "perf:baseline0": "node ./perf/measure.mjs --baseline0",
+    "perf:measure": "node ./perf/measure.mjs",
     "perf:phase1": "node ./perf/measure.mjs --phase1"
   },
   "files": [

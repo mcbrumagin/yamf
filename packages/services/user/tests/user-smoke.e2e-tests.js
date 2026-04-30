@@ -1,7 +1,7 @@
 import { assert, terminateAfter } from '@yamf/test'
 import { registryServer, callService } from '@yamf/core'
 import createPostgreSqlService from '@yamf/services-postgres'
-import createUserService from '../../service.js'
+import createUserService from '../service.js'
 
 export async function testUserCreateGetE2E () {
   const url = process.env.YAMF_TEST_PSQL_URL
@@ -19,7 +19,7 @@ export async function testUserCreateGetE2E () {
         create: { username: email, password: 'ExamplePass123!' }
       })
       const u = await callService('user-service', { get: { username: email } })
-      await assert(u && u.username === email, x => x === true)
+      await assert(u, user => user && user.username === email)
     }
   )
 }

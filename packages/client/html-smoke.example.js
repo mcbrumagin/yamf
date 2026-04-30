@@ -1,11 +1,10 @@
-import { assert } from '@yamf/test'
+/**
+ * Sanity check: `@yamf/client` re-exports shared HTML encode helpers.
+ */
 import { encode } from '@yamf/client'
 
-export const name = 'client: shared XSS encode re-export'
-
-export default async function run () {
-  await assert(
-    encode && typeof encode.html === 'function' && typeof encode.attr === 'function',
-    x => x === true
-  )
+if (typeof encode?.html !== 'function' || typeof encode?.attr !== 'function') {
+  console.error('encode.html / encode.attr must be functions')
+  process.exit(1)
 }
+console.log('@yamf/client encode re-export ok')

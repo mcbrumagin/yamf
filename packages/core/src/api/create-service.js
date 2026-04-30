@@ -255,11 +255,19 @@ export default async function createService(name, serviceFn, options = {}) {
     }
     await httpServerTerminate()
   }
-  const unregisterFromLifecycle = lifecycle.registerTerminable(runServiceShutdown, { priority: 10 })
+  // Late-bound: lifecycle invokes whatever `server.terminate` resolves to at
+  // shutdown time, so wrappers that override `server.terminate` to add cleanup
+  // (e.g. clearInterval) are honored on SIGTERM/SIGINT — not just on explicit
+  // `server.terminate()` calls.
+  let unregisterFromLifecycle
   server.terminate = async () => {
-    unregisterFromLifecycle()
+    unregisterFromLifecycle?.()
     await runServiceShutdown()
   }
+  unregisterFromLifecycle = lifecycle.registerTerminable(
+    () => server.terminate(),
+    { priority: 10 }
+  )
   shutdownTerminateRef.terminate = () => server.terminate()
 
   return server

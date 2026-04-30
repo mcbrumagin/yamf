@@ -33,6 +33,6 @@ export async function testJsonLogLineIncludesIsoTimestampAndMessage () {
 export async function testPlainLogOmitsBracketTimestampWhenDisabled () {
   const out = runFixture('logger-plain-no-ts-smoke.mjs')
   const line = out.split(/\r?\n/).filter(Boolean).pop()
-  await assert(line.includes('plain-no-ts'), x => x === true)
-  await assert(!/\[\d{4}-\d{2}-\d{2}T/.test(line), x => x === true)
+  await assert(line, l => l.includes('plain-no-ts'))
+  await assert(line, l => !/\[\d{4}-\d{2}-\d{2}T/.test(l))
 }

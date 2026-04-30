@@ -2,7 +2,8 @@
  * yamf test - Discover and run @yamf/test suites
  *
  * Normal discovery: imports @yamf/test, exports plain functions (not TestRunner/runTests).
- * --as-test: runs *.example.js or other JS matched by glob without requiring @yamf/test import.
+ * -f filters by basename; when set, *.e2e-tests.js are included (narrowing intent).
+ * --as-test: runs matching *.js files as child processes (script orchestrator).
  *
  * Loads .env.test from the working directory before running.
  */
@@ -11,8 +12,15 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import parseArgs from '../lib/parse-args.js'
+import {
+  discoverAsTestFiles,
+  findYamfRepoRoot,
+  runScriptAsTest,
+  buildGeneratePayload,
+  writeGenerateFile
+} from '../lib/as-test-runner.js'
 
-const EXCLUDED_DIRS = ['node_modules', '.git', 'coverage', 'dist', 'build']
+const EXCLUDED_DIRS = ['node_modules', '.git', 'coverage', 'dist', 'build', '.yamf', 'tmp']
 
 const ARGS = {
   help: { flags: ['-h', '--help'] },
@@ -22,7 +30,11 @@ const ARGS = {
   dir: { flags: ['-d', '--dir'], type: 'string', default: process.cwd() },
   file: { flags: ['-f', '--file'], type: 'string' },
   name: { flags: ['-n', '--name'], type: 'string' },
-  asTest: { flags: ['--as-test'], type: 'string' },
+  asTest: { flags: ['--as-test'] },
+  generate: { flags: ['--generate'] },
+  generateOut: { flags: ['--generate-out'], type: 'string' },
+  timeout: { flags: ['--timeout'], type: 'number', default: 30000 },
+  settle: { flags: ['--settle'], type: 'number', default: 250 },
   includeE2e: { flags: ['--include-e2e'] }
 }
 
@@ -31,7 +43,8 @@ function getTestHelp () {
 yamf test - Discover and run @yamf/test suites
 
 Normal mode discovers files that import @yamf/test and export plain functions.
-Use --as-test <glob> to run example scripts (*.example.js) without that import.
+Use -f to filter by basename (substring or *); e2e suites are included when -f is set.
+Use --as-test with -f to run matching scripts as child-process integration checks.
 
 Loads .env.test from the working directory.
 
@@ -42,9 +55,13 @@ Options:
   -d, --dir <path>      Working directory for discovery (default: cwd)
   -f, --file <glob>     Filter files by basename (substring or * wildcard)
   -n, --name <regex>    Filter tests by name (regex or * wildcard)
-  --as-test <glob>      Run matching .js files as tests (basename glob; required value).
-                        Uses default export as the test body; optional setup/teardown exports.
-  --include-e2e         Include *.e2e-tests.js files (default: excluded from normal runs)
+  --as-test             Run basename glob matches as scripts (requires -f).
+                        Assigns YAMF_REGISTRY_URL per case; SIGTERM shutdown.
+  --generate            With --as-test: write generated suite file and exit 0
+  --generate-out <path> Output path for --generate (implies --generate)
+  --timeout <ms>        Per-test timeout (normal and --as-test). Default 30000.
+  --settle <ms>         --as-test only: wait after port open before SIGTERM. Default 250.
+  --include-e2e         Include *.e2e-tests.js when scanning without -f (default: excluded)
   --list                List discovered suites/files without running
   --timings             After the run, print a slowest-first per-test table (or set YAMF_TEST_TIMINGS=1)
   -v, --verbose         Verbose output
@@ -122,8 +139,6 @@ function isTestFile (filePath, content) {
 
 /**
  * Turn a basename glob (only `*` is special) into a safe RegExp.
- * Dots and other regex metacharacters are escaped so `*.example.js` matches
- * `foo.example.js` but not `media-streaming-example.js`.
  */
 function globBasenameToRegex (pattern) {
   let out = ''
@@ -178,14 +193,11 @@ function findTestFiles (rootDir, options) {
           walk(fullPath)
         }
       } else if (entry.isFile() && entry.name.endsWith('.js')) {
-        if (options.asTest) {
-          if (!matchesFileFilter(fullPath, options.asTest)) continue
-          if (options.file && !matchesFileFilter(fullPath, options.file)) continue
-          results.push(fullPath)
+        // Full-tree runs exclude e2e unless --include-e2e. With -f, include e2e so
+        // basename filters (e.g. *.e2e-tests.js) can match.
+        if (!options.includeE2e && !options.file && entry.name.endsWith('.e2e-tests.js')) {
           continue
         }
-
-        if (!options.includeE2e && entry.name.endsWith('.e2e-tests.js')) continue
 
         if (!matchesFileFilter(fullPath, options.file)) continue
 
@@ -230,41 +242,15 @@ function filterFns (fns, nameRegex) {
   return out
 }
 
-/**
- * Wrap a module with default export into named test fns for TestRunner.addSuite.
- */
-export function wrapExampleModule (filePath, mod) {
-  const baseName = path.basename(filePath, path.extname(filePath))
-  const label = (typeof mod.name === 'string' && mod.name) || baseName
-  const setup = typeof mod.setup === 'function' ? mod.setup : null
-  const teardown = typeof mod.teardown === 'function' ? mod.teardown : null
-  const body = typeof mod.default === 'function' ? mod.default : null
-
-  if (body) {
-    const fn = async function () {
-      if (setup) await setup()
-      try {
-        await body()
-      } finally {
-        if (teardown) await teardown()
-      }
-    }
-    Object.defineProperty(fn, 'name', { value: label })
-    if (mod.mute) fn.mute = true
-    if (mod.solo) fn.solo = true
-    return { [label]: fn }
-  }
-
-  const named = {}
-  for (const key of Object.keys(mod)) {
-    if (key === 'default' || key === 'name' || key === 'setup' || key === 'teardown') continue
-    if (typeof mod[key] === 'function' && /^test/.test(key)) named[key] = mod[key]
-  }
-  return named
-}
-
 export async function runTestCommand (args) {
-  const options = parseArgs(args, ARGS)
+  let options
+  try {
+    options = parseArgs(args, ARGS)
+  } catch (e) {
+    console.error(String(e.message || e))
+    process.exit(2)
+  }
+
   options.dir = path.resolve(process.cwd(), options.dir)
 
   if (options.help) {
@@ -272,12 +258,61 @@ export async function runTestCommand (args) {
     return
   }
 
-  if (options.asTest !== null && options.asTest !== undefined && String(options.asTest).trim() === '') {
-    console.error('Error: --as-test requires a non-empty pattern.')
-    process.exit(1)
+  const wantsGenerate = options.generate || (options.generateOut != null && options.generateOut !== '')
+  if (wantsGenerate && !options.asTest) {
+    console.error('Error: --generate requires --as-test.')
+    process.exit(2)
+  }
+
+  if (options.asTest && !options.file) {
+    console.error('Error: --as-test requires -f/--file (basename glob).')
+    process.exit(2)
+  }
+
+  if (options.timeout === 0 || (typeof options.timeout === 'number' && options.timeout < 0)) {
+    console.error('Error: --timeout must be a positive number (ms).')
+    process.exit(2)
   }
 
   loadEnvTest(options.dir)
+  const { default: envConfig } = await import('@yamf/core/env-config')
+  envConfig.reloadFromProcessEnv()
+
+  if (options.list && options.asTest) {
+    const matched = discoverAsTestFiles(options.dir, options.file)
+    if (matched.length === 0) {
+      console.log('No files matched.')
+      return
+    }
+    console.log(`Found ${matched.length} file(s):`)
+    for (const f of matched) {
+      console.log(`  ${path.relative(options.dir, f)}`)
+    }
+    return
+  }
+
+  if (options.asTest) {
+    const matched = discoverAsTestFiles(options.dir, options.file)
+    if (matched.length === 0) {
+      console.error(`No files matched ${options.file} under ${options.dir}`)
+      process.exit(1)
+    }
+
+    if (wantsGenerate) {
+      const repoRoot = findYamfRepoRoot(options.dir)
+      const dirArg = path.relative(repoRoot, options.dir).replace(/\\/g, '/') || '.'
+      const { path: outPath, content } = buildGeneratePayload(
+        repoRoot,
+        dirArg,
+        options.file,
+        matched,
+        options.generateOut || null
+      )
+      writeGenerateFile(outPath, content)
+      console.log(`wrote ${outPath} (${matched.length} case(s))`)
+      process.exit(0)
+    }
+  }
 
   let TestRunner
   try {
@@ -294,52 +329,73 @@ export async function runTestCommand (args) {
     throw err
   }
 
-  const testFiles = findTestFiles(options.dir, options)
-
-  if (options.list) {
-    if (testFiles.length === 0) {
-      console.log('No test files found.')
-      return
-    }
-    console.log(`Found ${testFiles.length} test file(s):`)
-    for (const f of testFiles) {
-      const rel = path.relative(options.dir, f)
-      console.log(`  ${rel}`)
-    }
-    return
-  }
-
-  if (testFiles.length === 0) {
-    console.error('No test files found.')
-    if (options.asTest) {
-      console.error('No files matched --as-test pattern and filters.')
-    } else {
-      console.error('Test files must import @yamf/test and export plain functions (or use --as-test).')
-    }
-    process.exit(1)
-  }
-
-  if (options.timings) {
-    process.env.YAMF_TEST_TIMINGS = '1'
+  process.env.YAMF_TEST_CASE_TIMEOUT_MS = String(options.timeout)
+  if (options.asTest) {
+    delete process.env.YAMF_TEST_CASE_TIMEOUT_MS
   }
 
   const nameRegex = getTestNameRegex(options.name)
   const runner = new TestRunner()
 
-  for (const filePath of testFiles) {
-    const mod = await import(pathToFileURL(path.resolve(filePath)).href)
-    const suiteName = path.basename(filePath, path.extname(filePath))
-    let testFns
-    if (options.asTest) {
-      testFns = wrapExampleModule(filePath, mod)
-      testFns = filterFns(testFns, nameRegex)
-    } else {
-      testFns = extractTestFns(mod, suiteName, nameRegex)
+  if (options.asTest) {
+    const matched = discoverAsTestFiles(options.dir, options.file)
+    const suiteFns = {}
+    for (const filePath of matched) {
+      const relKey = path.relative(options.dir, filePath).replace(/\\/g, '/') || path.basename(filePath)
+      if (nameRegex && !nameRegex.test(relKey)) continue
+      const fn = async function () {
+        await runScriptAsTest(filePath, {
+          timeoutMs: options.timeout,
+          settleMs: options.settle,
+          onLine: options.verbose
+            ? (line) => {
+                process.stderr.write(line + '\n')
+              }
+            : undefined
+        })
+      }
+      Object.defineProperty(fn, 'name', { value: relKey })
+      suiteFns[relKey] = fn
+    }
+    if (Object.keys(suiteFns).length > 0) {
+      runner.addSuite('as-test', suiteFns)
+    }
+  } else {
+    const testFiles = findTestFiles(options.dir, options)
+
+    if (options.list) {
+      if (testFiles.length === 0) {
+        console.log('No test files found.')
+        return
+      }
+      console.log(`Found ${testFiles.length} test file(s):`)
+      for (const f of testFiles) {
+        const rel = path.relative(options.dir, f)
+        console.log(`  ${rel}`)
+      }
+      return
     }
 
-    if (Object.keys(testFns).length > 0) {
-      runner.addSuite(suiteName, testFns)
+    if (testFiles.length === 0) {
+      console.error('No test files found.')
+      console.error('Test files must import @yamf/test and export plain functions.')
+      process.exit(1)
     }
+
+    for (const filePath of testFiles) {
+      const mod = await import(pathToFileURL(path.resolve(filePath)).href)
+      const suiteName = path.basename(filePath, path.extname(filePath))
+      let testFns = extractTestFns(mod, suiteName, nameRegex)
+      testFns = filterFns(testFns, nameRegex)
+
+      if (Object.keys(testFns).length > 0) {
+        runner.addSuite(suiteName, testFns)
+      }
+    }
+  }
+
+  if (options.timings) {
+    process.env.YAMF_TEST_TIMINGS = '1'
   }
 
   try {

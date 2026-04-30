@@ -10,7 +10,7 @@ export async function testCallPrivateServiceWithRegistryDefaults () {
     }, { accessControl: 'private' }),
     async () => {
       const r = await callService('privateEcho', { x: 1 })
-      await assert(r && r.echo && r.echo.x === 1, x => x === true)
+      await assert(r, x => x?.echo?.x === 1)
     }
   )
 }

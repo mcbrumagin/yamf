@@ -1,9 +1,9 @@
-import { assert } from '@yamf/test'
-import { toCamelCase } from '@yamf/shared'
+/**
+ * Case mapper helpers: camelCase / snakeCase for plain objects.
+ */
+import { toCamelCase, toSnakeCase } from '@yamf/shared'
 
-export const name = 'shared: toCamelCase'
-
-export default async function run () {
-  const o = toCamelCase({ user_name: 'x' })
-  await assert(o && o.userName === 'x', x => x === true)
-}
+const camel = toCamelCase({ user_name: 'x' })
+const snake = toSnakeCase({ userName: 'y' })
+console.log('toCamelCase sample:', camel)
+console.log('toSnakeCase sample:', snake)

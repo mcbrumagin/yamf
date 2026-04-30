@@ -1,10 +1,9 @@
 import http from 'node:http'
 import HttpError from './http-error.js'
 import Logger from '../utils/logger.js'
+import { installTerminate } from './terminate-server.js'
 
 const logger = new Logger({ logGroup: 'http-primitives' })
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 function prependServiceNameToErrorStack(err, serviceName) {
   // helpful for cascading errors
@@ -68,13 +67,7 @@ export default async function createProxyServer(port, serverFn, options = {}) {
       reject(err)
     })
 
-    server.terminate = () => new Promise(resolve => {
-      server.on('close', async () => {
-        await sleep(5)
-        resolve()
-      })
-      server.close()
-    })
+    installTerminate(server)
     
     server.listen(port, () => {
       server.port = port

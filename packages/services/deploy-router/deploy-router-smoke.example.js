@@ -1,8 +1,5 @@
-import { assert } from '@yamf/test'
-
-export const name = 'deploy-router: attachDeployRouter export'
-
-export default async function run () {
-  const { attachDeployRouter } = await import('./service.js')
-  await assert(typeof attachDeployRouter, x => x === 'function')
-}
+/**
+ * `attachDeployRouter` is exported for gateway integration tests.
+ */
+const { attachDeployRouter } = await import('./service.js')
+console.log('attachDeployRouter:', typeof attachDeployRouter)

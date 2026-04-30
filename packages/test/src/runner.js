@@ -126,7 +126,20 @@ export async function runTestFnsSequentially(testFns) {
       }
       const startTime = Date.now()
       try {
-        await fn()
+        const timeoutRaw = process.env.YAMF_TEST_CASE_TIMEOUT_MS
+        const timeoutMs = timeoutRaw != null && timeoutRaw !== '' ? Number(timeoutRaw) : NaN
+        const useTimeout = Number.isFinite(timeoutMs) && timeoutMs > 0
+        if (useTimeout) {
+          await new Promise((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error(`Test timed out after ${timeoutMs}ms`)), timeoutMs)
+            Promise.resolve(fn()).then(
+              (v) => { clearTimeout(t); resolve(v) },
+              (e) => { clearTimeout(t); reject(e) }
+            )
+          })
+        } else {
+          await fn()
+        }
         const durationMs = Date.now() - startTime
         testTimings.push({ name: fn.name, durationMs, ok: true })
         logger.info(logger.writeColor('green', `✔ ${fn.name}`) + logger.writeColor('gray', ` (${durationMs}ms)`))

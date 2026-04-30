@@ -5,8 +5,6 @@
 
 import envConfig from './env-config.js'
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-
 const terminableEntries = new Set()
 let installed = false
 let shutdownInFlight = false
@@ -39,13 +37,16 @@ async function runShutdown(_reason) {
   const perTerminableMs = Number(envConfig.get('YAMF_GRACEFUL_SHUTDOWN_MS', 15000))
   const sorted = [...terminableEntries].sort((a, b) => b.priority - a.priority)
   for (const t of sorted) {
+    let timer
     try {
       await Promise.race([
         Promise.resolve().then(() => t.fn()),
-        sleep(perTerminableMs)
+        new Promise((resolve) => { timer = setTimeout(resolve, perTerminableMs) })
       ])
     } catch {
       /* best effort */
+    } finally {
+      if (timer) clearTimeout(timer)
     }
   }
   terminableEntries.clear()

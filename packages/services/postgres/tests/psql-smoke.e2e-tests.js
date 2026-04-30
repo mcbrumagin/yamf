@@ -1,6 +1,6 @@
 import { assert, terminateAfter } from '@yamf/test'
 import { registryServer, callService } from '@yamf/core'
-import createPostgreSqlService from '../../service.js'
+import createPostgreSqlService from '../service.js'
 
 export async function testPostgresSelectOneE2E () {
   const url = process.env.YAMF_TEST_PSQL_URL
@@ -16,7 +16,7 @@ export async function testPostgresSelectOneE2E () {
         template: 'SELECT 1 as one',
         data: {}
       })
-      await assert(Array.isArray(rows), x => x === true)
+      await assert(rows, r => Array.isArray(r))
     }
   )
 }

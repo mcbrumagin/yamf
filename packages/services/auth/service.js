@@ -325,5 +325,17 @@ export default async function createAuthService({
     return getNewAccessToken(payload, request)
   })
 
+  if (cache && typeof cache.terminate === 'function') {
+    const inner = server.terminate.bind(server)
+    server.terminate = async () => {
+      try {
+        await cache.terminate()
+      } catch (err) {
+        logger.debug('auth cache terminate failed:', err?.message)
+      }
+      await inner()
+    }
+  }
+
   return server
 }

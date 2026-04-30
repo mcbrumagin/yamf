@@ -33,7 +33,8 @@
     "morphdom"
   ],
   "scripts": {
-    "test": "yamf test -d ."
+    "test": "yamf test -d .",
+    "test:all": "yamf test -d . --include-e2e"
   },
   "dependencies": {
     "@yamf/shared": "workspace:*",

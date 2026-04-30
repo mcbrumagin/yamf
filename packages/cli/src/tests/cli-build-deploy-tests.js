@@ -13,17 +13,20 @@
 import { assert, sleep } from '@yamf/test'
 import { httpRequest, HEADERS, COMMANDS } from '@yamf/core'
 import { execSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { createServer } from 'node:net'
-import { writeFileSync, existsSync, rmSync } from 'node:fs'
+import { writeFileSync, existsSync, rmSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const HARNESS = join(__dirname, 'fixtures', 'build-deploy-harness')
-const YAMF_HOME = join(__dirname, '..', '.yamf-build-deploy')
 const CLI_CWD = join(__dirname, '..')
 const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const require = createRequire(fileURLToPath(new URL('../../package.json', import.meta.url)))
+const CORE_HREF = pathToFileURL(require.resolve('@yamf/core')).href
 
 /**
  * @returns {Promise<string>} e.g. `http://127.0.0.1:45678` with an ephemeral free port
@@ -44,12 +47,13 @@ function reserveRegistryBaseUrl () {
  * @param {string} registryBaseUrl
  */
 function makeTestEnv (registryBaseUrl) {
+  const yamfHome = mkdtempSync(join(tmpdir(), 'yamf-build-deploy-'))
   const e = {
     ...process.env,
     YAMF_REGISTRY_URL: registryBaseUrl,
-    YAMF_HOME,
-    LOG_LEVEL: 'info',
-    MUTE_LOG_GROUP_OUTPUT: 'true',
+    YAMF_HOME: yamfHome,
+    LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+    // MUTE_LOG_GROUP_OUTPUT: 'true',
     MUTE_SUCCESS_CASES: 'true'
   }
   // Avoid inheriting a deploy token from the shell — pm3-service enforces it on deploy/rolling paths.
@@ -116,7 +120,7 @@ const V1_SOURCE = `/**
  * - Main guard: when the registry/pm3 runs \`node <this-bundle.mjs>\`, start the service. When the CLI
  *   dynamic-imports the bundle for contract diff, process.argv[1] is not this file, so the guard is skipped.
  */
-import { createService } from '@yamf/core'
+import { createService } from ${JSON.stringify(CORE_HREF)}
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 
@@ -146,8 +150,8 @@ function cleanup (env) {
   writeFileSync(SERVICE_FILE, V1_SOURCE, 'utf8')
   cliSafe('stop --all', { env })
   cliSafe('delete --all', { env })
-  if (existsSync(YAMF_HOME)) {
-    rmSync(YAMF_HOME, { recursive: true, force: true })
+  if (env?.YAMF_HOME && existsSync(env.YAMF_HOME)) {
+    rmSync(env.YAMF_HOME, { recursive: true, force: true })
   }
 }
 
@@ -156,8 +160,12 @@ function cleanup (env) {
  */
 function pullReplicas (env) {
   if (!env.YAMF_REGISTRY_URL) throw new Error('YAMF_REGISTRY_URL missing in env')
+  const token = env.YAMF_REGISTRY_TOKEN || ''
   return httpRequest(env.YAMF_REGISTRY_URL, {
-    headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL }
+    headers: {
+      [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+      ...(token && { [HEADERS.REGISTRY_TOKEN]: token })
+    }
   })
 }
 

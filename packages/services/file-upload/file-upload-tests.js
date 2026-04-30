@@ -616,7 +616,7 @@ export async function testOnSuccessDoubleEndDoesNotCrash () {
         const form = new FormData()
         form.append('file', fs.createReadStream(testFilePath), 'dbl.txt')
         const result = await createMultipartRequest(form)
-        await assert(result && result.once === true, x => x === true)
+        await assert(result, r => r && r.once === true)
       }
     )
   } finally {

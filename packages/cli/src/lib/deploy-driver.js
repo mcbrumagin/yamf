@@ -13,7 +13,7 @@ import {
 } from '@yamf/core'
 import { checkDeployContractGate } from '@yamf/core/contract-compatibility'
 import { loadIncomingServiceContractFromBundle } from './contract-from-bundle.js'
-import { readFileSync, createReadStream } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, join, resolve as pathResolve, sep } from 'node:path'
 import { getServiceBuildDir } from './yamf-paths.js'
 
@@ -121,12 +121,11 @@ export async function uploadDeployBundleToRegistry ({ registryUrl, hash, bundleP
       throw new Error(`YAMF_DEPLOY_PRIVATE_KEY sign failed: ${e?.message || e}`)
     }
   }
+  const bundleBody = readFileSync(bundlePath)
   const res = await fetch(base, {
     method: 'POST',
     headers: deployHeaders,
-    body: createReadStream(bundlePath),
-    // @ts-ignore Node stream upload
-    duplex: 'half'
+    body: bundleBody
   })
   if (!res.ok) {
     const t = await res.text()

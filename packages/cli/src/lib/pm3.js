@@ -88,10 +88,14 @@ function isProcessAlive(pid) {
 }
 
 async function getServiceStateSnapshot(registryUrl) {
+  const headers = {
+    [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+    ...(process.env.YAMF_REGISTRY_TOKEN
+      ? { [HEADERS.REGISTRY_TOKEN]: process.env.YAMF_REGISTRY_TOKEN }
+      : {})
+  }
   const result = await httpRequest(registryUrl, {
-    headers: {
-      [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL
-    }
+    headers
   })
   return result.services || {}
 }
@@ -203,7 +207,12 @@ export class PM3 {
       }
       try {
         await httpRequest(this.registryUrl, {
-          headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL }
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+            ...(process.env.YAMF_REGISTRY_TOKEN
+              ? { [HEADERS.REGISTRY_TOKEN]: process.env.YAMF_REGISTRY_TOKEN }
+              : {})
+          }
         })
         this.registryRunning = true
       } catch (err) {
@@ -451,7 +460,14 @@ export class PM3 {
     }
     let pull
     try {
-      pull = await httpRequest(registryUrl, { headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL } })
+      pull = await httpRequest(registryUrl, {
+        headers: {
+          [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+          ...(process.env.YAMF_REGISTRY_TOKEN
+            ? { [HEADERS.REGISTRY_TOKEN]: process.env.YAMF_REGISTRY_TOKEN }
+            : {})
+        }
+      })
     } catch {
       return []
     }

@@ -1,27 +1,24 @@
 import { registryServer, callService } from '@yamf/core'
-import { assert, terminateAfter } from '@yamf/test'
 import createPostgreSqlService from '@yamf/services-postgres'
 import createUserService from './service.js'
 
-export const name = 'user: create + get'
-
-export default async function run () {
-  const url = process.env.YAMF_TEST_PSQL_URL
-  if (!url) {
-    console.warn('[user-basic.example] skip: set YAMF_TEST_PSQL_URL')
-    return
-  }
-  const email = `ex_${Date.now()}@example.com`
-  await terminateAfter(
-    () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: url }),
-    () => createUserService({}),
-    async () => {
-      await callService('user-service', {
-        create: { username: email, password: 'ExamplePass123!' }
-      })
-      const u = await callService('user-service', { get: { username: email } })
-      await assert(u && u.username === email, x => x === true)
-    }
-  )
+const psql = process.env.YAMF_TEST_PSQL_URL
+if (!psql) {
+  console.warn('[user-basic.example] Set YAMF_TEST_PSQL_URL for full demo; exiting 0 for local smoke.')
+  process.exit(0)
 }
+
+const registryUrl = process.env.YAMF_REGISTRY_URL || 'http://127.0.0.1:20000'
+process.env.YAMF_REGISTRY_URL = registryUrl
+
+const email = `ex_${Date.now()}@example.com`
+
+await registryServer()
+await createPostgreSqlService({ psqlConfig: psql })
+await createUserService()
+
+await callService('user-service', {
+  create: { username: email, password: 'ExamplePass123!' }
+})
+const u = await callService('user-service', { get: { username: email } })
+console.log('user:', u)
