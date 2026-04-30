@@ -1,5 +1,5 @@
 /**
- * Vite dev-server plugin: debounced publish to `PUBSUB_CHANNEL_YAMF_DEV_RELOAD` on HMR
+ * Vite dev-server plugin: debounced publish to `CHANNELS.DEV_RELOAD` on HMR
  * so `@yamf/services-dev-hmr` can broadcast `reload` to every browser, same as `yamf dev`
  * after a service deploy (ROADMAP Phase 4 D3).
  *
@@ -20,7 +20,7 @@
  * @param {(file: string) => boolean} [options.filter] - return false to ignore a file (default: skip node_modules and .git)
  * @returns {import('vite').Plugin}
  */
-import { publishMessage, PUBSUB_CHANNEL_YAMF_DEV_RELOAD } from '@yamf/core'
+import { publishMessage, CHANNELS } from '@yamf/core'
 
 export function yamfVitePluginDev (options = {}) {
   const {
@@ -44,7 +44,7 @@ export function yamfVitePluginDev (options = {}) {
           return
         }
         try {
-          await publishMessage(PUBSUB_CHANNEL_YAMF_DEV_RELOAD, {
+          await publishMessage(CHANNELS.DEV_RELOAD, {
             source: 'vite',
             at: Date.now()
           })

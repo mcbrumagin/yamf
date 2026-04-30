@@ -1,10 +1,11 @@
 /**
- * Registry + {@link import('../service.js') attachDeployRouter} — `deploy-plan` plugin (Tier A iter 2).
+ * Registry + {@link import('../service.js').registerDeployRouter} integration: exercises the
+ * `deploy-plan` and `deploy-bundle` plugin verbs against a real `registryServer`.
  */
 import { createServer } from 'node:net'
 import { assert, assertErr, sleep, terminateAfter, withEnv } from '@yamf/test'
 import { registryServer, httpRequest, HEADERS } from '@yamf/core'
-import { attachDeployRouter } from '../service.js'
+import { registerDeployRouter, DEPLOY_COMMANDS } from '../service.js'
 
 function reserveRegistryBaseUrl () {
   return new Promise((resolve, reject) => {
@@ -21,96 +22,104 @@ function reserveRegistryBaseUrl () {
 function deployPlanHeaders (extra = {}) {
   return {
     'content-type': 'application/json',
-    [HEADERS.COMMAND]: 'deploy-plan',
+    [HEADERS.COMMAND]: DEPLOY_COMMANDS.PLAN,
     ...extra
   }
 }
 
-export async function testAttachDeployRouterDeployPlanReturnsDecisionsForEmptyReplicas () {
-  const baseUrl = await reserveRegistryBaseUrl()
-  await withEnv(
-    {
-      YAMF_REGISTRY_URL: baseUrl,
-      MUTE_LOG_GROUP_OUTPUT: 'true',
-      MUTE_SUCCESS_CASES: 'true',
-      LOG_LEVEL: 'error',
-      YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
-      YAMF_DEPLOY_TOKEN: ''
-    },
-    async () => {
-      await terminateAfter(
-        () => registryServer(),
-        async (reg) => {
-          const { pickNode: pick } = attachDeployRouter(reg, { location: baseUrl })
-          await sleep(200)
-          const out = await httpRequest(baseUrl, {
-            method: 'POST',
-            headers: deployPlanHeaders(),
-            body: {
-              services: [
-                { name: 'deploy-router-int-svc', hash: 'sha256-abc', replicas: 1 }
-              ]
-            }
-          })
-          await assert(out?.decisions?.length, (n) => n === 1)
-          await assert(out.decisions[0].decision, (d) => d === 'rollout')
-          await assert(out.decisions[0].service, (s) => s === 'deploy-router-int-svc')
-          // assert() would invoke a function first argument; compare typeof without calling pick (needs pm3 locations).
-          await assert(typeof pick, (t) => t === 'function')
-        }
-      )
-    }
-  )
+const PLAN_TEST_ENV = {
+  MUTE_LOG_GROUP_OUTPUT: 'true',
+  MUTE_SUCCESS_CASES: 'true',
+  LOG_LEVEL: 'error',
+  YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
+  YAMF_DEPLOY_TOKEN: ''
 }
 
-export async function testAttachDeployRouterDeployPlanRejectsServiceMissingHash () {
+export async function testRegisterDeployRouterPlanReturnsDecisionsForEmptyReplicas () {
   const baseUrl = await reserveRegistryBaseUrl()
-  await withEnv(
-    {
-      YAMF_REGISTRY_URL: baseUrl,
-      MUTE_LOG_GROUP_OUTPUT: 'true',
-      LOG_LEVEL: 'error',
-      YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
-      YAMF_DEPLOY_TOKEN: ''
-    },
-    async () => {
-      await terminateAfter(
-        () => registryServer(),
-        async (reg) => {
-          attachDeployRouter(reg, { location: baseUrl })
-          await sleep(200)
-          await assertErr(
-            () =>
-              httpRequest(baseUrl, {
-                method: 'POST',
-                headers: deployPlanHeaders(),
-                body: { services: [{ name: 'only-name' }] }
-              }),
-            (e) => e.status === 400
-          )
-        }
+  await withEnv({ ...PLAN_TEST_ENV, YAMF_REGISTRY_URL: baseUrl }, async () => {
+    await terminateAfter(async () => {
+      const reg = await registryServer()
+      const { pickNode: pick } = registerDeployRouter(reg, { location: baseUrl })
+      await sleep(200)
+
+      const out = await httpRequest(baseUrl, {
+        method: 'POST',
+        headers: deployPlanHeaders(),
+        body: { services: [{ name: 'deploy-router-int-svc', hash: 'sha256-abc', replicas: 1 }] }
+      })
+
+      await assert(out,
+        o => o?.decisions?.length === 1,
+        o => o.decisions[0].decision === 'rollout',
+        o => o.decisions[0].service === 'deploy-router-int-svc',
+        o => o.decisions[0].hash === 'sha256-abc'
       )
-    }
-  )
+      // assert() invokes a function first arg as a thunk — pickNode needs pm3 locations and would
+      // throw `no-placement` here. Compare on `typeof` instead.
+      await assert(typeof pick, t => t === 'function')
+    })
+  })
 }
 
-export async function testAttachThrowsWithoutLocation () {
+export async function testRegisterDeployRouterPlanRejectsServiceMissingHash () {
+  const baseUrl = await reserveRegistryBaseUrl()
+  await withEnv({ ...PLAN_TEST_ENV, YAMF_REGISTRY_URL: baseUrl }, async () => {
+    await terminateAfter(async () => {
+      const reg = await registryServer()
+      registerDeployRouter(reg, { location: baseUrl })
+      await sleep(200)
+
+      await assertErr(
+        () => httpRequest(baseUrl, {
+          method: 'POST',
+          headers: deployPlanHeaders(),
+          body: { services: [{ name: 'only-name' }] }
+        }),
+        e => e.status === 400,
+        e => /name and hash/i.test(e.message || '')
+      )
+    })
+  })
+}
+
+export async function testRegisterDeployRouterRejectsLegacyAttachName () {
+  // The old `attachDeployRouter` export is gone; importing it must fail at module-load time.
   await assertErr(
-    () => attachDeployRouter({ _bundleStore: {} }, {}),
-    (e) => e && e.message && (e.message.includes('location') || e.message.includes('required'))
+    async () => {
+      const mod = await import('../service.js')
+      if (typeof mod.attachDeployRouter !== 'function') {
+        throw new Error('attachDeployRouter has been renamed to registerDeployRouter')
+      }
+    },
+    e => e.message.includes('renamed to registerDeployRouter')
   )
 }
 
-export async function testAttachThrowsWithoutBundleStore () {
-  const fake = {
+export async function testRegisterDeployRouterThrowsWithoutLocation () {
+  await assertErr(
+    () => registerDeployRouter({ _bundleStore: {} }, {}),
+    e => e.message.includes('location'),
+    e => e.message.includes('required')
+  )
+}
+
+export async function testRegisterDeployRouterThrowsWithoutBundleStore () {
+  const fakeRegistry = {
     registerCommand () {},
-    getReplicasFor () {
-      return []
-    },
+    getReplicasFor () { return [] },
     _state: { replicaMetadata: new Map() }
   }
   await assertErr(
-    () => attachDeployRouter(fake, { location: 'http://x' }),
-    (e) => e && e.message && e.message.includes('bundle store')
+    () => registerDeployRouter(fakeRegistry, { location: 'http://x' }),
+    e => e.message.includes('bundle store') || e.message.includes('bundleStore')
+  )
+}
+
+export async function testDeployCommandsConstantsAreFrozen () {
+  await assert(DEPLOY_COMMANDS,
+    c => c.PLAN === 'deploy-plan',
+    c => c.BUNDLE === 'deploy-bundle',
+    c => Object.isFrozen(c)
   )
 }

@@ -10,7 +10,7 @@ export async function testAuthServiceBootsE2E () {
       ephemeral: true
     }),
     async (_, svc) => {
-      await assert(svc, s => s.name === 'auth-service')
+      await assert(svc, s => s.name === 'auth')
     }
   )
 }

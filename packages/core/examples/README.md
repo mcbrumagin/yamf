@@ -52,7 +52,7 @@ Full-stack example using **@yamf/services-postgres**, **@yamf/services-user**, a
 
 - **Postgres** – Parameterized queries and `yamf.user` table.
 - **User** – Self-signup (with password), admin-invite (registration token), verify, get/update/remove, generateToken.
-- **Auth** – Custom `validateUserPassword` (loads user from Postgres, checks Argon hash and `is_active` / `is_registered` / `is_verified`); login via `COMMANDS.AUTH_LOGIN`; protected services via `useAuthService: 'auth-service'` and `HEADERS.AUTH_TOKEN`.
+- **Auth** – Custom `validateUserPassword` (loads user from Postgres, checks Argon hash and `is_active` / `is_registered` / `is_verified`); login via `COMMANDS.AUTH_LOGIN`; protected services via `useAuthService: 'auth'` and `HEADERS.AUTH_TOKEN`.
 
 Run from the example directory (requires local Postgres and `yamf` DB). See the example `index.js` for the full flow.
 

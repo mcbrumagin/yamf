@@ -27,7 +27,7 @@ export async function testBasicSetAndGet() {
     () => createCacheService(),
     async () => {
       // Set a value
-      const setResult = await callService('cache-service', { set: { key1: 'value1' } })
+      const setResult = await callService('cache', { set: { key1: 'value1' } })
       await assert(setResult, 
         r => r.success === true,
         r => r.action === 'set',
@@ -35,11 +35,11 @@ export async function testBasicSetAndGet() {
       )
 
       // Get the value
-      const getValue = await callService('cache-service', { get: 'key1' })
+      const getValue = await callService('cache', { get: 'key1' })
       await assert(getValue, v => v === 'value1')
 
       // Get non-existent key
-      const nullValue = await callService('cache-service', { get: 'nonexistent' })
+      const nullValue = await callService('cache', { get: 'nonexistent' })
       await assert(nullValue, v => v === null)
     }
   )
@@ -54,7 +54,7 @@ export async function testSetMultipleKeys() {
     () => createCacheService(),
     async () => {
       // Set multiple keys
-      await callService('cache-service', { 
+      await callService('cache', { 
         set: { 
           key1: 'value1',
           key2: 'value2',
@@ -63,7 +63,7 @@ export async function testSetMultipleKeys() {
       })
 
       // Get all keys
-      const allValues = await callService('cache-service', { get: '*' })
+      const allValues = await callService('cache', { get: '*' })
       
       await assert(allValues,
         v => v.key1 === 'value1',
@@ -83,18 +83,18 @@ export async function testCacheExpiration() {
     () => createCacheService({ expireTime: 200, evictionInterval: 20 }),
     async () => {
       // Set value with expiration
-      const setexResult = await callService('cache-service', { setex: { tempKey: 'tempValue' } })
+      const setexResult = await callService('cache', { setex: { tempKey: 'tempValue' } })
       await assert(setexResult, 
         r => r.success === true,
         r => r.action === 'setex'
       )
       
       // Value should exist immediately
-      const valueBeforeExpire = await callService('cache-service', { get: 'tempKey' })
+      const valueBeforeExpire = await callService('cache', { get: 'tempKey' })
       await assert(valueBeforeExpire, v => v === 'tempValue')
       
       // Check expiration time is set
-      const expireTime = await callService('cache-service', { getex: 'tempKey' })
+      const expireTime = await callService('cache', { getex: 'tempKey' })
       await assert(expireTime, 
         t => typeof t === 'number',
         t => t > Date.now()
@@ -104,7 +104,7 @@ export async function testCacheExpiration() {
       await sleep(250)
       
       // Value should be evicted
-      const valueAfterExpire = await callService('cache-service', { get: 'tempKey' })
+      const valueAfterExpire = await callService('cache', { get: 'tempKey' })
       await assert(valueAfterExpire, v => v === null)
     }
   )
@@ -119,20 +119,20 @@ export async function testCustomExpirationTime() {
     () => createCacheService({ expireTime: 1000, evictionInterval: 20 }),
     async () => {
       // Set a value
-      await callService('cache-service', { set: { customKey: 'customValue' } })
+      await callService('cache', { set: { customKey: 'customValue' } })
       
       // Set custom expiration (100ms from now)
-      await callService('cache-service', { ex: { customKey: 100 } })
+      await callService('cache', { ex: { customKey: 100 } })
       
       // Value should exist
-      const valueBefore = await callService('cache-service', { get: 'customKey' })
+      const valueBefore = await callService('cache', { get: 'customKey' })
       await assert(valueBefore, v => v === 'customValue')
       
       // Wait for expiration
       await sleep(150)
       
       // Value should be evicted
-      const valueAfter = await callService('cache-service', { get: 'customKey' })
+      const valueAfter = await callService('cache', { get: 'customKey' })
       await assert(valueAfter, v => v === null)
     }
   )
@@ -147,24 +147,24 @@ export async function testRemoveExpiration() {
     () => createCacheService({ expireTime: 100 }),
     async () => {
       // Set value with expiration
-      await callService('cache-service', { setex: { persistKey: 'persistValue' } })
+      await callService('cache', { setex: { persistKey: 'persistValue' } })
       
       // Verify expiration is set
-      const expireBefore = await callService('cache-service', { getex: 'persistKey' })
+      const expireBefore = await callService('cache', { getex: 'persistKey' })
       await assert(expireBefore, t => typeof t === 'number')
       
       // Remove expiration
-      await callService('cache-service', { rex: 'persistKey' })
+      await callService('cache', { rex: 'persistKey' })
       
       // Verify expiration is removed
-      const expireAfter = await callService('cache-service', { getex: 'persistKey' })
+      const expireAfter = await callService('cache', { getex: 'persistKey' })
       await assert(expireAfter, t => t === null)
       
       // Wait longer than original expire time
       await sleep(150)
       
       // Value should still exist
-      const value = await callService('cache-service', { get: 'persistKey' })
+      const value = await callService('cache', { get: 'persistKey' })
       await assert(value, v => v === 'persistValue')
     }
   )
@@ -179,7 +179,7 @@ export async function testDeleteKeys() {
     () => createCacheService(),
     async () => {
       // Set some values
-      await callService('cache-service', { 
+      await callService('cache', { 
         set: { 
           deleteMe: 'value1',
           keepMe: 'value2'
@@ -187,11 +187,11 @@ export async function testDeleteKeys() {
       })
       
       // Delete one key
-      await callService('cache-service', { del: 'deleteMe' })
+      await callService('cache', { del: 'deleteMe' })
       
       // Verify deletion
-      const deletedValue = await callService('cache-service', { get: 'deleteMe' })
-      const keptValue = await callService('cache-service', { get: 'keepMe' })
+      const deletedValue = await callService('cache', { get: 'deleteMe' })
+      const keptValue = await callService('cache', { get: 'keepMe' })
       
       await assert(deletedValue, v => v === null)
       await assert(keptValue, v => v === 'value2')
@@ -209,7 +209,7 @@ export async function testDeleteMultipleKeys() {
     () => createCacheService(),
     async () => {
       // Set some values
-      await callService('cache-service', { 
+      await callService('cache', { 
         set: { 
           deleteMe1: 'value1',
           deleteMe2: 'value2',
@@ -218,12 +218,12 @@ export async function testDeleteMultipleKeys() {
       })
       
       // Delete one key
-      await callService('cache-service', { del: ['deleteMe1', 'deleteMe2'] })
+      await callService('cache', { del: ['deleteMe1', 'deleteMe2'] })
       
       // Verify deletion
-      const deletedValue = await callService('cache-service', { get: 'deleteMe1' })
-      const deletedValue2 = await callService('cache-service', { get: 'deleteMe2' })
-      const keptValue = await callService('cache-service', { get: 'keepMe' })
+      const deletedValue = await callService('cache', { get: 'deleteMe1' })
+      const deletedValue2 = await callService('cache', { get: 'deleteMe2' })
+      const keptValue = await callService('cache', { get: 'keepMe' })
       
       await assert([deletedValue, deletedValue2], v => v.every(v => v === null))
       await assert(keptValue, v => v === 'value2')
@@ -240,7 +240,7 @@ export async function testClearCache() {
     () => createCacheService(),
     async () => {
       // Set multiple values
-      await callService('cache-service', { 
+      await callService('cache', { 
         set: { 
           key1: 'value1',
           key2: 'value2',
@@ -249,14 +249,14 @@ export async function testClearCache() {
       })
       
       // Verify values exist
-      const beforeClear = await callService('cache-service', { get: '*' })
+      const beforeClear = await callService('cache', { get: '*' })
       await assert(beforeClear,
         v => Object.keys(v).length === 3,
         v => v.key1 === 'value1'
       )
       
       // Clear cache
-      const clearResult = await callService('cache-service', { clear: true })
+      const clearResult = await callService('cache', { clear: true })
       await assert(clearResult,
         r => r.success === true,
         r => r.action === 'clear',
@@ -264,7 +264,7 @@ export async function testClearCache() {
       )
       
       // Verify cache is empty
-      const afterClear = await callService('cache-service', { get: '*' })
+      const afterClear = await callService('cache', { get: '*' })
       await assert(afterClear, v => Object.keys(v).length === 0)
     }
   )
@@ -279,7 +279,7 @@ export async function testUpdateSettings() {
     () => createCacheService({ expireTime: 1000, evictionInterval: 500 }),
     async () => {
       // Update settings
-      const newSettings = await callService('cache-service', { 
+      const newSettings = await callService('cache', { 
         settings: { 
           expireTime: 2000,
           evictionInterval: 1000
@@ -316,10 +316,10 @@ export async function testCacheComplexObjects() {
       }
       
       // Set complex object
-      await callService('cache-service', { set: { userData: complexObject } })
+      await callService('cache', { set: { userData: complexObject } })
       
       // Get and verify
-      const retrieved = await callService('cache-service', { get: 'userData' })
+      const retrieved = await callService('cache', { get: 'userData' })
       
       await assert(retrieved,
         r => r.user.id === 123,
@@ -344,7 +344,7 @@ export async function testEvictionInterval() {
     }),
     async () => {
       // Set multiple keys with expiration
-      await callService('cache-service', { 
+      await callService('cache', { 
         setex: { 
           expire1: 'value1',
           expire2: 'value2',
@@ -353,14 +353,14 @@ export async function testEvictionInterval() {
       })
       
       // All should exist
-      const before = await callService('cache-service', { get: '*' })
+      const before = await callService('cache', { get: '*' })
       await assert(before, v => Object.keys(v).length === 3)
       
       // Wait for eviction interval to run (100ms + 50ms buffer)
       await sleep(150)
       
       // All should be evicted
-      const after = await callService('cache-service', { get: '*' })
+      const after = await callService('cache', { get: '*' })
       await assert(after, v => Object.keys(v).length === 0)
     }
   )
@@ -375,7 +375,7 @@ export async function testSetMultipleExpirations() {
     () => createCacheService(),
     async () => {
       // Set values
-      await callService('cache-service', { 
+      await callService('cache', { 
         set: { 
           key1: 'value1',
           key2: 'value2',
@@ -384,7 +384,7 @@ export async function testSetMultipleExpirations() {
       })
       
       // Set expiration on multiple keys
-      await callService('cache-service', { 
+      await callService('cache', { 
         ex: { 
           key1: 100,
           key2: 200,
@@ -393,9 +393,9 @@ export async function testSetMultipleExpirations() {
       })
       
       // Check all expirations are set
-      const ex1 = await callService('cache-service', { getex: 'key1' })
-      const ex2 = await callService('cache-service', { getex: 'key2' })
-      const ex3 = await callService('cache-service', { getex: 'key3' })
+      const ex1 = await callService('cache', { getex: 'key1' })
+      const ex2 = await callService('cache', { getex: 'key2' })
+      const ex3 = await callService('cache', { getex: 'key3' })
       
       await assert([ex1, ex2, ex3],
         expirations => expirations.every(e => typeof e === 'number'),
@@ -415,13 +415,13 @@ export async function testConcurrentOperations() {
     async () => {
       // Perform multiple concurrent operations
       await Promise.all([
-        callService('cache-service', { set: { concurrent1: 'value1' } }),
-        callService('cache-service', { set: { concurrent2: 'value2' } }),
-        callService('cache-service', { set: { concurrent3: 'value3' } }),
+        callService('cache', { set: { concurrent1: 'value1' } }),
+        callService('cache', { set: { concurrent2: 'value2' } }),
+        callService('cache', { set: { concurrent3: 'value3' } }),
       ])
       
       // Verify all values were set
-      const all = await callService('cache-service', { get: '*' })
+      const all = await callService('cache', { get: '*' })
       
       await assert(all,
         v => v.concurrent1 === 'value1',
@@ -582,13 +582,13 @@ export async function testExpireTimeNone() {
     () => createCacheService({ expireTime: 'None', evictionInterval: 50 }),
     async () => {
       // Set value with expiration (should be ignored since expireTime is 'None')
-      await callService('cache-service', { setex: { persistKey: 'persistValue' } })
+      await callService('cache', { setex: { persistKey: 'persistValue' } })
       
       // Wait longer than a typical expiration would be
       await sleep(200)
       
       // Value should still exist since expireTime is 'None'
-      const value = await callService('cache-service', { get: 'persistKey' })
+      const value = await callService('cache', { get: 'persistKey' })
       await assert(value, v => v === 'persistValue')
       
       logger.info('✓ expireTime: "None" - items persist indefinitely')
@@ -606,13 +606,13 @@ export async function testEvictionIntervalNone() {
     () => createCacheService({ expireTime: 100, evictionInterval: 'None' }),
     async () => {
       // Set value with expiration
-      await callService('cache-service', { setex: { expiredKey: 'expiredValue' } })
+      await callService('cache', { setex: { expiredKey: 'expiredValue' } })
       
       // Wait for expiration time to pass
       await sleep(150)
       
       // Value should still be in cache (not evicted since evictionInterval is 'None')
-      const value = await callService('cache-service', { get: 'expiredKey' })
+      const value = await callService('cache', { get: 'expiredKey' })
       // Note: It's still there because no eviction ran, even though it's "expired"
       await assert(value, v => v === 'expiredValue')
       
@@ -631,7 +631,7 @@ export async function testBothSettingsNone() {
     () => createCacheService({ expireTime: 'None', evictionInterval: 'None' }),
     async () => {
       // Set multiple values
-      await callService('cache-service', { 
+      await callService('cache', { 
         set: { 
           key1: 'value1',
           key2: 'value2',
@@ -643,7 +643,7 @@ export async function testBothSettingsNone() {
       await sleep(200)
       
       // All values should still exist
-      const all = await callService('cache-service', { get: '*' })
+      const all = await callService('cache', { get: '*' })
       await assert(all,
         v => Object.keys(v).length === 3,
         v => v.key1 === 'value1',
@@ -665,39 +665,39 @@ export async function testToggleExpireTimeAtRuntime() {
     () => createCacheService({ expireTime: 100, evictionInterval: 50 }),
     async () => {
       // Set value with expiration (should expire)
-      await callService('cache-service', { setex: { tempKey: 'tempValue' } })
+      await callService('cache', { setex: { tempKey: 'tempValue' } })
       
       // Wait for expiration
       await sleep(150)
       
       // Value should be evicted
-      const afterExpire = await callService('cache-service', { get: 'tempKey' })
+      const afterExpire = await callService('cache', { get: 'tempKey' })
       await assert(afterExpire, v => v === null)
       
       // Toggle expireTime to 'None'
-      await callService('cache-service', { settings: { expireTime: 'None' } })
+      await callService('cache', { settings: { expireTime: 'None' } })
       
       // Set new value
-      await callService('cache-service', { setex: { persistKey: 'persistValue' } })
+      await callService('cache', { setex: { persistKey: 'persistValue' } })
       
       // Wait
       await sleep(150)
       
       // Value should persist (expireTime is now 'None')
-      const persistValue = await callService('cache-service', { get: 'persistKey' })
+      const persistValue = await callService('cache', { get: 'persistKey' })
       await assert(persistValue, v => v === 'persistValue')
       
       // Toggle back to a number
-      await callService('cache-service', { settings: { expireTime: 100 } })
+      await callService('cache', { settings: { expireTime: 100 } })
       
       // Set another value
-      await callService('cache-service', { setex: { expireAgain: 'expireValue' } })
+      await callService('cache', { setex: { expireAgain: 'expireValue' } })
       
       // Wait for expiration
       await sleep(150)
       
       // Value should be evicted again
-      const afterToggleBack = await callService('cache-service', { get: 'expireAgain' })
+      const afterToggleBack = await callService('cache', { get: 'expireAgain' })
       await assert(afterToggleBack, v => v === null)
       
       logger.info('✓ Runtime toggle of expireTime works correctly')
@@ -714,36 +714,36 @@ export async function testToggleEvictionIntervalAtRuntime() {
     () => createCacheService({ expireTime: 100, evictionInterval: 50 }),
     async () => {
       // Set value with expiration
-      await callService('cache-service', { setex: { key1: 'value1' } })
+      await callService('cache', { setex: { key1: 'value1' } })
       
       // Wait for eviction
       await sleep(150)
       
       // Value should be evicted
-      const afterEviction = await callService('cache-service', { get: 'key1' })
+      const afterEviction = await callService('cache', { get: 'key1' })
       await assert(afterEviction, v => v === null)
       
       // Toggle evictionInterval to 'None'
-      await callService('cache-service', { settings: { evictionInterval: 'None' } })
+      await callService('cache', { settings: { evictionInterval: 'None' } })
       
       // Set new value with expiration
-      await callService('cache-service', { setex: { key2: 'value2' } })
+      await callService('cache', { setex: { key2: 'value2' } })
       
       // Wait past expiration time
       await sleep(150)
       
       // Value should still exist (no eviction running)
-      const noEviction = await callService('cache-service', { get: 'key2' })
+      const noEviction = await callService('cache', { get: 'key2' })
       await assert(noEviction, v => v === 'value2')
       
       // Toggle back to a number
-      await callService('cache-service', { settings: { evictionInterval: 50 } })
+      await callService('cache', { settings: { evictionInterval: 50 } })
       
       // Wait for new eviction to run
       await sleep(100)
       
       // Now the value should be evicted
-      const afterToggleBack = await callService('cache-service', { get: 'key2' })
+      const afterToggleBack = await callService('cache', { get: 'key2' })
       await assert(afterToggleBack, v => v === null)
       
       logger.info('✓ Runtime toggle of evictionInterval works correctly')
@@ -821,18 +821,18 @@ export async function testRuntimeValidation() {
     async () => {
       // Try to update to invalid expireTime
       await assertErr(
-        async () => callService('cache-service', { settings: { expireTime: -100 } }),
+        async () => callService('cache', { settings: { expireTime: -100 } }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('expireTime must be positive')
       )
       
       // Try to update to invalid evictionInterval
       await assertErr(
-        async () => callService('cache-service', { settings: { evictionInterval: 0 } }),
+        async () => callService('cache', { settings: { evictionInterval: 0 } }),
         err => err.message.includes('Cache service validation failed') && err.message.includes('evictionInterval must be positive')
       )
       
       // Valid updates should still work
-      const validUpdate = await callService('cache-service', { 
+      const validUpdate = await callService('cache', { 
         settings: { 
           expireTime: 2000,
           evictionInterval: 1000
@@ -858,7 +858,7 @@ export async function testBulkSettingsUpdate() {
     () => createCacheService({ expireTime: 1000, evictionInterval: 500 }),
     async () => {
       // Update both settings to 'None'
-      const noneSettings = await callService('cache-service', { 
+      const noneSettings = await callService('cache', { 
         settings: { 
           expireTime: 'None',
           evictionInterval: 'None'
@@ -871,14 +871,14 @@ export async function testBulkSettingsUpdate() {
       )
       
       // Set a value and verify it persists
-      await callService('cache-service', { set: { testKey: 'testValue' } })
+      await callService('cache', { set: { testKey: 'testValue' } })
       await sleep(200)
       
-      const value = await callService('cache-service', { get: 'testKey' })
+      const value = await callService('cache', { get: 'testKey' })
       await assert(value, v => v === 'testValue')
       
       // Update both back to numbers
-      const numericSettings = await callService('cache-service', { 
+      const numericSettings = await callService('cache', { 
         settings: { 
           expireTime: 100,
           evictionInterval: 50
@@ -905,7 +905,7 @@ export async function testInvalidGetAction() {
     async () => {
       // Test get with invalid type (number)
       await assertErr(
-        async () => callService('cache-service', { get: 123 }),
+        async () => callService('cache', { get: 123 }),
         err => err.message.includes('get action requires a string key')
       )
       
@@ -924,13 +924,13 @@ export async function testInvalidSetAction() {
     async () => {
       // Test set with invalid type (string)
       await assertErr(
-        async () => callService('cache-service', { set: 'invalid' }),
+        async () => callService('cache', { set: 'invalid' }),
         err => err.message.includes('set action requires an object')
       )
       
       // Test set with null
       await assertErr(
-        async () => callService('cache-service', { set: null }),
+        async () => callService('cache', { set: null }),
         err => err.message.includes('set action requires an object')
       )
       
@@ -949,7 +949,7 @@ export async function testInvalidSetexAction() {
     async () => {
       // Test setex with invalid type
       await assertErr(
-        async () => callService('cache-service', { setex: 'invalid' }),
+        async () => callService('cache', { setex: 'invalid' }),
         err => err.message.includes('setex action requires an object')
       )
     }
@@ -966,7 +966,7 @@ export async function testInvalidExAction() {
     async () => {
       // Test ex with invalid type
       await assertErr(
-        async () => callService('cache-service', { ex: 'invalid' }),
+        async () => callService('cache', { ex: 'invalid' }),
         err => err.message.includes('ex action requires an object')
       )
     }
@@ -983,7 +983,7 @@ export async function testInvalidDelAction() {
     async () => {
       // Test del with invalid type
       await assertErr(
-        async () => callService('cache-service', { del: {'invalid': true} }),
+        async () => callService('cache', { del: {'invalid': true} }),
         err => err.message.includes('del action requires a key-string or array of strings')
       )
     }
@@ -1000,7 +1000,7 @@ export async function testUnknownAction() {
     async () => {
       // Test unknown action
       await assertErr(
-        async () => callService('cache-service', { unknownAction: 'test' }),
+        async () => callService('cache', { unknownAction: 'test' }),
         err => err.message.includes('Unknown cache action')
       )
     }
@@ -1016,7 +1016,7 @@ export async function testActionResults() {
     () => createCacheService(),
     async () => {
       // Test set result
-      const setResult = await callService('cache-service', { set: { key1: 'value1', key2: 'value2' } })
+      const setResult = await callService('cache', { set: { key1: 'value1', key2: 'value2' } })
       assert(setResult,
         r => r.success === true,
         r => r.action === 'set',
@@ -1027,7 +1027,7 @@ export async function testActionResults() {
       )
       
       // Test ex result
-      const exResult = await callService('cache-service', { ex: { key1: 1000 } })
+      const exResult = await callService('cache', { ex: { key1: 1000 } })
       assert(exResult,
         r => r.success === true,
         r => r.action === 'ex',
@@ -1035,7 +1035,7 @@ export async function testActionResults() {
       )
       
       // Test del result
-      const delResult = await callService('cache-service', { del: 'key1' })
+      const delResult = await callService('cache', { del: 'key1' })
       assert(delResult,
         r => r.success === true,
         r => r.action === 'del',

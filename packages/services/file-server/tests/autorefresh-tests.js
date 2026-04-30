@@ -106,7 +106,7 @@ export async function testPubSubMode() {
     }),
     async (registry, staticService) => {
       // Call the service to set up subscriptions
-      // await staticService.context.call('static-file-service')
+      // await staticService.context.call('static-files')
       // TODO support for service paths?
       // await callService('static-file-service/index.html')
       // await sleep(100)
@@ -163,7 +163,7 @@ export async function testFileDeletionEvent() {
     }),
     async (registry, staticService) => {
       // Call the service to set up subscriptions
-      // await staticService.context.call('static-file-service')
+      // await staticService.context.call('static-files')
       // await sleep(100)
       
       // First add a file

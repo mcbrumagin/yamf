@@ -330,7 +330,7 @@ export async function testCheckRateLimit_GlobalLimit() {
 export async function testCheckRateLimit_ServiceSpecificConfig() {
   const state = createRateLimiterState()
   setDefaultRateLimit(state, { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 10000 })
-  setServiceRateLimit(state, 'auth-service', { windowMs: 60000, maxRequestsPerIp: 2, maxTotalRequests: 10000 })
+  setServiceRateLimit(state, 'auth', { windowMs: 60000, maxRequestsPerIp: 2, maxTotalRequests: 10000 })
   
   const request = { headers: {}, socket: { remoteAddress: '192.168.1.1' } }
   
@@ -344,9 +344,9 @@ export async function testCheckRateLimit_ServiceSpecificConfig() {
   clearRateLimitTracking(state)
   
   // Requests for auth-service use stricter limit
-  checkRateLimit(state, request, { serviceName: 'auth-service' })
-  checkRateLimit(state, request, { serviceName: 'auth-service' })
-  const authResult = checkRateLimit(state, request, { serviceName: 'auth-service' })
+  checkRateLimit(state, request, { serviceName: 'auth' })
+  checkRateLimit(state, request, { serviceName: 'auth' })
+  const authResult = checkRateLimit(state, request, { serviceName: 'auth' })
   
   assert(defaultResult, r => r.allowed === true)
   assert(authResult, r => r.allowed === false)

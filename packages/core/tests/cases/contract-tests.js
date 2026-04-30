@@ -676,10 +676,10 @@ export async function testValidatorContractFromNamedServiceContextCall() {
 
   await terminateAfter(
     () => registryServer(),
-    () => createService(function namedService(payload) {
+    () => createService('namedService', function (payload) {
       return { received: payload }
     }, { useContract: validatePayload }),
-    () => createService('caller-validated', async function caller(payload) {
+    () => createService('caller-validated', async function (payload) {
       return await this.namedService(payload.forward)
     }),
     async () => {

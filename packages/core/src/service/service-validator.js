@@ -157,11 +157,11 @@ export function validateServiceName(name) {
     throw new Error('Service name must be a non-empty string')
   }
   
-  // Check for valid characters (alphanumeric, hyphens, underscores)
-  if (!/^[a-zA-Z0-9_$-]+$/.test(name)) {
+  // Alphanumeric, hyphens, and underscores only. Kebab-case is preferred (see V1-HARDENING).
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
     throw new Error(
       `Service name "${name}" contains invalid characters. ` +
-      `Use only alphanumeric characters, hyphens, underscores, and dollars.`
+      'Use only alphanumeric characters, hyphens, and underscores.'
     )
   }
   

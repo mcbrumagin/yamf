@@ -16,10 +16,10 @@ async function bootstrap() {
   logger.info('Registry running')
 
   try {
-    const { attachDeployRouter } = await import('@yamf/services-deploy-router/service.js')
+    const { registerDeployRouter, DEPLOY_COMMANDS } = await import('@yamf/services-deploy-router')
     const regUrl = process.env.YAMF_REGISTRY_URL || DEFAULT_LOCAL_REGISTRY_URL
-    attachDeployRouter(registry, { location: regUrl, bundleStore: registry._bundleStore })
-    logger.info('Deploy router attached (deploy-plan, deploy-bundle)')
+    registerDeployRouter(registry, { location: regUrl, bundleStore: registry._bundleStore })
+    logger.info(`Deploy router registered (${DEPLOY_COMMANDS.PLAN}, ${DEPLOY_COMMANDS.BUNDLE})`)
   } catch (err) {
     logger.warn('Deploy router not available —', err?.message || err)
   }
@@ -48,8 +48,8 @@ async function bootstrap() {
 
   if (process.env.YAMF_DEV === 'on' && process.env.NODE_ENV !== 'production') {
     try {
-      const { default: createYamfDevHmrService } = await import('@yamf/services-dev-hmr')
-      const devHmr = await createYamfDevHmrService()
+      const { default: createDevHmrService } = await import('@yamf/services-dev-hmr')
+      const devHmr = await createDevHmrService()
       if (devHmr) logger.info('dev-hmr (SSE reload) running — yamf dev will publish to yamf:dev-reload')
     } catch (e) {
       logger.warn('dev-hmr (@yamf/services-dev-hmr) not available —', e?.message || e)

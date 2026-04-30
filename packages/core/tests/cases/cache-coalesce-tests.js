@@ -15,7 +15,8 @@ const COALESCE_TOK = 'test-tok-coalesce'
 
 /**
  * When coalescing is on, multiple rapid registrations should be delivered in at least one
- * bulk (CACHE_BULK) cache-update round-trip to an existing subscriber, not only legacy header-only calls.
+ * bulk cache-update round-trip (carrying yamf-cache-window-id) to an existing subscriber,
+ * not only legacy header-only calls.
  */
 export async function testCacheCoalesceBulkPathWithDeployStorm() {
   await withEnv(
@@ -37,7 +38,7 @@ export async function testCacheCoalesceBulkPathWithDeployStorm() {
             if (!request?.headers) return payload
             const h = parseCommandHeaders(request.headers)
             if (h.command === COMMANDS.CACHE_UPDATE) {
-              if (h.cacheBulk) obs.bulk += 1
+              if (h.cacheWindowId) obs.bulk += 1
               else obs.legacy += 1
             }
             return payload

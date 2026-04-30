@@ -25,178 +25,177 @@ const logger = new Logger()
  * Test basic subscription creation and message delivery
  */
 export async function testBasicSubscription() {
-  await terminateAfter(
-    () => registryServer(),
-    async () => {
-      const messages = []
-      
-      const subscription = await createSubscriptionService('test-subscription', {
-        'test-channel': async (message) => {
-          messages.push(message)
-          return { received: true }
-        }
-      })
-      
-      // Publish a message
-      await publishMessage('test-channel', { data: 'test message 1' })
-      
-      await assert(messages,
-        m => m.length === 1,
-        m => m[0].data === 'test message 1'
-      )
-      
-      // Publish another message
-      await publishMessage('test-channel', { data: 'test message 2' })
-      
-      await assert(messages,
-        m => m.length === 2,
-        m => m[1].data === 'test message 2'
-      )
-      
-      // Verify subscription object structure
-      await assert(subscription,
-        s => typeof s.terminate === 'function',
-        s => Array.isArray(s.channels),
-        s => s.channels.includes('test-channel'),
-        s => typeof s.location === 'string',
-        s => typeof s.name === 'string',
-        s => s.name === 'test-subscription'
-      )
-      
-      await subscription.terminate()
-    }
-  )
+  await terminateAfter(async () => {
+    await registryServer()
+    const messages = []
+    
+    const subscription = await createSubscriptionService('test-subscription', {
+      'test-channel': async (message) => {
+        messages.push(message)
+        return { received: true }
+      }
+    })
+    
+    // Publish a message
+    await publishMessage('test-channel', { data: 'test message 1' })
+    
+    await assert(messages,
+      m => m.length === 1,
+      m => m[0].data === 'test message 1'
+    )
+    
+    // Publish another message
+    await publishMessage('test-channel', { data: 'test message 2' })
+    
+    await assert(messages,
+      m => m.length === 2,
+      m => m[1].data === 'test message 2'
+    )
+    
+    // Verify subscription object structure
+    await assert(subscription,
+      s => typeof s.terminate === 'function',
+      s => Array.isArray(s.channels),
+      s => s.channels.includes('test-channel'),
+      s => typeof s.location === 'string',
+      s => typeof s.name === 'string',
+      s => s.name === 'test-subscription'
+    )
+    
+    await subscription.terminate()
+  })
 }
 
 /**
  * Test multiple subscription services to the same channel
  */
 export async function testMultipleSubscriptionsToSameChannel() {
-  await terminateAfter(
-    () => registryServer(),
-    async () => {
-      const messages1 = []
-      const messages2 = []
-      
-      const subscription1 = await createSubscriptionService('sub1', {
-        'shared-channel': async (message) => {
-          messages1.push(message)
-        }
-      })
-      
-      const subscription2 = await createSubscriptionService('sub2', {
-        'shared-channel': async (message) => {
-          messages2.push(message)
-        }
-      })
-      
-      // Publish a message - both should receive it
-      await publishMessage('shared-channel', { data: 'broadcast' })
-      
-      await assert([messages1, messages2],
-        ([m1, m2]) => m1.length === 1,
-        ([m1, m2]) => m2.length === 1,
-        ([m1, m2]) => m1[0].data === 'broadcast',
-        ([m1, m2]) => m2[0].data === 'broadcast'
-      )
-      
-      await subscription1.terminate()
-      await subscription2.terminate()
-    }
-  )
+  await terminateAfter(async () => {
+    await registryServer()
+
+    const messages1 = []
+    const messages2 = []
+    
+    await createSubscriptionService('sub1', {
+      'shared-channel': async (message) => {
+        messages1.push(message)
+      }
+    })
+    
+    await createSubscriptionService('sub2', {
+      'shared-channel': async (message) => {
+        messages2.push(message)
+      }
+    })
+    
+    // Publish a message - both should receive it
+    await publishMessage('shared-channel', { data: 'broadcast' })
+    
+    await assert([messages1, messages2],
+      ([m1, m2]) => m1.length === 1,
+      ([m1, m2]) => m2.length === 1,
+      ([m1, m2]) => m1[0].data === 'broadcast',
+      ([m1, m2]) => m2[0].data === 'broadcast'
+    )
+  })
 }
 
 /**
  * Test subscription service with multiple channels
  */
 export async function testMultipleChannelSubscriptions() {
-  await terminateAfter(
-    () => registryServer(),
-    async () => {
-      const channelAMessages = []
-      const channelBMessages = []
+  await terminateAfter(async () => {
+    await registryServer()
+
+    const channelAMessages = []
+    const channelBMessages = []
       
-      const sub = await createSubscriptionService('multi-channel-sub', {
-        'channel-a': async (message) => {
-          channelAMessages.push(message)
-        },
-        'channel-b': async (message) => {
-          channelBMessages.push(message)
-        }
-      })
-      
-      // Publish to different channels
-      await publishMessage('channel-a', { source: 'A' })
-      await publishMessage('channel-b', { source: 'B' })
-      
-      await assert([channelAMessages, channelBMessages],
-        ([a, b]) => a.length === 1,
-        ([a, b]) => b.length === 1,
-        ([a, b]) => a[0].source === 'A',
-        ([a, b]) => b[0].source === 'B'
-      )
-      
-      await sub.terminate()
-    }
-  )
+    await createSubscriptionService('multi-channel-sub', {
+      'channel-a': async (message) => {
+        channelAMessages.push(message)
+      },
+      'channel-b': async (message) => {
+        channelBMessages.push(message)
+      }
+    })
+    
+    // Publish to different channels
+    await publishMessage('channel-a', { source: 'A' })
+    await publishMessage('channel-b', { source: 'B' })
+    
+    await assert([channelAMessages, channelBMessages],
+      ([a, b]) => a.length === 1,
+      ([a, b]) => b.length === 1,
+      ([a, b]) => a[0].source === 'A',
+      ([a, b]) => b[0].source === 'B'
+    )
+  })
 }
 
 /**
  * Test subscription termination stops message delivery
  */
-export async function testSubscriptionTermination() {
-  await terminateAfter(
-    () => registryServer(),
-    async () => {
-      const messages = []
-      
-      const subscription = await createSubscriptionService('term-service', {
-        'term-channel': async (message) => {
-          messages.push(message)
-        }
-      })
-      
-      // Send first message
-      await publishMessage('term-channel', { id: 1 })
-      
-      await assert(messages, m => m.length === 1)
-      
-      // Terminate subscription
-      await subscription.terminate()
-      
-      // Send second message - should NOT be received
-      await publishMessage('term-channel', { id: 2 })
-      
-      await assert(messages,
-        m => m.length === 1, // Still only 1 message
-        m => m[0].id === 1
-      )
-    }
-  )
+export async function testSubscriptionTermination () {
+  await terminateAfter(async () => {
+    await registryServer()
+    const messages = []
+
+    const subscription = await createSubscriptionService('term-service', {
+      'term-channel': async (message) => { messages.push(message) }
+    })
+
+    await publishMessage('term-channel', { id: 1 })
+    await subscription.terminate() // prevents the second message from being delivered
+    await publishMessage('term-channel', { id: 2 })
+
+    await assert(messages,
+      m => m.length === 1,
+      m => m[0].id === 1
+    )
+  })
 }
 
 /**
- * Test subscription with invalid handler
- */ 
-export async function testInvalidHandler() {
-  await terminateAfter(
-    () => registryServer(),
-    async () => {
-      await assertErr(
-        async () => createSubscriptionService('test-service', { 'test-channel': 'not-a-function' }),
-        err => err.message.includes('must be a function')
-      )
-      
-      await assertErr(
-        async () => createSubscriptionService('test-service2', { 'test-channel': null }),
-        err => err.message.includes('must be a function')
-      )
-      
-      await assertErr(
-        async () => createSubscriptionService('test-service3', {}),
-        err => err.message.includes('at least one channel')
-      )
-    }
+ * Channel-map validation is synchronous and runs before any registry I/O — these tests
+ * therefore need no `terminateAfter` / `registryServer`.
+ */
+export async function testInvalidHandler () {
+  await assertErr(
+    async () => createSubscriptionService('test-service', { 'test-channel': 'not-a-function' }),
+    err => err.message.includes('must be a function')
+  )
+
+  await assertErr(
+    async () => createSubscriptionService('test-service2', { 'test-channel': null }),
+    err => err.message.includes('must be a function')
+  )
+
+  await assertErr(
+    async () => createSubscriptionService('test-service3', {}),
+    err => err.message.includes('at least one channel')
+  )
+}
+
+export async function testRejectsLegacyStringChannelOverload () {
+  await assertErr(
+    async () => createSubscriptionService('legacy', 'some-channel', () => 'x'),
+    err => err.message.includes('pass a channel map'),
+    err => err.message.includes('{ [channel]: handler }')
+  )
+}
+
+export async function testRejectsEmptyServiceName () {
+  await assertErr(
+    async () => createSubscriptionService('', { foo: () => null }),
+    err => err.message.toLowerCase().includes('servicename'),
+    err => err.message.includes('non-empty string')
+  )
+}
+
+export async function testRejectsArrayChannelMap () {
+  await assertErr(
+    async () => createSubscriptionService('arr', [() => null]),
+    err => err.message.includes('object of { channel: handler }')
   )
 }
 
@@ -204,27 +203,25 @@ export async function testInvalidHandler() {
  * Test subscription handler error is caught and logged
  */
 export async function testSubscriptionHandlerError() {
-  await terminateAfter(
-    () => registryServer(),
-    () => createSubscriptionService('error-service', {
+  await terminateAfter(async () => {
+    await registryServer()
+    
+    await createSubscriptionService('error-service', {
       'error-channel': async (message) => {
         if (message.shouldError) {
           throw new Error('Intentional handler error')
         }
         return { success: true }
       }
-    }),
-    async () => {
-      // Publish message that causes handler error
-      const result = await publishMessage('error-channel', { shouldError: true })
-      
-      // Check that error is captured in errors array
-      assert(result,
-        r => r.results && r.results.length > 0,
-        r => r.results[0].errors && r.results[0].errors.length > 0
-      )
-    }
-  )
+    })
+    
+    let publishResult = await publishMessage('error-channel', { shouldError: true })
+    
+    assert(publishResult,
+      r => r.results && r.results.length > 0,
+      r => r.results[0].errors && r.results[0].errors.length > 0
+    )
+  })
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   deployDecisionFromReplicas,
   signDeployHashWithEd25519Pem
 } from '@yamf/core'
+import { DEPLOY_COMMANDS } from '@yamf/services-deploy-router'
 import { checkDeployContractGate } from '@yamf/core/contract-compatibility'
 import { loadIncomingServiceContractFromBundle } from './contract-from-bundle.js'
 import { readFileSync } from 'node:fs'
@@ -99,7 +100,8 @@ export async function resolveLocalRollingTarget (pm3, serviceName, cwd, newBundl
 }
 
 /**
- * Stream local bundle to registry `deploy-bundle` (slice C3).
+ * Stream local bundle to the registry's `deploy-bundle` plugin verb (registered by
+ * `@yamf/services-deploy-router`).
  * @param {{ registryUrl: string, hash: string, bundlePath: string, deployToken?: string }} p
  */
 export async function uploadDeployBundleToRegistry ({ registryUrl, hash, bundlePath, deployToken = process.env.YAMF_DEPLOY_TOKEN || '' }) {
@@ -108,7 +110,7 @@ export async function uploadDeployBundleToRegistry ({ registryUrl, hash, bundleP
   }
   const base = String(registryUrl).replace(/\/$/, '')
   const deployHeaders = {
-    [HEADERS.COMMAND]: 'deploy-bundle',
+    [HEADERS.COMMAND]: DEPLOY_COMMANDS.BUNDLE,
     [HEADERS.DEPLOY_TOKEN]: deployToken,
     [HEADERS.DEPLOY_HASH]: hash,
     'content-type': 'application/javascript; charset=utf-8'
@@ -116,7 +118,8 @@ export async function uploadDeployBundleToRegistry ({ registryUrl, hash, bundleP
   const signPath = process.env.YAMF_DEPLOY_PRIVATE_KEY
   if (signPath) {
     try {
-      deployHeaders[HEADERS.BUNDLE_ED25519_SIG] = signDeployHashWithEd25519Pem(hash, signPath)
+      deployHeaders[HEADERS.BUNDLE_SIGNATURE] = signDeployHashWithEd25519Pem(hash, signPath)
+      deployHeaders[HEADERS.BUNDLE_SIGNATURE_ALG] = 'ed25519'
     } catch (e) {
       throw new Error(`YAMF_DEPLOY_PRIVATE_KEY sign failed: ${e?.message || e}`)
     }

@@ -1,5 +1,5 @@
 import { registryServer, callService } from '@yamf/core'
-import createPostgreSqlService from '@yamf/services-postgres'
+import createPostgresService from '@yamf/services-postgres'
 import createUserService from './service.js'
 
 const psql = process.env.YAMF_TEST_PSQL_URL
@@ -14,7 +14,7 @@ process.env.YAMF_REGISTRY_URL = registryUrl
 const email = `ex_${Date.now()}@example.com`
 
 await registryServer()
-await createPostgreSqlService({ psqlConfig: psql })
+await createPostgresService({ psqlConfig: psql })
 await createUserService()
 
 await callService('user-service', {

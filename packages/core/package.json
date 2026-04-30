@@ -7,18 +7,7 @@
   "homepage": "https://github.com/mcbrumagin/yamf",
   "exports": {
     ".": "./src/index.js",
-    "./create-service": "./src/api/create-service.js",
-    "./create-subscription-service": "./src/api/create-subscription-service.js",
-    "./create-event-source-service": "./src/api/create-event-source-service.js",
-    "./create-route": "./src/api/create-route.js",
-    "./call-service": "./src/api/call-service.js",
-    "./call-route": "./src/api/call-route.js",
-    "./publish-message": "./src/api/publish-message.js",
-    "./gateway-server": "./src/gateway/gateway-server.js",
-    "./registry-server": "./src/registry/registry-server.js",
     "./env-config": "./src/shared/env-config.js",
-    "./http-error": "./src/http-primitives/http-error.js",
-    "./logger": "./src/utils/logger.js",
     "./crypto": "./src/shared/crypto.js",
     "./contract-compatibility": "./src/service/contract-compatibility.js"
   },

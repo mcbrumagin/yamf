@@ -22,8 +22,7 @@ First coordinated **1.x** release line for published `@yamf/*` packages: CI pipe
 ### Added
 
 - Root `LICENSE` (MIT), `CONTRIBUTING.md`, and public CI workflow for the monorepo.
-- [docs/V1-READINESS.md](docs/V1-READINESS.md) — v1 scope, triaged TODOs, and documented non-goals.
-- [docs/V1-HARDENING.md](docs/V1-HARDENING.md) — sequenced hardening workstreams (CI, examples, `--as-test`, release checklist).
+- [docs/V1-HARDENING.md](docs/V1-HARDENING.md) — consolidated v1 doc: recently completed work, remaining coverage / smoke‑e2e gaps, and the final API design review checkpoint.
 - `yamf test --as-test <glob>` — basename glob for `*.example.js` and other scripts without `@yamf/test` imports; `.` in patterns matches literally (see `packages/cli/src/tests/cli-as-test-tests.js`).
 - `@yamf/test`: `pickListenPort()` for examples/tests that must avoid fixed registry ports.
 - Postgres-backed **e2e** job and `pnpm run test:e2e` (`scripts/run-e2e-tests.mjs`).
@@ -61,4 +60,4 @@ Use before tagging a new **v1.x** or **v2** release on the default branch:
 2. **Changelog** — move `[Unreleased]` items into a dated section; leave a fresh `[Unreleased]`.
 3. **Versions** — bump `version` in each published `package.json` per semver and [CONTRIBUTING.md](CONTRIBUTING.md).
 4. **Tags** — annotated tag (e.g. `v1.0.1`) and publish workflow as documented.
-5. **Docs** — README badges, engine badges, [docs/V1-READINESS.md](docs/V1-READINESS.md), [docs/V1-HARDENING.md](docs/V1-HARDENING.md).
+5. **Docs** — README badges, engine badges, [docs/V1-HARDENING.md](docs/V1-HARDENING.md).

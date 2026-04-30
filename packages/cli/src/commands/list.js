@@ -44,7 +44,7 @@ For remote, filepaths in the "Filepath" column are the paths to pass to yamf sto
 If multiple pm3-service instances are registered, each request may hit a different node. Set
   YAMF_PM3_SERVICE_LOCATION
 to a pm3-service base URL (from REGISTRY_PULL or your ops notes) to send all --remote pm3 commands to that
-instance via the yamf-prefer-service-location header on SERVICE_CALL.
+instance via the yamf-service-prefer-location header on SERVICE_CALL.
 `
 }
 

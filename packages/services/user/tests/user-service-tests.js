@@ -350,7 +350,7 @@ function createMockSql(mockResponses = {}) {
 async function createMockPostgresService(mockResponses = {}) {
   const mockSql = createMockSql(mockResponses)
   
-  return await createService('postgres-service', async ({ template, data }) => {
+  return await createService('postgres', async ({ template, data }) => {
     return await mockSql(template, data)
   })
 }

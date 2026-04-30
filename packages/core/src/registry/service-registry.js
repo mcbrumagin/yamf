@@ -234,7 +234,7 @@ export async function registerService(state, { service, location, useAuthService
     if (!isBackwardCompatibleServiceContract(existingContract, contract) && !allowBreakingContract) {
       throw new HttpError(409,
         `Service "${service}": new registration contract is not backward compatible with the contract already in the registry. ` +
-        'Deploy with contract overrides or re-register the old version first, or have the new replica send the yamf-allow-breaking-contract header (e.g. YAMF_DEPLOY_ALLOW_BREAKING=1 in its environment).'
+        'Deploy with contract overrides or re-register the old version first, or have the new replica send yamf-allow-breaking-contract: true (e.g. YAMF_DEPLOY_ALLOW_BREAKING=true in its environment).'
       )
     }
   }
@@ -502,7 +502,19 @@ const writeForwardedHeaders = (request, headers) => {
   headers['Forwarded'] = forwarded
 }
 
-const headerWhitelist = [
+const FORWARDED_YAMF_HEADERS = [
+  HEADERS.COMMAND,
+  HEADERS.SERVICE_NAME,
+  HEADERS.AUTH_TOKEN,
+  HEADERS.REGISTRY_TOKEN,
+  HEADERS.DEPLOY_TOKEN,
+  HEADERS.DEPLOY_HASH,
+  HEADERS.BUNDLE_SIGNATURE,
+  HEADERS.BUNDLE_SIGNATURE_ALG,
+  HEADERS.SERVICE_PREFER_LOCATION
+]
+
+const headerWhitelist = new Set([
   'accept',
   'accept-language',
   'connection',
@@ -518,31 +530,24 @@ const headerWhitelist = [
   'sec-ch-ua-mobile',
   'sec-ch-ua-platform',
 
-  // Range request headers for streaming media
+  // Range / streaming media
   'range',
   'if-range',
   'accept-ranges',
 
-  // SSE-specific headers
+  // SSE
   'last-event-id',
   'cache-control',
 
-  // TODO verify relevant yamf-headers are forwarded
-  'cookie', // TODO only for auth services
-  'yamf-command',
-  'yamf-service-name',
-  'yamf-auth-token',
-  'yamf-registry-token',
-  'yamf-deploy-token',
-  'yamf-deploy-hash',
-  'yamf-bundle-ed25519-sig',
-  'yamf-prefer-service-location'
-]
+  // TODO scope `cookie` to auth services only
+  'cookie',
+  ...FORWARDED_YAMF_HEADERS
+])
 
 const filterForUsefulHeaders = (headers) => {
   const filteredHeaders = {}
   for (const [key, value] of Object.entries(headers)) {
-    if (!headerWhitelist.includes(key.toLowerCase())) continue
+    if (!headerWhitelist.has(key.toLowerCase())) continue
     filteredHeaders[key] = value
   }
   return filteredHeaders

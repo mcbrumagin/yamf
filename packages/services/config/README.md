@@ -9,6 +9,6 @@ Encrypted config store and **`config-service`** for environment-scoped key/value
 
 ## Quick usage
 
-Start the service from your bootstrap with `createConfigService({ adminToken, dataDir })` (see `service.js` options). Call via `callService('config-service', { command: 'list' | 'get' | 'set' | 'delete', ... })`.
+Start the service from your bootstrap with `createConfigService({ adminToken, dataDir })` (see `service.js` options). Call via `callService('config', { command: 'list' | 'get' | 'set' | 'delete', ... })`.
 
 Runnable smoke: `packages/services/config/config-smoke.example.js` (`yamf test --as-test '*.example.js' -d packages/services/config`).

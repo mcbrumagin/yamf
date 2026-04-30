@@ -1,5 +1,5 @@
 // elements.js - Pure ESM module
-import Element from './Element.js'
+import Element from './element.js'
 
 class DocType extends Element { tag = '!DOCTYPE html'; isVoid = true }
 

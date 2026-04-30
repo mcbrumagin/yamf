@@ -59,7 +59,7 @@ export async function testCreateRemotePm3StartSendsDeployCommandWithDeployToken 
     await assert(captured?.options?.method, (m) => m === 'POST')
     const h = captured?.options?.headers || {}
     await assert(h[HEADERS.COMMAND], (v) => v === COMMANDS.SERVICE_CALL)
-    await assert(h[HEADERS.SERVICE_NAME], (v) => v === 'pm3-service')
+    await assert(h[HEADERS.SERVICE_NAME], (v) => v === 'pm3')
     await assert(h[HEADERS.REGISTRY_TOKEN], (v) => v === 'reg-tok')
     await assert(h[HEADERS.DEPLOY_TOKEN], (v) => v === 'dep-tok')
     const body = parseBody(captured?.options)
@@ -112,7 +112,7 @@ export async function testCreateRemotePm3CliListDoesNotSetDeployToken () {
     await cli.list({ all: true })
     const h = captured?.options?.headers || {}
     await assert(h[HEADERS.COMMAND], (v) => v === COMMANDS.SERVICE_CALL)
-    await assert(h[HEADERS.SERVICE_NAME], (v) => v === 'pm3-service')
+    await assert(h[HEADERS.SERVICE_NAME], (v) => v === 'pm3')
     await assert(h[HEADERS.DEPLOY_TOKEN] == null || h[HEADERS.DEPLOY_TOKEN] === '', (x) => x)
     const body = parseBody(captured?.options)
     await assert(body?.command, (c) => c === 'list')

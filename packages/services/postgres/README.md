@@ -17,18 +17,18 @@ Peer dependencies: `@yamf/core`, `@yamf/shared`. The package uses [postgres](htt
 
 ```javascript
 import { registryServer, createService, callService } from '@yamf/core'
-import createPostgreSqlService from '@yamf/services-postgres'
+import createPostgresService from '@yamf/services-postgres'
 
 await registryServer()
 
-const postgres = await createPostgreSqlService({
-  serviceName: 'postgres-service',
+const postgres = await createPostgresService({
+  serviceName: 'postgres',
   psqlConfig: 'postgres://user:pass@localhost/dbname'
   // or: { PGDATABASE: 'yamf', PGUSER: 'yamf', PGPASSWORD: 'changeme' }
 })
 
 // Call from another service or gateway
-const [row] = await callService('postgres-service', {
+const [row] = await callService('postgres', {
   template: `SELECT user_id, username, is_active FROM yamf.user WHERE username = :username`,
   data: { username: 'alice@example.com' }
 })
@@ -44,11 +44,11 @@ const [row] = await callService('postgres-service', {
 
 ## API
 
-### `createPostgreSqlService(options)`
+### `createPostgresService(options)`
 
 | Option        | Default             | Description |
 |---------------|---------------------|-------------|
-| `serviceName` | `'postgres-service'` | YAMF service name to register. |
+| `serviceName` | `'postgres'` | YAMF service name to register. |
 | `psqlConfig`  | env / `{ PGDATABASE, PGUSER, PGPASSWORD }` | Postgres connection string or config object. |
 | `schema`      | `null`              | Optional schema setup. |
 | `seed`        | `null`              | Optional seed logic. |
@@ -72,7 +72,7 @@ Returns the result of the query (array of rows, or raw result from postgres.js).
 Example:
 
 ```javascript
-await callService('postgres-service', {
+await callService('postgres', {
   template: `
     SELECT user_id, username, is_registered, is_active
     FROM yamf.user

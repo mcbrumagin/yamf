@@ -1,6 +1,6 @@
 import { assert, terminateAfter } from '@yamf/test'
 import { registryServer, callService } from '@yamf/core'
-import createPostgreSqlService from '@yamf/services-postgres'
+import createPostgresService from '@yamf/services-postgres'
 import createUserService from '../service.js'
 
 export async function testUserCreateGetE2E () {
@@ -12,7 +12,7 @@ export async function testUserCreateGetE2E () {
   const email = `e2e_${Date.now()}@example.com`
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: url }),
+    () => createPostgresService({ psqlConfig: url }),
     () => createUserService({}),
     async () => {
       await callService('user-service', {

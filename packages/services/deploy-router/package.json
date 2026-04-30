@@ -7,6 +7,10 @@
   },
   "description": "Registry plugin: deploy-plan + deploy-bundle (slice C3)",
   "main": "service.js",
+  "exports": {
+    ".": "./service.js",
+    "./placement": "./placement.js"
+  },
   "scripts": {
     "test": "yamf test -d .",
     "test:all": "yamf test -d . --include-e2e"

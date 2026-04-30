@@ -1,6 +1,6 @@
 import { assert, terminateAfter } from '@yamf/test'
 import { registryServer, callService } from '@yamf/core'
-import createPostgreSqlService from '../service.js'
+import createPostgresService from '../service.js'
 
 export async function testPostgresSelectOneE2E () {
   const url = process.env.YAMF_TEST_PSQL_URL
@@ -10,9 +10,9 @@ export async function testPostgresSelectOneE2E () {
   }
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: url }),
+    () => createPostgresService({ psqlConfig: url }),
     async () => {
-      const rows = await callService('postgres-service', {
+      const rows = await callService('postgres', {
         template: 'SELECT 1 as one',
         data: {}
       })

@@ -13,7 +13,7 @@ import {
 import { checkArgonPassword } from '@yamf/core/crypto'
 
 import createAuthService from '@yamf/services-auth'
-import createPostgreSqlService from '@yamf/services-postgres'
+import createPostgresService from '@yamf/services-postgres'
 import createUserService from '@yamf/services-user'
 
 const logger = new Logger()
@@ -27,7 +27,7 @@ async function main() {
   async function validateUserPassword(username, password) {
     try {
       console.warn('validateUserPassword', { username })
-      let [user] = await callService('postgres-service', {
+      let [user] = await callService('postgres', {
         template: `SELECT salt, hash, is_active, is_registered, is_verified FROM yamf.user WHERE username = :username`,
         data: { username }
       })
@@ -69,7 +69,7 @@ async function main() {
     await registryServer(),
     await gatewayServer(),
     await createAuthService({ validateUserPassword }),
-    await createPostgreSqlService({
+    await createPostgresService({
       psqlConfig: 'postgres://yamf:changeme@localhost/yamf'
     }),
     await createUserService()
@@ -177,11 +177,11 @@ async function main() {
     return { ...payload, result: 'authenticated!' }
   }, {
     accessControl: 'public',
-    useAuthService: 'auth-service'
+    useAuthService: 'auth'
   })
 
   // Authenticate with self-signup user
-  let authResult = await callService('auth-service', {
+  let authResult = await callService('auth', {
     body: { authenticate: { user: 'self-signup@test.com', password: 'testtest' } },
     headers: {
       [HEADERS.COMMAND]: COMMANDS.AUTH_LOGIN

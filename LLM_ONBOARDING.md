@@ -332,7 +332,7 @@ await createService('test-service', async function(payload) {
 
 ```javascript
 await createRoute('/api/users', 'user-service')
-await createRoute('/api/auth/*', 'auth-service')  // Wildcard routing
+await createRoute('/api/auth/*', 'auth')  // Wildcard routing
 ```
 
 ### Rate Limiting (Pre-bind API)
@@ -345,7 +345,7 @@ await registryServer({
   rateLimit: {
     default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 10000 },
     services: {
-      'auth-service': { 
+      'auth': { 
         windowMs: 60000, 
         maxRequestsPerIp: 10,
         customKeyFn: (payload) => payload?.username  // Rate limit by username
@@ -355,17 +355,17 @@ await registryServer({
 })
 
 // Gateway can have its own config (overrides registry default)
-await gatewayServer(null, {
+await gatewayServer({
   rateLimit: {
     default: { windowMs: 60000, maxRequestsPerIp: 50, maxTotalRequests: 5000 },
     services: {
-      'auth-service': { windowMs: 60000, maxRequestsPerIp: 5 }  // Stricter at gateway
+      'auth': { windowMs: 60000, maxRequestsPerIp: 5 }  // Stricter at gateway
     }
   }
 })
 
 // Service declares rate limit requirement (safety check at registration)
-await createService('auth-service', handler, { 
+await createService('auth', handler, { 
   accessControl: 'public',
   rateLimit: true  // Error if no rate limit config exists
 })

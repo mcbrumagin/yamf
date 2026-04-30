@@ -3,7 +3,7 @@ import { pickNode } from '../placement.js'
 
 export async function testPickNode503WhenNoHealthyLocations () {
   await assertErr(
-    () => pickNode({ listHealthyLocations: () => [] }, 'pm3-service'),
+    () => pickNode({ listHealthyLocations: () => [] }, 'pm3'),
     (e) => e.status === 503 && (e.message || '').includes('no-placement')
   )
 }
@@ -13,7 +13,7 @@ export async function testPickNode503WhenAllExcluded () {
     () =>
       pickNode(
         { listHealthyLocations: () => ['http://a:1', 'http://b:2'] },
-        'pm3-service',
+        'pm3',
         { excludeNodes: ['http://a:1', 'http://b:2'] }
       ),
     (e) => e.status === 503
@@ -26,7 +26,7 @@ export async function testPickNodeReturnsSoleNodeWithoutReplicaMetadata () {
       listHealthyLocations: () => ['http://node:1'],
       _state: {}
     },
-    'pm3-service'
+    'pm3'
   )
   await assert(n, (x) => x === 'http://node:1')
 }
@@ -45,7 +45,7 @@ export async function testPickNodeChoosesLeastLoadedFromReplicaMetadata () {
       ])
     }
   }
-  const n = pickNode(registry, 'pm3-service')
+  const n = pickNode(registry, 'pm3')
   await assert(n, (x) => x === 'http://b:2')
 }
 
@@ -54,6 +54,6 @@ export async function testPickNodeRespectsExcludeNodes () {
     listHealthyLocations: () => ['http://a:1', 'http://b:2', 'http://c:3'],
     _state: { replicaMetadata: new Map() }
   }
-  const n = pickNode(registry, 'pm3-service', { excludeNodes: ['http://a:1', 'http://c:3'] })
+  const n = pickNode(registry, 'pm3', { excludeNodes: ['http://a:1', 'http://c:3'] })
   await assert(n, (x) => x === 'http://b:2')
 }

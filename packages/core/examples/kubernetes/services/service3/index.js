@@ -1,6 +1,6 @@
 import { createService } from '@yamf/core'
 
-createService(async function service3(payload = {}) {
+createService('service3', async function (payload = {}) {
   payload.service3 = true
   return payload
 })

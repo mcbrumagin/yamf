@@ -46,7 +46,7 @@ const logger = new Logger({ logGroup: 'user-service' })
 
 const DEFAULT_CONFIG = {
   serviceName: 'user-service',
-  dataService: 'postgres-service'
+  dataService: 'postgres'
 }
 
 // =============================================================================

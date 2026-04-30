@@ -222,8 +222,7 @@ export function testValidateServiceName_ValidNames() {
     'myService',
     'my-service',
     'my_service',
-    'myService123',
-    'service$name'
+    'myService123'
   ].map(n => () => validateServiceName(n)),
     name => typeof name === 'string',
     name => name.length > 0
@@ -235,6 +234,7 @@ export function testValidateServiceName_InvalidNames() {
     'my service',
     'my@service',
     'my.service',
+    'service$name'
   ].map(n => () => validateServiceName(n)),
     err => err.message.includes('invalid characters')
   )

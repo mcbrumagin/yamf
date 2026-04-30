@@ -176,7 +176,7 @@ export async function testGlobalRateLimitProtection() {
 export async function testGatewayDefaultRateLimit() {
   await terminateAfter(
     () => registryServer(),
-    () => gatewayServer(null, {
+    () => gatewayServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 5, maxTotalRequests: 100 }
       }
@@ -203,7 +203,7 @@ export async function testGatewayDefaultRateLimit() {
 export async function testGatewayRateLimitHeaders() {
   await terminateAfter(
     () => registryServer(),
-    () => gatewayServer(null, {
+    () => gatewayServer({
       rateLimit: {
         default: { windowMs: 60000, maxRequestsPerIp: 100, maxTotalRequests: 1000 }
       }
@@ -313,7 +313,7 @@ export async function testGatewayServiceRouteRateLimit() {
     () => createService('api-service', async (payload) => {
       return { received: payload }
     }, { accessControl: 'public' }),
-    () => gatewayServer(null, {
+    () => gatewayServer({
       rateLimit: {
         services: {
           'api-service': { windowMs: 60000, maxRequestsPerIp: 3, maxTotalRequests: 1000 }
@@ -425,7 +425,7 @@ export async function testGatewayOverridesRegistryDefault() {
         default: { windowMs: 60000, maxRequestsPerIp: 10, maxTotalRequests: 1000 }
       }
     }),
-    () => gatewayServer(null, {
+    () => gatewayServer({
       rateLimit: {
         // Gateway has stricter default than registry
         default: { windowMs: 60000, maxRequestsPerIp: 3, maxTotalRequests: 100 }
@@ -455,7 +455,7 @@ export async function testCustomKeyFunctionRateLimit() {
     () => registryServer({
       rateLimit: {
         services: {
-          'auth-service': {
+          'auth': {
             windowMs: 60000,
             maxRequestsPerIp: 100,  // High IP limit
             maxTotalRequests: 1000,
@@ -465,7 +465,7 @@ export async function testCustomKeyFunctionRateLimit() {
         }
       }
     }),
-    () => createService('auth-service', async (payload) => {
+    () => createService('auth', async (payload) => {
       return { authenticated: true, user: payload.username }
     }, { accessControl: 'public', rateLimit: true }),
     async (registry, authService) => {
@@ -474,7 +474,7 @@ export async function testCustomKeyFunctionRateLimit() {
       
       for (let i = 0; i < 5; i++) {
         try {
-          await callService('auth-service', { username: 'alice' })
+          await callService('auth', { username: 'alice' })
           results.success++
         } catch (err) {
           if (err.status === 429) results.rateLimited++
@@ -487,7 +487,7 @@ export async function testCustomKeyFunctionRateLimit() {
       )
       
       // Different username should get fresh quota
-      const bobResult = await callService('auth-service', { username: 'bob' })
+      const bobResult = await callService('auth', { username: 'bob' })
       assert(bobResult, r => r.authenticated === true)
     }
   )

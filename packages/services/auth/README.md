@@ -26,13 +26,13 @@ async function validateUserPassword(username, password) {
 }
 
 const auth = await createAuthService({
-  serviceName: 'auth-service',
+  serviceName: 'auth',
   validateUserPassword,
   useSessions: 'refresh-only'  // or true | false
 })
 
 // Client logs in by calling auth-service with AUTH_LOGIN command
-const authResult = await callService('auth-service', {
+const authResult = await callService('auth', {
   body: { authenticate: { user: 'alice@example.com', password: 'secret' } },
   headers: { [HEADERS.COMMAND]: COMMANDS.AUTH_LOGIN }
 })
@@ -53,7 +53,7 @@ For a **full example** (Postgres + User + Auth, self-signup, admin-invite, login
 - **Pluggable password validation** – You implement `validateUserPassword(username, password)` (e.g. using @yamf/services-postgres and Argon).
 - **Optional sessions** – `useSessions: 'refresh-only'` or `true`; uses @yamf/services-cache for token storage and optional revocation.
 - **Configurable expiry** – Access and refresh token lifetimes (defaults in code).
-- **Gateway integration** – Use `HEADERS.COMMAND`: `COMMANDS.AUTH_LOGIN` for login; send `HEADERS.AUTH_TOKEN` for protected service calls. Register services with `useAuthService: 'auth-service'` so the gateway enforces the token.
+- **Gateway integration** – Use `HEADERS.COMMAND`: `COMMANDS.AUTH_LOGIN` for login; send `HEADERS.AUTH_TOKEN` for protected service calls. Register services with `useAuthService: 'auth'` so the gateway enforces the token.
 
 ## API
 
@@ -61,7 +61,7 @@ For a **full example** (Postgres + User + Auth, self-signup, admin-invite, login
 
 | Option                 | Default             | Description |
 |------------------------|---------------------|-------------|
-| `serviceName`          | `'auth-service'`    | YAMF service name. |
+| `serviceName`          | `'auth'`    | YAMF service name. |
 | `useSessions`          | `'refresh-only'`    | `true`, `'refresh-only'`, or `false`. |
 | `validateUserPassword` | env-based default   | `async (username, password) => boolean`. Required for real deployments. |
 
@@ -80,7 +80,7 @@ Send the token on each call to protected services:
 
 - **Headers**: `[HEADERS.AUTH_TOKEN]: accessToken`
 
-When creating a service, pass `useAuthService: 'auth-service'` (and optionally `accessControl: 'public'` for unauthenticated routes) so the gateway validates the token.
+When creating a service, pass `useAuthService: 'auth'` (and optionally `accessControl: 'public'` for unauthenticated routes) so the gateway validates the token.
 
 ### Logout
 

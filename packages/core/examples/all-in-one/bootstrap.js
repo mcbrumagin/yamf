@@ -37,7 +37,11 @@ async function main() {
   let gateway = await gatewayServer()
   let registry = await registryServer()
   let cacheService = await createCacheService({ expireTime: 10000, evictionInterval: 1000 })
-  let authService = await createAuthService()
+  let authService = await createAuthService({
+    validateUserPassword: async (user, password) => (
+      user === process.env.ADMIN_USER && password === process.env.ADMIN_PASS
+    )
+  })
   
   // File upload service with automatic event publishing
   let fileUploadService = await createFileUploadService({
@@ -69,17 +73,17 @@ async function main() {
     }
   })
 
-  await createService(async function testNestedService1() {
+  await createService('testNestedService1', async function () {
     console.log('nested-service-1 called')
     return 'nested-service-1'
   })
 
-  await createService(async function testNestedService2() {
+  await createService('testNestedService2', async function () {
     console.log('nested-service-2 called')
     return this.call('testNestedService3')
   })
 
-  await createService(async function testNestedService3() {
+  await createService('testNestedService3', async function () {
     console.log('nested-service-3 called')
     return 'nested-service-3'
   })
@@ -87,7 +91,7 @@ async function main() {
   const getHealth = () => ({ status: 'ok' })
   async function getHealthDetails() {
     let subCallResult = await this.publish('test') // goes through registry
-    // let staticFileResult = await this.call('static-file-service') // direct-to-service
+    // let staticFileResult = await this.call('static-files') // direct-to-service
     let nestedService1 = await this.call('testNestedService1')
     let nestedService2 = await this.call('testNestedService2')
     return {
@@ -112,16 +116,20 @@ async function main() {
 
 
   // pubsub example using standalone subscription
-  const subscription1 = await createSubscriptionService('sub1', 'test', async (message) => {
-    message = `subscription received message: ${JSON.stringify(message)}`
-    console.info(message)
-    return message
+  const subscription1 = await createSubscriptionService('sub1', {
+    test: async (message) => {
+      message = `subscription received message: ${JSON.stringify(message)}`
+      console.info(message)
+      return message
+    }
   })
-  
-  const subscription2 = await createSubscriptionService('sub2', 'test', async (message) => {
-    message = `subscription2 received message: ${JSON.stringify(message)}`
-    console.info(message)
-    return message
+
+  const subscription2 = await createSubscriptionService('sub2', {
+    test: async (message) => {
+      message = `subscription2 received message: ${JSON.stringify(message)}`
+      console.info(message)
+      return message
+    }
   })
   
   await publishMessage('test', { data: 'Hello subscribers!' })
@@ -165,37 +173,37 @@ async function main() {
   console.info(`custom file cache service call 2`)
   await callService('custom-file-cache-service', { url: '/' })
 
-  let authResult = await callService('auth-service', { authenticate: { user: 'admin', password: 'password' } })
+  let authResult = await callService('auth', { authenticate: { user: 'admin', password: 'password' } })
   let token = authResult.accessToken
   console.info(`authResult:`, authResult)
-  let verifyResult = await callService('auth-service', { verifyAccess: token })
+  let verifyResult = await callService('auth', { verifyAccess: token })
   console.info(`verifyResult: ${JSON.stringify(verifyResult)}`)
 
-  // let uploadResult = await callService('file-upload-service', Readable.from(testRawMultipartFile), {
+  // let uploadResult = await callService('uploads', Readable.from(testRawMultipartFile), {
   //   authToken: token,
   //   contentType: 'multipart/form-data; boundary=geckoformboundary85c5b05d9412d0694e8082bfaef6fac3'
   // })
   // console.info(`uploadResult: ${JSON.stringify(uploadResult)}`)
 
 
+  // TODO remove - we have graceful termination cascade from registry now
+  // process.once('SIGINT', async () => {
+  //   try {
+  //     await fileCacheService.terminate()
+  //     await cacheService.terminate()
+  //     await subscription1.terminate()
+  //     await subscription2.terminate()
+  //     await staticFileService.terminate()
+  //     await fileUploadService.terminate()
+  //     await gateway.terminate()
 
-  process.once('SIGINT', async () => {
-    try {
-      await fileCacheService.terminate()
-      await cacheService.terminate()
-      await subscription1.terminate()
-      await subscription2.terminate()
-      await staticFileService.terminate()
-      await fileUploadService.terminate()
-      await gateway.terminate()
-
-      // terminate the registry last
-      await registry.terminate()
-    } catch (err) {
-      console.error(err)
-    }
-    process.exit(0)
-  })
+  //     // terminate the registry last
+  //     await registry.terminate()
+  //   } catch (err) {
+  //     console.error(err)
+  //   }
+  //   process.exit(0)
+  // })
 }
 
 main().catch(err => console.error(err.stack))

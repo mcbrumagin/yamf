@@ -1,5 +1,5 @@
 import { registryServer, callService } from '@yamf/core'
-import createPostgreSqlService from './service.js'
+import createPostgresService from './service.js'
 
 const url = process.env.YAMF_TEST_PSQL_URL
 if (!url) {
@@ -11,9 +11,9 @@ const registryUrl = process.env.YAMF_REGISTRY_URL || 'http://127.0.0.1:20000'
 process.env.YAMF_REGISTRY_URL = registryUrl
 
 await registryServer()
-await createPostgreSqlService({ psqlConfig: url })
+await createPostgresService({ psqlConfig: url })
 
-const rows = await callService('postgres-service', {
+const rows = await callService('postgres', {
   template: 'SELECT 1 as one',
   data: {}
 })

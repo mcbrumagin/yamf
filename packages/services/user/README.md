@@ -19,13 +19,13 @@ The user service stores data via **@yamf/services-postgres** (it calls the postg
 
 ```javascript
 import { registryServer, callService } from '@yamf/core'
-import createPostgreSqlService from '@yamf/services-postgres'
+import createPostgresService from '@yamf/services-postgres'
 import createUserService from '@yamf/services-user'
 
 await registryServer()
-await createPostgreSqlService({ psqlConfig: 'postgres://yamf:changeme@localhost/yamf' })
+await createPostgresService({ psqlConfig: 'postgres://yamf:changeme@localhost/yamf' })
 await createUserService({
-  dataService: 'postgres-service',  // default
+  dataService: 'postgres',  // default
 })
 
 // Self-signup: create with password
@@ -114,7 +114,7 @@ For a **complete runnable example** that combines Postgres, User, and Auth (self
 | Option | Default | Description |
 |--------|---------|-------------|
 | `serviceName` | `'user-service'` | YAMF service name. |
-| `dataService` | `'postgres-service'` | Service name for DB calls (Postgres service). |
+| `dataService` | `'postgres'` | Service name for DB calls (Postgres service). |
 | `registrationToken.defaultExpiry` | `48 * 60 * 60 * 1000` (48h) | Token expiry in ms. |
 | `registrationToken.length` | `32` | Token byte length. |
 
@@ -144,7 +144,7 @@ The [psql-user-auth example](../../core/examples/psql-user-auth/) shows how to:
 1. Run registry, gateway, postgres, user, and auth services.
 2. Implement `validateUserPassword(username, password)` that loads user from postgres, checks `salt`/`hash` with `checkArgonPassword`, and enforces `is_active`, `is_registered`, `is_verified`.
 3. Pass `validateUserPassword` into `createAuthService({ validateUserPassword })`.
-4. Protect other services with `useAuthService: 'auth-service'` and send the auth token in headers.
+4. Protect other services with `useAuthService: 'auth'` and send the auth token in headers.
 
 ---
 

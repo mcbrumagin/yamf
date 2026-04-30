@@ -1,4 +1,4 @@
-import Element from './Element.js'
+import Element from './element.js'
 import elements from './elements.js'
 import htmlTags from './html-tags.js'
 

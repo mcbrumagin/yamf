@@ -20,12 +20,12 @@ import { registryServer, createService, callService } from '@yamf/core'
 await registryServer()
 
 // Create a service
-await createService(function helloService(payload) {
+await createService('hello', function (payload) {
   return { message: 'Hello, ' + payload.name }
 })
 
 // Call the service
-const result = await callService('helloService', { name: 'World' })
+const result = await callService('hello', { name: 'World' })
 console.log(result.message) // "Hello, World"
 ```
 
@@ -87,7 +87,7 @@ YAMF supports multiple programming languages with consistent APIs:
 
 ```javascript
 // Node.js service
-await createService(function nodeService(payload) {
+await createService('node-service', function (payload) {
   return await this.call('pythonService', payload)
 })
 ```

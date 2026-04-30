@@ -67,7 +67,7 @@ function runSeed(db, seed) {
 }
 
 export default async function createSqliteService({
-  serviceName = 'sqlite-service',
+  serviceName = 'sqlite',
   sqliteConfig = defaultSqliteConfig,
   schema = null,
   seed = null

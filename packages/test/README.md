@@ -253,9 +253,9 @@ import { registryServer, createService } from '@yamf/core'
 async function testServices() {
   await terminateAfter(
     () => registryServer(),
-    () => createService(function myService(p) { return { ok: true } }),
+    () => createService('my-service', (p) => ({ ok: true })),
     async (registry, service) => {
-      const result = await callService('myService', {})
+      const result = await callService('my-service', {})
       assert(result.ok, v => v === true)
     }
   )

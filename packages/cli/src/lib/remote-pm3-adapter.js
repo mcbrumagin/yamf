@@ -12,7 +12,7 @@ function callPm3Service ({ registryUrl, registryToken = process.env.YAMF_REGISTR
     headers: {
       'content-type': 'application/json',
       [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-      [HEADERS.SERVICE_NAME]: 'pm3-service',
+      [HEADERS.SERVICE_NAME]: 'pm3',
       ...(registryToken ? { [HEADERS.REGISTRY_TOKEN]: registryToken } : {}),
       ...(tok ? { [HEADERS.DEPLOY_TOKEN]: tok } : {}),
       ...(preferLocation ? { [HEADERS.SERVICE_PREFER_LOCATION]: preferLocation } : {})

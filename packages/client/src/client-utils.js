@@ -9,7 +9,7 @@
  * Client utilities for YAMF browser applications
  * Provides helper functions for DOM manipulation, routing, and resource loading
  */
-import Element from './Element.js'
+import Element from './element.js'
 import htmlTags from './html-tags.js'
 import { beginListenerGeneration, patchDOM } from './patch-dom.js'
 

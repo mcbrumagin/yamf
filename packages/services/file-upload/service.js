@@ -13,7 +13,7 @@ import { promises as fsPromises } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
-let logger = new Logger({ logGroup: 'file-upload-service' })
+let logger = new Logger({ logGroup: 'uploads' })
 
 function sanitizeFilename(filename) {
   return sanitizePathSegment(path.basename(filename || 'unnamed'))
@@ -79,7 +79,7 @@ function handleStreamingUpload(_payload, req, res, options) {
     acceptMime = null,
     onAllocate = null,
     auditUpload = null,
-    serviceName: uploadServiceName = 'file-upload-service'
+    serviceName: uploadServiceName = 'uploads'
   } = options
 
   const envCap = Number(envConfig.get('YAMF_UPLOAD_MAX_BYTES', 25 * 1024 * 1024))
@@ -480,7 +480,7 @@ const validators = {
  * @returns {Promise<Service>} The created service
  */
 export default async function createFileUploadService({
-  serviceName = 'file-upload-service',
+  serviceName = 'uploads',
   uploadDir = path.join(process.cwd(), 'uploads'),
   fileFieldName = 'file',
   textFields = [],

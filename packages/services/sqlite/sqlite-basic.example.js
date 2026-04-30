@@ -10,7 +10,7 @@ await createSqliteService({
   schema: 'CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY);'
 })
 
-const rows = await callService('sqlite-service', {
+const rows = await callService('sqlite', {
   template: 'SELECT 1 as n',
   data: {}
 })

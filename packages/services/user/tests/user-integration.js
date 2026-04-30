@@ -21,7 +21,7 @@ import {
   overrideConsoleGlobally
 } from '@yamf/core'
 
-import createPostgreSqlService from '@yamf/services-postgres'
+import createPostgresService from '@yamf/services-postgres'
 import createUserService from '../service.js'
 
 
@@ -57,7 +57,7 @@ async function ensureUserSchema(userServiceServer) {
  */
 async function cleanupTestUsers(prefix) {
   try {
-    await callService('postgres-service', {
+    await callService('postgres', {
       template: `DELETE FROM yamf.user WHERE username LIKE :pattern`,
       data: { pattern: `${prefix}%` }
     })
@@ -73,9 +73,9 @@ async function cleanupTestUsers(prefix) {
 export async function testPostgresService_BasicQuery() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
-      const result = await callService('postgres-service', {
+      const result = await callService('postgres', {
         template: 'SELECT 1 + 1 AS sum',
         data: {}
       })
@@ -92,9 +92,9 @@ export async function testPostgresService_BasicQuery() {
 export async function testPostgresService_ParameterizedQuery() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
-      const result = await callService('postgres-service', {
+      const result = await callService('postgres', {
         template: 'SELECT :a::integer + :b::integer AS sum',
         data: { a: 5, b: 3 }
       })
@@ -109,10 +109,10 @@ export async function testPostgresService_ParameterizedQuery() {
 export async function testPostgresService_CaseMapping() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       // Query with snake_case column names
-      const result = await callService('postgres-service', {
+      const result = await callService('postgres', {
         template: `SELECT 'test' AS my_column_name, 123 AS another_value`,
         data: {}
       })
@@ -129,10 +129,10 @@ export async function testPostgresService_CaseMapping() {
 export async function testPostgresService_InvalidPlaceholder() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       await assertErr(
-        async () => callService('postgres-service', {
+        async () => callService('postgres', {
           template: 'SELECT :missingParam AS value',
           data: { otherParam: 1 }
         }),
@@ -153,7 +153,7 @@ export async function testUserService_SelfSignupFlow() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -230,7 +230,7 @@ export async function testUserService_AdminInviteFlow() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -294,7 +294,7 @@ export async function testUserService_VerifyAndRegister() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -340,7 +340,7 @@ export async function testUserService_VerifyAndRegister() {
 export async function testUserService_InvalidToken() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -365,7 +365,7 @@ export async function testUserService_TokenRegeneration() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -430,7 +430,7 @@ export async function testUserService_DuplicateUsername() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -462,7 +462,7 @@ export async function testUserService_UsernameUpdate() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -508,7 +508,7 @@ export async function testUserService_RemoveUser() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)

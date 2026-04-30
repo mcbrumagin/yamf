@@ -223,7 +223,7 @@ import { createCrudService } from '@yamf/services-crud'
 const userService = await createCrudService({
   serviceName: 'user-service',
   schema: userCrudSchema,
-  dataService: 'postgres-service',
+  dataService: 'postgres',
   
   // Optional hooks
   hooks: {

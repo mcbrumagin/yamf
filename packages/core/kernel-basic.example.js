@@ -9,9 +9,9 @@ process.env.YAMF_REGISTRY_URL = registryUrl
 
 await registryServer()
 
-await createService(function exampleEcho (p) {
+await createService('example-echo', function (p) {
   return { ok: true, p }
 })
 
-const result = await callService('exampleEcho', { n: 42 })
+const result = await callService('example-echo', { n: 42 })
 console.log('callService result:', result)

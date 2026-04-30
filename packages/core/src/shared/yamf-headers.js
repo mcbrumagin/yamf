@@ -1,82 +1,104 @@
 /**
- * Yamf Headers
- * Constants and utilities for header-based command routing.
- * Covers core protocol (SERVICE_CALL, REGISTER, UNREGISTER, lookup), pub/sub,
- * rate limiting, contracts, and the rolling-registry drain/shutdown handoff.
+ * Yamf wire protocol — headers, command verbs, and well-known pub/sub channels.
+ *
+ * The `yamf-` prefix on header names and the `yamf:` prefix on pub/sub channel names are
+ * **reserved** for the framework. Apps must not invent their own `yamf-*` headers or
+ * `yamf:*` channels; that namespace is owned by the wire protocol and may grow with
+ * future framework releases.
+ *
+ * Boolean-valued headers always serialize as the strings `'true'` / `'false'`. Absent
+ * headers parse as `false`. Use `parseCommandHeaders` to normalize an incoming request
+ * into a single typed bag.
  */
 
 /**
- * Header name constants
+ * Header name constants. Grouped by concern; the value is the wire-level lowercase header.
  */
 export const HEADERS = {
-  // Command routing
+  // Routing
   COMMAND: 'yamf-command',
-  
-  // Service operations
+
+  // Service identity / placement
   SERVICE_NAME: 'yamf-service-name',
-  /** When set, registry SERVICE_CALL may route to this pm3-service instance (must be a registered location for the service) */
-  SERVICE_PREFER_LOCATION: 'yamf-prefer-service-location',
   SERVICE_LOCATION: 'yamf-service-location',
-  USE_AUTH_SERVICE: 'yamf-use-auth-service',
   SERVICE_HOME: 'yamf-service-home',
-  ACCESS_CONTROL: 'yamf-access-control',     // 'public', 'custom', or 'private'
-  
-  // Authentication // TODO Authorization: Bearer <token>
-  AUTH_TOKEN: 'yamf-auth-token',           // User auth token for service calls
-  REGISTRY_TOKEN: 'yamf-registry-token',   // Internal registry/service token
-  /** Separate blast radius for deploy plan/bundle (slice C3) */
+  /** When set, registry SERVICE_CALL may sticky-route to this pm3 location (must be a registered location for the service). */
+  SERVICE_PREFER_LOCATION: 'yamf-service-prefer-location',
+  USE_AUTH_SERVICE: 'yamf-use-auth-service',
+  ACCESS_CONTROL: 'yamf-access-control', // 'pure' | 'local' | 'private' | 'public'
+  SERVICE_TYPE: 'yamf-service-type',     // 'standard' | 'sse' | 'auth-service' | …
+  /** Per-service timeout in ms (0 = no timeout, e.g. SSE). */
+  TIMEOUT: 'yamf-timeout',
+  /** JSON-encoded `{ cacheBulk?: boolean, ... }`. */
+  SERVICE_METADATA: 'yamf-service-metadata',
+
+  // Authentication / authorization
+  AUTH_TOKEN: 'yamf-auth-token',
+  REGISTRY_TOKEN: 'yamf-registry-token',
   DEPLOY_TOKEN: 'yamf-deploy-token',
-  /** Content hash for streamed bundle (sha256-…) */
+
+  // Deploy bundle (slice C3 + C6)
+  /** sha256 content hash of the streamed bundle (e.g. `sha256-…`). */
   DEPLOY_HASH: 'yamf-deploy-hash',
-  /** Opaque deploy actor (e.g. user@host) */
+  /** Opaque deploy actor (e.g. `user@host`). */
   DEPLOYER: 'yamf-deployer',
-  /** base64(64-byte Ed25519 signature) over the UTF-8 content hash string (C6 / ROADMAP Tier 2) */
-  BUNDLE_ED25519_SIG: 'yamf-bundle-ed25519-sig',
-  
-  // TODO VERIFY
-  // Route operations (for registration only - routes use request.url for routing)
+  /** base64 signature over the UTF-8 hash string. Algorithm in {@link HEADERS.BUNDLE_SIGNATURE_ALG}. */
+  BUNDLE_SIGNATURE: 'yamf-bundle-signature',
+  /** Signature algorithm tag; defaults to `ed25519` when absent. */
+  BUNDLE_SIGNATURE_ALG: 'yamf-bundle-signature-alg',
+
+  // Routes (registration only — runtime routing is URL-based)
+  ROUTE_PATH: 'yamf-route-path',
   ROUTE_DATATYPE: 'yamf-route-datatype',
-  ROUTE_TYPE: 'yamf-route-type',  // 'route' or 'controller'
-  ROUTE_PATH: 'yamf-route-path',  // Only used during route registration
-  
-  // Pub/sub operations
+  /** `'route'` (exact match) or `'controller'` (path-prefix match: `/api/` matches `/api/users`). */
+  ROUTE_TYPE: 'yamf-route-type',
+
+  // Pub/sub
   PUBSUB_CHANNEL: 'yamf-pubsub-channel',
-  
+
   // Rate limiting
-  RATE_LIMIT_REQUIRED: 'yamf-rate-limit-required', // 'true' if service requires rate limit config
+  /** `'true'` if a registering service requires rate-limit config to exist on the registry. */
+  RATE_LIMIT_REQUIRED: 'yamf-rate-limit-required',
 
-  // Service contracts
-  SERVICE_CONTRACT: 'yamf-service-contract', // JSON-serialized contract object
-  /** Cross-cut 2: new replica registers a breaking contract; registry allows if header present */
+  // Service contracts (cross-cut 2)
+  /** JSON-serialized contract object. */
+  SERVICE_CONTRACT: 'yamf-service-contract',
+  /** `'true'` to allow a registering replica's contract to break compatibility. */
   ALLOW_BREAKING_CONTRACT: 'yamf-allow-breaking-contract',
-
-  // Service type and timeout (for SSE, future WebSocket, etc.)
-  SERVICE_TYPE: 'yamf-service-type',   // 'standard', 'sse', etc.
-  TIMEOUT: 'yamf-timeout',            // Per-service timeout in ms (0 = no timeout)
 
   // Rolling registry
   REGISTRY_INSTANCE_ID: 'yamf-registry-instance-id',
   SHUTDOWN_REASON: 'yamf-shutdown-reason',
 
-  /** JSON object: e.g. `{ "cacheBulk": true }` */
-  SERVICE_METADATA: 'yamf-service-metadata',
-
-  /** Bulk cache update window (registry → subscriber) */
-  CACHE_BULK: 'yamf-cache-bulk',
+  // Bulk cache update window (registry → subscriber)
+  /** Present iff this CACHE_UPDATE call carries a bulk window in the body. */
   CACHE_WINDOW_ID: 'yamf-cache-window-id'
 }
 
 /**
- * Well-known global pub/sub channel: `yamf dev` publishes here after a successful local/remote
- * deploy; {@link @yamf/services-dev-hmr} subscribes and fans out SSE `reload` (ROADMAP Phase 4 D2).
+ * Reserved framework pub/sub channels. App-defined channels must not collide with the
+ * `yamf:` namespace.
  */
-export const PUBSUB_CHANNEL_YAMF_DEV_RELOAD = 'yamf:dev-reload'
+export const CHANNELS = {
+  /** Published by `yamf dev` after a successful (re)deploy; consumed by `@yamf/services-dev-hmr`. */
+  DEV_RELOAD: 'yamf:dev-reload',
+  /** Published by registry deploy-router on every deploy decision (audit/observability stream). */
+  DEPLOY: 'yamf:deploy',
+  /** Reserved for upload-service progress events. */
+  UPLOAD: 'yamf:upload'
+}
 
 /**
- * Command types (values for yamf-command header)
+ * @deprecated since v1.x — use {@link CHANNELS.DEV_RELOAD}. Will be removed at the next major.
+ */
+export const PUBSUB_CHANNEL_YAMF_DEV_RELOAD = CHANNELS.DEV_RELOAD
+
+/**
+ * `yamf-command` header verbs. Built-in values are reserved (see {@link RESERVED_COMMANDS}).
+ * Plugins register additional verbs via {@code registry.registerCommand(name, handler, …)}.
  */
 export const COMMANDS = {
-  // Shared
+  // Universal
   HEALTH: 'health',
 
   // Registry
@@ -90,121 +112,109 @@ export const COMMANDS = {
   PUBSUB_PUBLISH: 'pubsub-publish',
   PUBSUB_SUBSCRIBE: 'pubsub-subscribe',
   PUBSUB_UNSUBSCRIBE: 'pubsub-unsubscribe',
-  
-  // Gateway
-  REGISTRY_UPDATED: 'registry-updated',  // Notification to gateway that registry changed
-  REGISTRY_PULL: 'registry-pull',        // Gateway pulls full registry state
-  GATEWAY_PULL: 'gateway-pull',          // Pull gateway state (dev/test only)
 
-  // Authentication
+  // Gateway
+  REGISTRY_UPDATED: 'registry-updated',
+  REGISTRY_PULL: 'registry-pull',
+  GATEWAY_PULL: 'gateway-pull',
+
+  // Authentication (proxied by registry to a registered auth-service)
   AUTH_LOGIN: 'auth-login',
   AUTH_REFRESH: 'auth-refresh',
   AUTH_LOGOUT: 'auth-logout',
 
-  // Service
+  // Service lifecycle
   CACHE_UPDATE: 'cache-update',
   SERVICE_SHUTDOWN: 'service-shutdown',
 
-  // Registry rolling handoff
+  // Rolling registry handoff
   REGISTRY_DRAIN: 'registry-drain',
-  /** CLI/orchestrator: fan out {@link COMMANDS.SERVICE_SHUTDOWN} to all registered HTTP services (registry still up). */
+  /** Fan out {@link COMMANDS.SERVICE_SHUTDOWN} to every registered HTTP service (registry stays up). */
   REGISTRY_BROADCAST_SHUTDOWN: 'registry-broadcast-shutdown',
 
-  // Server-rendered / signed handler round-trip (SSR invoke)
+  // Server-rendered handler round-trip (SSR invoke)
   SSR_INVOKE_HANDLER: 'ssr-invoke-handler'
 }
 
-/**
- * Build headers for service setup
- */
-export function buildSetupHeaders(serviceName, serviceHome, registryToken = null, rateLimitRequired = false) {
-  return {
+const TRUE_HEADER = 'true'
+
+const isTruthyHeader = (v) => v === TRUE_HEADER
+
+// ---------------------------------------------------------------------------
+// Header builders — each returns a fresh object that can be spread onto an HTTP
+// request. All builders consistently include the registry token only when set,
+// and stringify booleans as `'true'`/`'false'`.
+// ---------------------------------------------------------------------------
+
+const withRegistryToken = (headers, registryToken) =>
+  registryToken ? { ...headers, [HEADERS.REGISTRY_TOKEN]: registryToken } : headers
+
+export function buildSetupHeaders (serviceName, serviceHome, registryToken = null, rateLimitRequired = false) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.SERVICE_SETUP,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_HOME]: serviceHome,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
-    ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' })
-  }
+    ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: TRUE_HEADER })
+  }, registryToken)
 }
 
 /**
- * Build headers for service registration
- * 
- * Access Control Levels:
- * - 'pure': No HTTP server, direct function call only (same node process)
- * - 'local': HTTP server but accessible only from same node
- * - 'private': HTTP server, accessible from any service (default)
- * - 'public': HTTP server, accessible via gateway (external clients)
- * 
- * Rate Limit Options:
- * - true: Require rate limit config exists on registry (safety check)
- * - false/undefined: No rate limit requirement
- * 
- * TODO: Hybrid rate limiting - allow services to provide fallback config:
- *   rateLimit: { windowMs: 60000, maxRequestsPerIp: 50 }
- * If gateway/registry has no pre-bind for this service, use service's fallback.
+ * Build headers for `service-register`.
+ *
+ * Access control levels:
+ * - `pure`    — no HTTP server, direct in-process call only
+ * - `local`   — HTTP server but accessible only from the same node
+ * - `private` — HTTP server, accessible from any service (default)
+ * - `public`  — HTTP server, accessible via gateway (external clients)
  */
-export function buildRegisterHeaders(serviceName, location, {
+export function buildRegisterHeaders (serviceName, location, {
   useAuthService,
-  accessControl = 'private', // 'pure', 'local', 'private', 'public'
+  accessControl = 'private',
   registryToken = null,
-  rateLimit = false,  // true = require rate limit config exists
+  rateLimit = false,
   contract = true,
-  serviceType = null, // 'sse', etc. -- null means standard
-  timeout = null,    // per-service timeout in ms (0 = no timeout)
+  serviceType = null,
+  timeout = null,
   metadata = null,
   allowBreakingContract = false
 } = {}) {
-  // TODO: Hybrid rate limiting - if rateLimit is an object, serialize it
-  // For now, only support boolean (true = require config exists)
   const rateLimitRequired = rateLimit === true
   const meta =
     metadata && typeof metadata === 'object' && Object.keys(metadata).length > 0
       ? JSON.stringify(metadata)
       : null
 
-  return {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.SERVICE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location,
     ...(useAuthService && { [HEADERS.USE_AUTH_SERVICE]: useAuthService }),
     ...(accessControl && { [HEADERS.ACCESS_CONTROL]: accessControl }),
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
-    ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: 'true' }),
+    ...(rateLimitRequired && { [HEADERS.RATE_LIMIT_REQUIRED]: TRUE_HEADER }),
     ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) }),
     ...(serviceType && { [HEADERS.SERVICE_TYPE]: serviceType }),
     ...(timeout !== null && { [HEADERS.TIMEOUT]: String(timeout) }),
     ...(meta && { [HEADERS.SERVICE_METADATA]: meta }),
-    ...(allowBreakingContract && { [HEADERS.ALLOW_BREAKING_CONTRACT]: '1' })
-  }
+    ...(allowBreakingContract && { [HEADERS.ALLOW_BREAKING_CONTRACT]: TRUE_HEADER })
+  }, registryToken)
 }
 
-/**
- * Build headers for service unregistration
- */
-export function buildUnregisterHeaders(serviceName, location, registryToken = null) {
-  return {
+export function buildUnregisterHeaders (serviceName, location, registryToken = null) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.SERVICE_UNREGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
-    [HEADERS.SERVICE_LOCATION]: location,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
+    [HEADERS.SERVICE_LOCATION]: location
+  }, registryToken)
 }
 
-/**
- * Build headers for service lookup
- */
-export function buildLookupHeaders(serviceName) {
+export function buildLookupHeaders (serviceName) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_LOOKUP,
     [HEADERS.SERVICE_NAME]: serviceName
   }
 }
 
-/**
- * Build headers for service calls
- */
-export function buildCallHeaders(serviceName, authToken = null) {
+export function buildCallHeaders (serviceName, authToken = null) {
   return {
     [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
     [HEADERS.SERVICE_NAME]: serviceName,
@@ -212,184 +222,119 @@ export function buildCallHeaders(serviceName, authToken = null) {
   }
 }
 
-/**
- * Build headers for route registration
- */
-export function buildRouteRegisterHeaders(serviceName, routePath, dataType, routeType = 'route', registryToken = null) {
-  return {
+export function buildRouteRegisterHeaders (serviceName, routePath, dataType, routeType = 'route', registryToken = null) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.ROUTE_REGISTER,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.ROUTE_PATH]: routePath,
     [HEADERS.ROUTE_DATATYPE]: dataType || 'application/json',
-    [HEADERS.ROUTE_TYPE]: routeType,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
+    [HEADERS.ROUTE_TYPE]: routeType
+  }, registryToken)
 }
 
-/**
- * Build headers for route unregistration
- */
-export function buildRouteUnregisterHeaders(routePath, registryToken = null) {
-  return {
+export function buildRouteUnregisterHeaders (routePath, registryToken = null) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.ROUTE_UNREGISTER,
-    [HEADERS.ROUTE_PATH]: routePath,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
+    [HEADERS.ROUTE_PATH]: routePath
+  }, registryToken)
 }
 
-/**
- * Build headers for pub/sub publish
- */
-export function buildPublishHeaders(channel, registryToken = null) {
-  return {
+export function buildPublishHeaders (channel, registryToken = null) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.PUBSUB_PUBLISH,
-    [HEADERS.PUBSUB_CHANNEL]: channel,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
+    [HEADERS.PUBSUB_CHANNEL]: channel
+  }, registryToken)
 }
 
-/**
- * Build headers for pub/sub subscribe
- */
-export function buildSubscribeHeaders(channel, location, registryToken = null) {
-  return {
+export function buildSubscribeHeaders (channel, location, registryToken = null) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.PUBSUB_SUBSCRIBE,
     [HEADERS.PUBSUB_CHANNEL]: channel,
-    [HEADERS.SERVICE_LOCATION]: location,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
+    [HEADERS.SERVICE_LOCATION]: location
+  }, registryToken)
 }
 
-/**
- * Build headers for pub/sub unsubscribe
- */
-export function buildUnsubscribeHeaders(channel, location, registryToken = null) {
-  return {
+export function buildUnsubscribeHeaders (channel, location, registryToken = null) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.PUBSUB_UNSUBSCRIBE,
     [HEADERS.PUBSUB_CHANNEL]: channel,
-    [HEADERS.SERVICE_LOCATION]: location,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
+    [HEADERS.SERVICE_LOCATION]: location
+  }, registryToken)
 }
 
-/**
- * Build headers for cache update notifications
- */
-export function buildCacheUpdateHeaders(pubsubChannel, serviceName, location, registryToken = null, contract = null) {
-  return {
+export function buildCacheUpdateHeaders (pubsubChannel, serviceName, location, registryToken = null, contract = null) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.CACHE_UPDATE,
     [HEADERS.PUBSUB_CHANNEL]: pubsubChannel,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken }),
     ...(contract && { [HEADERS.SERVICE_CONTRACT]: JSON.stringify(contract) })
-  }
+  }, registryToken)
 }
 
 /**
- * Bulk cache update (one POST with JSON body; headers identify command only).
+ * Bulk cache update (one POST with JSON body listing updates).
+ * Subscribers detect bulk by presence of {@link HEADERS.CACHE_WINDOW_ID}.
  */
-export function buildBulkCacheUpdateHeaders(windowId, registryToken = null) {
-  return {
+export function buildBulkCacheUpdateHeaders (windowId, registryToken = null) {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.CACHE_UPDATE,
-    [HEADERS.CACHE_BULK]: '1',
-    [HEADERS.CACHE_WINDOW_ID]: windowId,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
+    [HEADERS.CACHE_WINDOW_ID]: windowId
+  }, registryToken)
 }
 
-/**
- * Build headers for registry-issued graceful shutdown to a service HTTP endpoint
- */
-export function buildShutdownHeaders(serviceName, location, registryToken, reason = 'registry-broadcast') {
-  return {
+export function buildShutdownHeaders (serviceName, location, registryToken, reason = 'registry-broadcast') {
+  return withRegistryToken({
     [HEADERS.COMMAND]: COMMANDS.SERVICE_SHUTDOWN,
     [HEADERS.SERVICE_NAME]: serviceName,
     [HEADERS.SERVICE_LOCATION]: location,
-    [HEADERS.SHUTDOWN_REASON]: String(reason),
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
+    [HEADERS.SHUTDOWN_REASON]: String(reason)
+  }, registryToken)
+}
+
+export function buildRegistryUpdatedHeaders (registryToken = null) {
+  return withRegistryToken({ [HEADERS.COMMAND]: COMMANDS.REGISTRY_UPDATED }, registryToken)
+}
+
+export function buildRegistryPullHeaders (registryToken = null) {
+  return withRegistryToken({ [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL }, registryToken)
+}
+
+export function buildGatewayPullHeaders (registryToken = null) {
+  return withRegistryToken({ [HEADERS.COMMAND]: COMMANDS.GATEWAY_PULL }, registryToken)
+}
+
+export function buildAuthLoginHeaders () {
+  return { [HEADERS.COMMAND]: COMMANDS.AUTH_LOGIN }
+}
+
+export function buildAuthRefreshHeaders () {
+  return { [HEADERS.COMMAND]: COMMANDS.AUTH_REFRESH }
+}
+
+export function buildAuthLogoutHeaders () {
+  return { [HEADERS.COMMAND]: COMMANDS.AUTH_LOGOUT }
 }
 
 /**
- * Build headers for gateway registry update notification
+ * Normalize incoming request headers into a typed bag of yamf protocol fields.
+ *
+ * `cacheWindowId` is non-null when the request is a bulk CACHE_UPDATE — subscribers can
+ * branch on that alone (no separate flag header).
  */
-export function buildRegistryUpdatedHeaders(registryToken = null) {
-  return {
-    [HEADERS.COMMAND]: COMMANDS.REGISTRY_UPDATED,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
-}
-
-/**
- * Build headers for gateway registry pull request
- */
-export function buildRegistryPullHeaders(registryToken = null) {
-  return {
-    [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
-}
-
-/**
- * Build headers for gateway state pull request (dev/test only)
- */
-export function buildGatewayPullHeaders(registryToken = null) {
-  return {
-    [HEADERS.COMMAND]: COMMANDS.GATEWAY_PULL,
-    ...(registryToken && { [HEADERS.REGISTRY_TOKEN]: registryToken })
-  }
-}
-
-/**
- * Build headers for auth login
- */
-export function buildAuthLoginHeaders() {
-  return {
-    [HEADERS.COMMAND]: COMMANDS.AUTH_LOGIN
-  }
-}
-
-/**
- * Build headers for auth refresh
- */
-export function buildAuthRefreshHeaders() {
-  return {
-    [HEADERS.COMMAND]: COMMANDS.AUTH_REFRESH
-  }
-}
-
-/**
- * Build headers for auth logout
- */
-export function buildAuthLogoutHeaders() {
-  return {
-    [HEADERS.COMMAND]: COMMANDS.AUTH_LOGOUT
-  }
-}
-
-/**
- * Parse command headers from request
- * Returns an object with parsed header values
- */
-export function parseCommandHeaders(headers) {
-  // Parse rate limit required flag
-  const rateLimitRequired = headers[HEADERS.RATE_LIMIT_REQUIRED] === 'true'
-
-  // Parse contract from JSON header
+export function parseCommandHeaders (headers) {
   let contract = null
   const contractHeader = headers[HEADERS.SERVICE_CONTRACT]
   if (contractHeader) {
-    try { contract = JSON.parse(contractHeader) } catch {}
+    try { contract = JSON.parse(contractHeader) } catch { /* malformed contract header — leave null */ }
   }
 
   let serviceMetadata = null
   const metaHeader = headers[HEADERS.SERVICE_METADATA]
   if (metaHeader) {
-    try { serviceMetadata = JSON.parse(metaHeader) } catch {}
+    try { serviceMetadata = JSON.parse(metaHeader) } catch { /* malformed metadata header — leave null */ }
   }
-  
-  // Parse timeout from header (string -> number or null)
+
   const timeoutHeader = headers[HEADERS.TIMEOUT]
   const timeout = timeoutHeader !== undefined ? Number(timeoutHeader) : null
 
@@ -404,36 +349,31 @@ export function parseCommandHeaders(headers) {
     routeDataType: headers[HEADERS.ROUTE_DATATYPE],
     routeType: headers[HEADERS.ROUTE_TYPE],
     pubsubChannel: headers[HEADERS.PUBSUB_CHANNEL],
-    rateLimitRequired,
+    rateLimitRequired: isTruthyHeader(headers[HEADERS.RATE_LIMIT_REQUIRED]),
     contract,
     serviceType: headers[HEADERS.SERVICE_TYPE] || null,
     timeout,
     serviceMetadata,
-    cacheBulk: headers[HEADERS.CACHE_BULK] === '1',
     cacheWindowId: headers[HEADERS.CACHE_WINDOW_ID] || null,
-    allowBreakingContract: headers[HEADERS.ALLOW_BREAKING_CONTRACT] === '1'
+    allowBreakingContract: isTruthyHeader(headers[HEADERS.ALLOW_BREAKING_CONTRACT])
   }
 }
 
-/**
- * Check if request uses header-based commands
- */
-export function isHeaderBasedCommand(headers) {
+/** True if a request carries a `yamf-command` header. */
+export function isHeaderBasedCommand (headers) {
   return !!(headers && headers[HEADERS.COMMAND])
 }
 
 /**
- * Commands that should NOT JSON parse the body
- * These commands need to preserve raw body data
+ * Commands that should not pre-parse the request body as JSON (raw stream proxied through).
  */
 export const STREAM_COMMANDS = new Set([
   COMMANDS.SERVICE_CALL
 ])
 
-/**
- * Check if command should skip JSON parsing
- */
-export function shouldSkipJsonParsing(command) {
+export function shouldSkipJsonParsing (command) {
   return STREAM_COMMANDS.has(command)
 }
 
+/** Built-in command verbs are reserved; plugins must not re-register these. */
+export const RESERVED_COMMANDS = new Set(Object.values(COMMANDS))

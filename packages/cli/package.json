@@ -9,8 +9,8 @@
   },
   "exports": {
     ".": "./src/index.js",
-    "./pm3": "./src/lib/pm3.js",
-    "./as-test-runner": "./src/lib/as-test-runner.js"
+    "./internal/pm3": "./src/lib/pm3.js",
+    "./internal/as-test-runner": "./src/lib/as-test-runner.js"
   },
   "engines": {
     "node": ">=22.0.0"

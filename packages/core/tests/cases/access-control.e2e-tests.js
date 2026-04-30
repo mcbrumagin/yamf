@@ -5,11 +5,11 @@ export async function testCallPrivateServiceWithRegistryDefaults () {
   await terminateAfter(
     () => registryServer(),
     () => gatewayServer(),
-    () => createService(function privateEcho (p) {
+    () => createService('private-echo', function (p) {
       return { echo: p }
     }, { accessControl: 'private' }),
     async () => {
-      const r = await callService('privateEcho', { x: 1 })
+      const r = await callService('private-echo', { x: 1 })
       await assert(r, x => x?.echo?.x === 1)
     }
   )

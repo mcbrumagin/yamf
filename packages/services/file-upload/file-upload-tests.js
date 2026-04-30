@@ -35,7 +35,7 @@ function cleanupTempFiles(tempDir) {
  * Create a multipart form request through the registry
  * This ensures the registry proxy can handle streaming multipart data
  */
-async function createMultipartRequest(formData, serviceName = 'file-upload-service') {
+async function createMultipartRequest(formData, serviceName = 'uploads') {
   return new Promise((resolve, reject) => {
     const registryUrl = new URL(process.env.YAMF_REGISTRY_URL || 'http://localhost:10000')
     

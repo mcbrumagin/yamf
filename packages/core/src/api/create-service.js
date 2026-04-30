@@ -27,14 +27,12 @@ import {
   notifyRegistryOfPureService
 } from './service-helpers.js'
 
-import { 
-  registerLocalService, 
-  unregisterLocalService, 
+import {
+  registerLocalService,
+  unregisterLocalService,
   hasLocalService,
   getLocalServiceAccess
 } from '../shared/local-state.js'
-
-import crypto from 'crypto'
 
 const logger = new Logger({ logGroup: 'yamf-api' })
 
@@ -43,75 +41,63 @@ function isExtractServiceContract () {
   return v === '1' || v === 1 || v === true
 }
 
-/**
- * Configuration for service setup
- */
 const DEFAULT_CONFIG = {
   tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
   retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 100),
   muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false),
-  sharedCache: null, // Optional pre-created cache for batch operations
-  streamPayload: false, // If true, don't buffer request body - pass raw stream to handler
-  accessControl: 'private', // 'pure', 'local', 'private', 'public'
+  /** Optional pre-created cache for batch operations. */
+  sharedCache: null,
+  /** If true, don't buffer request body — pass raw stream to handler. */
+  streamPayload: false,
+  /** `'pure'` | `'local'` | `'private'` | `'public'` */
+  accessControl: 'private',
   useContract: true
 }
 
 /**
- * Create and start a microservice
- * 
- * @param {string|Function} name - Service name or named function
- * @param {Function} [serviceFn] - Service handler function
- * @param {Object} [options] - Service configuration options
- * @param {string} [options.accessControl='private'] - Access control level:
- *   - 'pure': No HTTP server, direct function call only (same node)
- *   - 'local': HTTP server, accessible only from same node
- *   - 'private': HTTP server, accessible from any service (default)
- *   - 'public': HTTP server, accessible via gateway (external clients)
- * @param {boolean} [options.rateLimit] - If true, require rate limit config exists on registry/gateway
- * @returns {Promise<Object>} HTTP server instance with service metadata (or minimal object for 'pure')
- * 
+ * Create and start a microservice.
+ *
+ * Access control levels:
+ * - `'pure'`    — no HTTP server, direct function call only (same node process)
+ * - `'local'`   — HTTP server but accessible only from the same node
+ * - `'private'` — HTTP server, accessible from any service (default)
+ * - `'public'`  — HTTP server, accessible via gateway (external clients)
+ *
+ * @param {string} serviceName - Service name (kebab-case recommended; required and explicit).
+ * @param {Function} serviceFn - Async service handler `(payload, request, response) => result`.
+ * @param {Object} [options]
+ * @param {'pure'|'local'|'private'|'public'} [options.accessControl='private']
+ * @param {boolean} [options.rateLimit] - Require rate-limit config to exist on registry/gateway.
+ * @param {Object} [options.metadata]   - Extra metadata published with the service registration.
+ * @param {Object} [options.sharedCache] - Pre-created cache (used by {@link createServices}).
+ * @param {boolean} [options.useContract=true] - Auto-extract a contract from `serviceFn`.
+ * @returns {Promise<Object>} HTTP server instance with service metadata (or a minimal object for `'pure'`).
+ *
  * @example
- * // With separate name and function
- * const server = await createService('userService', async function(payload) {
+ * const service = await createService('user', async function (payload) {
  *   return { user: 'data' }
  * })
- * 
+ *
  * @example
- * // With named function
- * const server = await createService(async function userService(payload) {
- *   return { user: 'data' }
- * })
- * 
- * @example
- * // Pure local function (no HTTP server)
- * const service = await createService('helperService', async function(payload) {
+ * // Pure local service (no HTTP server)
+ * const service = await createService('helper', async function (payload) {
  *   return { computed: payload.x * 2 }
  * }, { accessControl: 'pure' })
- * 
- * @example
- * // Service requiring rate limit (safety check)
- * const service = await createService('auth-service', async function(payload) {
- *   return { authenticated: true }
- * }, { accessControl: 'public', rateLimit: true })
  */
-export default async function createService(name, serviceFn, options = {}) {
-  if (
-    !(typeof name === 'string' && name && typeof serviceFn === 'function') &&
-    !(typeof name === 'function')
-  ) {
-    throw new Error(
-      'Please provide a function, or a service name and its function separately'
+export default async function createService (serviceName, serviceFn, options = {}) {
+  if (typeof serviceName === 'function') {
+    throw new TypeError(
+      'createService: pass an explicit service name as the first argument. ' +
+      "Replace `createService(fn)` with `createService('my-service', fn)`."
+    )
+  }
+  if (typeof serviceName !== 'string' || !serviceName || typeof serviceFn !== 'function') {
+    throw new TypeError(
+      'createService(serviceName, serviceFn[, options]): the service name must be a non-empty string and the service function must be a function.'
     )
   }
 
-  if (typeof name === 'function') {
-    options = options && Object.keys(options).length === 0 ? serviceFn : options
-    serviceFn = name
-    name = serviceFn.name || `Anon$${crypto.randomBytes(4).toString('hex')}`
-    if (name.includes('Anon$')) logger.debug('createService - generated name:', name)
-  }
-
-  validateServiceName(name)
+  validateServiceName(serviceName)
 
   const config = { ...DEFAULT_CONFIG, ...options }
   config.metadata = { cacheBulk: true, ...(config.metadata || {}) }
@@ -121,71 +107,55 @@ export default async function createService(name, serviceFn, options = {}) {
   if (contract) config.contract = contract
 
   if (isExtractServiceContract()) {
-    return { yamfContractExtract: true, name, contract: contract || null }
+    return { yamfContractExtract: true, name: serviceName, contract: contract || null }
   }
-  
-  const cache = config.sharedCache || createServiceState()
 
-  // Build context without location initially (no subscriptions in regular services)
-  const context = buildEnhancedContext(cache, name)
+  const cache = config.sharedCache || createServiceState()
+  const context = buildEnhancedContext(cache, serviceName)
   const boundServiceFn = bindServiceFunction(serviceFn, context)
 
-  // Handle pure services (no HTTP server)
   if (config.accessControl === 'pure') {
-    return createPureService(name, boundServiceFn, cache, context, config)
+    return createPureService(serviceName, boundServiceFn, cache, context, config)
   }
 
-  // For non-pure services, check for local service name collision
-  if (hasLocalService(name)) {
-    const existingAccess = getLocalServiceAccess(name)
+  if (hasLocalService(serviceName)) {
+    const existingAccess = getLocalServiceAccess(serviceName)
     throw new Error(
-      `Cannot create service "${name}" with accessControl="${config.accessControl}". ` +
+      `Cannot create service "${serviceName}" with accessControl="${config.accessControl}". ` +
       `A ${existingAccess} service with this name already exists on this process.\n` +
-      `Options:\n`
-      + `  - Rename one of the services if they contain different functionality\n`
-      + `  - For load-balancing: run the second service on a different process or node\n`
-      // TODO this message doesn't make sense if the existing service is private
-      // + `  - Change the existing service to use 'private' or 'public' access control\n`
-      // TODO also doesn't make sense? idk
-      // + `  - Use a plain function instead of a service if load-balancing isn't needed`
+      'Options:\n' +
+      '  - Rename one of the services if they contain different functionality\n' +
+      '  - For load-balancing: run the second service on a different process or node'
     )
   }
 
-  // Register in local state for direct calls (with HTTP server)
-  registerLocalService(name, boundServiceFn, config.accessControl)
+  registerLocalService(serviceName, boundServiceFn, config.accessControl)
 
   const shutdownTerminateRef = { terminate: null }
   const handler = createCacheAwareHandler(boundServiceFn, cache, context, { shutdownTerminateRef })
+  Object.defineProperty(handler, 'name', { value: serviceName, writable: false })
 
-  // override handler name
-  Object.defineProperty(handler, 'name', { value: name, writable: false })
-
-  // Setup service infrastructure using shared helpers
   let result
   try {
-    result = await createAndRegisterService(name, handler, config)
+    result = await createAndRegisterService(serviceName, handler, config)
   } catch (err) {
-    // Clean up local registration on failure
-    unregisterLocalService(name)
-    
+    unregisterLocalService(serviceName)
     if (err.message.includes('listen EADDRINUSE')) {
-      // Retry on port collision
-      return createService(name, serviceFn, options)
-    } else {
-      throw err
+      // Port collision — retry once with the same args (registry will allocate a new port).
+      return createService(serviceName, serviceFn, options)
     }
+    throw err
   }
 
   const { location, server, registryData } = result
-  
+
   updateCache(cache, registryData)
   updateContext(context, cache)
 
-  logger.info(`Service "${name}" running at ${location}`)
-  
-  // Add metadata
-  server.name = name
-  server.service = name
+  logger.info(`Service "${serviceName}" running at ${location}`)
+
+  server.name = serviceName
+  server.service = serviceName
   server.location = location
   server.cache = cache
   server.context = context
@@ -195,59 +165,32 @@ export default async function createService(name, serviceFn, options = {}) {
   let overrideHandler = null
 
   /**
-   * Add a preprocessing function that runs before the main service handler
-   * 
-   * This is a SINGLE override function (not full middleware chain support).
-   * The function receives the payload and can transform it before passing to the main handler.
-   * 
-   * Note: Only ONE override can be set. Calling this multiple times will replace the previous override.
-   * 
-   * @param {Function} overrideFn - Function that processes payload before main handler
-   *                                 Should return transformed payload or Next/response control
-   * 
-   * @example
-   * const service = await createService('user-service', async function(payload) {
-   *   return { user: payload.userId, processed: payload.timestamp }
-   * })
-   * 
-   * service.before(async (payload, request, response) => {
-   *   // Add timestamp to all requests
-   *   payload.timestamp = Date.now()
-   *   return payload  // Transformed payload passed to main handler
-   * })
-   * 
-   * @example
-   * // Early return without calling main handler
-   * service.before(async (payload, request, response) => {
-   *   if (!payload.authenticated) {
-   *     response.writeHead(401)
-   *     response.end(JSON.stringify({ error: 'Unauthorized' }))
-   *     return new Next()  // Skip main handler
-   *   }
-   *   return payload
-   * })
+   * Add a single preprocessing function that runs before the main service handler.
+   * Calling `before` again replaces the previous override (this is not a middleware chain).
+   *
+   * The override receives `(payload, request, response)` and may:
+   * - return a transformed payload (passed to the main handler), or
+   * - return a {@link Next} instance / end the response, to skip the main handler.
    */
   server.before = function (overrideFn) {
-    overrideHandler = async function preprocess(payload, request, response) {
+    overrideHandler = async function preprocess (payload, request, response) {
       logger.debug('calling before override', payload)
-      let processedPayload = await overrideFn(payload, request, response)
+      const processedPayload = await overrideFn(payload, request, response)
       if (processedPayload instanceof Next || response.isEnded) {
         return processedPayload
-      } else {
-        logger.debug('calling original handler', processedPayload)
-        return await originalHandler(processedPayload, request, response)
       }
+      logger.debug('calling original handler', processedPayload)
+      return await originalHandler(processedPayload, request, response)
     }
     server.handler = overrideHandler
   }
 
-  // override terminate to gracefully unregister
   const httpServerTerminate = server.terminate.bind(server)
   const runServiceShutdown = async () => {
-    unregisterLocalService(name)
-    removeFromCache(cache, { service: name, location })
+    unregisterLocalService(serviceName)
+    removeFromCache(cache, { service: serviceName, location })
     try {
-      await unregisterServiceFromRegistry(name, location)
+      await unregisterServiceFromRegistry(serviceName, location)
     } catch (err) {
       if (err.code !== 'ECONNREFUSED' && err.code !== 'ECONNRESET' && err.code !== 'ENOTFOUND') {
         throw err
@@ -257,8 +200,8 @@ export default async function createService(name, serviceFn, options = {}) {
   }
   // Late-bound: lifecycle invokes whatever `server.terminate` resolves to at
   // shutdown time, so wrappers that override `server.terminate` to add cleanup
-  // (e.g. clearInterval) are honored on SIGTERM/SIGINT — not just on explicit
-  // `server.terminate()` calls.
+  // (e.g. `clearInterval` in @yamf/services-cache) are honored on SIGTERM/SIGINT,
+  // not only on explicit `server.terminate()` calls.
   let unregisterFromLifecycle
   server.terminate = async () => {
     unregisterFromLifecycle?.()
@@ -274,75 +217,55 @@ export default async function createService(name, serviceFn, options = {}) {
 }
 
 /**
- * Create a pure service (no HTTP server)
- * Pure services are only accessible via direct function calls from the same node process
- * 
- * @param {string} name - Service name
- * @param {Function} boundServiceFn - Service function bound to context
- * @param {Object} cache - Service cache
- * @param {Object} context - Service context
- * @param {Object} config - Service configuration
- * @returns {Promise<Object>} Minimal service object with expected interface
+ * Create a pure service (no HTTP server). Only callable in-process from the same node.
  */
-async function createPureService(name, boundServiceFn, cache, context, config) {
-  if (hasLocalService(name)) {
-    const existingAccess = getLocalServiceAccess(name)
+async function createPureService (serviceName, boundServiceFn, cache, context, config) {
+  if (hasLocalService(serviceName)) {
+    const existingAccess = getLocalServiceAccess(serviceName)
     throw new Error(
-      `Cannot create pure service "${name}". ` +
+      `Cannot create pure service "${serviceName}". ` +
       `A ${existingAccess} service with this name already exists on this node.`
     )
   }
 
-  registerLocalService(name, boundServiceFn, 'pure')
-  
-  // Notify registry for observability (registry tracks pure services for awareness)
+  registerLocalService(serviceName, boundServiceFn, 'pure')
+
+  // Notify registry for observability — pure services still work locally if this fails.
   try {
-    const registryData = await notifyRegistryOfPureService(name, config)
+    const registryData = await notifyRegistryOfPureService(serviceName, config)
     if (registryData) {
       updateCache(cache, registryData)
       updateContext(context, cache)
     }
   } catch (err) {
-    // Don't fail if registry notification fails - pure services work locally
-    logger.warn(`Failed to notify registry of pure service "${name}":`, err.message)
+    logger.warn(`Failed to notify registry of pure service "${serviceName}":`, err.message)
   }
 
-  logger.info(`Pure service "${name}" registered (no HTTP server)`)
+  logger.info(`Pure service "${serviceName}" registered (no HTTP server)`)
 
   let overrideHandler = null
-  let originalFn = boundServiceFn
+  const originalFn = boundServiceFn
 
-  // Create a wrapper function that supports .before()
-  const wrappedFn = async function pureServiceWrapper(payload) {
-    if (overrideHandler) {
-      return await overrideHandler(payload)
-    }
+  const wrappedFn = async function pureServiceWrapper (payload) {
+    if (overrideHandler) return await overrideHandler(payload)
     return await originalFn(payload)
   }
 
-  // Return minimal service object with expected interface
-  const pureService = {
-    name,
-    service: name,
-    location: null, // No location for pure services
+  return {
+    name: serviceName,
+    service: serviceName,
+    location: null,
     cache,
     context,
     accessControl: 'pure',
-    
-    // Direct function call
+
     call: wrappedFn,
-    
-    // Handler for compatibility
     handler: wrappedFn,
 
-    /**
-     * Add a preprocessing function that runs before the main service handler
-     * For pure services, this works without request/response objects
-     */
-    before: function (overrideFn) {
-      overrideHandler = async function preprocess(payload) {
+    before (overrideFn) {
+      overrideHandler = async function preprocess (payload) {
         logger.debug('calling before override (pure service)', payload)
-        let processedPayload = await overrideFn(payload, null, null)
+        const processedPayload = await overrideFn(payload, null, null)
         if (processedPayload === undefined || processedPayload instanceof Next) {
           return processedPayload
         }
@@ -351,44 +274,36 @@ async function createPureService(name, boundServiceFn, cache, context, config) {
       }
     },
 
-    /**
-     * Terminate the pure service
-     */
-    terminate: async () => {
-      unregisterLocalService(name)
-      removeFromCache(cache, { service: name, location: null })
-      logger.info(`Pure service "${name}" terminated`)
+    async terminate () {
+      unregisterLocalService(serviceName)
+      removeFromCache(cache, { service: serviceName, location: null })
+      logger.info(`Pure service "${serviceName}" terminated`)
     }
   }
-
-  return pureService
 }
 
 /**
- * Create multiple services concurrently
- * Optimized to share cache state among all services for better performance
- * 
- * Benefits:
- * - All services share the same cache, updated when any service registers
- * - Validates all services upfront before creating any
- * - More efficient than individual createService calls
- * 
- * @param {...Function} fns - Named service functions
- * @returns {Promise<Array<Object>>} Array of server instances
- * 
+ * Create multiple services concurrently with a shared cache.
+ *
+ * All arguments must be **named** functions (the function name becomes the service name).
+ * An optional final argument is a shared options object applied to every service. Validates
+ * all functions upfront before creating any (no half-started batches).
+ *
+ * For an explicit name + handler shape, call {@link createService} directly per service.
+ *
+ * @param {...Function} fns - Named service functions, optionally followed by an options object.
+ * @returns {Promise<Array<Object>>} Array of server instances.
+ *
  * @example
- * const [server1, server2] = await createServices(
- *   async function userService(payload) { ... },
- *   async function authService(payload) { ... }
+ * const [users, auth] = await createServices(
+ *   async function userService (payload) { return { …  } },
+ *   async function authService (payload) { return { …  } }
  * )
  */
-export function createServices(...fns) {
-  fns.unshift(fns.pop()) // rearrange for spread
-  let [options, ...serviceFns] = fns
-  if (typeof options === 'function') {
-    serviceFns.push(options) // just another service
-    options = {}
+export function createServices (...fns) {
+  let options = {}
+  if (fns.length > 0 && typeof fns[fns.length - 1] !== 'function') {
+    options = fns.pop() || {}
   }
-
-  return createServiceBatch(serviceFns, createService, options)
+  return createServiceBatch(fns, createService, options)
 }

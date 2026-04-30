@@ -49,13 +49,13 @@ Run examples from their README (commands, env vars, ports).
 
 | Tier | Location | Purpose |
 |------|-----------|---------|
-| **Per-package smoke tests** | `packages/*/**/*.example.js` | Runnable demos next to the owning package; executed via `yamf test --as-test '*.example.js' -d <pkg>` (see root `test:integration`). Use `terminateAfter(() => registryServer(), …)` or `withInlineRegistry` / `pickListenPort` from `@yamf/test` when you need a registry without fixed-port collisions. |
+| **Per-package smoke examples** | `packages/*/**/*.example.js` | Runnable scripts next to the owning package; executed via `yamf test --as-test -f "*.example.js" -d <pkg>` (see root `test:integration`). |
 | **Cross-package integrations** | `packages/core/examples/` | Docker, k8s, polyglot, multi-service demos (reference deployments). |
 | **Public templates** | `examples/` (repo root) | Copy-paste starters (e.g. `minimal-hmr`) promoted from core when they should be primary onboarding. |
 
-Convention: export `export const name = '…'` and `export default async function run () { … }`; optional `setup` / `teardown`.
+**Examples are scripts, not test modules.** Top-level `await`; do not export `default async function run` / `name` / `mute` / `solo`; do not branch on `process.env.YAMF_AS_TEST`; do not call `terminate()` in‑file. The orchestrator owns lifecycle (free port → spawn → SIGTERM → graceful exit). Read `YAMF_REGISTRY_URL` from env with a documented default so the same file runs in playground mode (`node example.js`) and under `yamf test --as-test`.
 
-Prefer **automated** coverage: integration tests in the owning package or root `scripts/run-example-tests.mjs` / CI.
+Prefer **automated** coverage: integration tests in the owning package, plus `pnpm run test:integration` (which runs `yamf test --as-test -f "*.example.js"` over `packages/` and `examples/`).
 
 ### Promoting examples
 
@@ -81,7 +81,7 @@ New operational verbs should use this pattern (or a dedicated service package) i
 ## TODOs in runtime code
 
 - Do not leave unexplained `TODO` / `FIXME` in paths that ship to production users without a tracked decision.
-- Either **resolve** the item, **open a doc entry** in [docs/V1-READINESS.md](docs/V1-READINESS.md) or [docs/ROADMAP.md](docs/ROADMAP.md), or replace with a short comment that states the current contract (no dangling “fix me”).
+- Either **resolve** the item, **open a doc entry** in [docs/V1-HARDENING.md](docs/V1-HARDENING.md) or [docs/ROADMAP.md](docs/ROADMAP.md), or replace with a short comment that states the current contract (no dangling “fix me”).
 
 ## Releases and changelog
 
@@ -95,4 +95,4 @@ Contributions are accepted under the **MIT** license. The [LICENSE](LICENSE) fil
 ## Getting help
 
 - Architecture and testing: [LLM_ONBOARDING.md](LLM_ONBOARDING.md), [docs/TESTING.md](docs/TESTING.md), [docs/ROADMAP.md](docs/ROADMAP.md).
-- v1 scope and known gaps: [docs/V1-READINESS.md](docs/V1-READINESS.md).
+- v1 scope and known gaps: [docs/V1-HARDENING.md](docs/V1-HARDENING.md).

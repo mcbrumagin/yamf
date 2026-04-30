@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, isAbsolute, join, resolve as pathResolve, sep } from 'node:path'
 import {
   publishMessage,
-  PUBSUB_CHANNEL_YAMF_DEV_RELOAD,
+  CHANNELS,
   httpRequest,
   HEADERS,
   COMMANDS
@@ -107,7 +107,7 @@ yamf init --dev is started automatically so you can re-run yamf dev without re-i
 Default local registry URL is ${DEFAULT_LOCAL_REGISTRY_URL}.
 If YAMF_REGISTRY_URL is unset, yamf dev will first try the last local PM3 registry URL from state.
 
-After each successful build/deploy, publishes ${PUBSUB_CHANNEL_YAMF_DEV_RELOAD} so
+After each successful build/deploy, publishes ${CHANNELS.DEV_RELOAD} so
 @yamf/services-dev-hmr (dev-bootstrap) can push SSE reload to browsers. Dev-bootstrap is started
 with YAMF_DEV=on when yamf dev starts the stack, so the yamf-dev service registers.
 
@@ -228,7 +228,7 @@ export async function runDevCommand (args) {
             )
           }
           try {
-            await publishMessage(PUBSUB_CHANNEL_YAMF_DEV_RELOAD, {
+            await publishMessage(CHANNELS.DEV_RELOAD, {
               service: svc.name,
               hash: String(hash),
               at: Date.now(),

@@ -10,7 +10,7 @@ export async function testSqliteSelectOneE2E () {
       schema: 'CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY);'
     }),
     async () => {
-      const rows = await callService('sqlite-service', {
+      const rows = await callService('sqlite', {
         template: 'SELECT 1 as one',
         data: {}
       })

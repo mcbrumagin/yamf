@@ -15,5 +15,5 @@ await createConfigService({
   dataDir: join(process.cwd(), '.yamf-example-config-data')
 })
 
-const r = await callService('config-service', { command: 'list' })
+const r = await callService('config', { command: 'list' })
 console.log('config list:', r?.entries?.length ?? r)
