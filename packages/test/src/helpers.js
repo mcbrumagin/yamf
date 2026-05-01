@@ -1,4 +1,4 @@
-import { Logger, envConfig, terminateActiveRegistryServers } from '@yamf/core'
+import { Logger, envConfig, envTruthy, terminateActiveRegistryServers } from '@yamf/core'
 
 const logger = new Logger()
 
@@ -18,7 +18,7 @@ async function terminateAfterSingleFn (fn) {
     try {
       await terminateActiveRegistryServers()
     } catch (e) {
-      if (process.env.YAMF_TEST_VERBOSE_TEARDOWN === '1') {
+      if (process.env.YAMF_TEST_VERBOSE_TEARDOWN != null && envTruthy(process.env.YAMF_TEST_VERBOSE_TEARDOWN)) {
         console.warn(`[terminateAfter] registry shutdown failed: ${e.message}`)
       }
     }
@@ -33,12 +33,13 @@ async function terminateAfterSingleFn (fn) {
  * async tasks while building the argument list, before `terminateAfter` runs—so a later `createRoute()`
  * can hit the registry before it is listening. **Pass thunks (zero-arg functions) so work starts
  * in sequence** inside this helper, e.g. `terminateAfter(() => registryServer(), () => createService('x', fn), testFn)`.
- * You can still pass an already-started Promise (a thenable) for legacy tests.
+ * You can still pass an already-started Promise (a thenable) when you need parallel start
+ * outside this helper's sequential `for` loop.
  *
  * - Each server item is either: a **thenable** (awaited as-is), or a **function** (called with no
  *   args; the return is awaited, then optional array flattening applies as below).
  * - A single `Promise.all([...])` can be one argument: `() => Promise.all([...])` as a thunk, or
- *   pass the Promise if you need legacy parallel start.
+ *   pass the Promise if you need parallel start outside the sequential `for` loop.
  *
  * @param  {...(Promise<unknown> | (() => unknown) | unknown | unknown[])} serverFns
  *   Each item may be a thenable, a no-arg factory, a value, or (after await) a non-empty `Array` of
@@ -109,8 +110,9 @@ function setEnv(key, value) {
     delete process.env[key]
     envConfig.config.delete(key)
   } else {
-    process.env[key] = value
-    envConfig.set(key, value)
+    const str = String(value)
+    process.env[key] = str
+    envConfig.set(key, envConfig.parseValue(str))
   }
 }
 

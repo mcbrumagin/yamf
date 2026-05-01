@@ -85,9 +85,20 @@ export function createRegistryState() {
      * Per replica instance (Phase 2) — key `${service}\0${location}` → { sourceHash?, configVersion?, registeredAt }
      * @type {Map<string, { sourceHash?: string, configVersion?: string, registeredAt: number }>}
      */
-    replicaMetadata: new Map()
+    replicaMetadata: new Map(),
+
+    /**
+     * Bounded ring buffer of recent deploy-plan decisions (max {@link DEPLOY_HISTORY_MAX} entries).
+     * Each entry: `{ service, fromHash, toHash, decision, at, deployer }`.
+     * Populated by `registerDeployRouter`; exposed via the HEALTH command response.
+     * @type {Array<{ service: string, fromHash: string|null, toHash: string, decision: string, at: number, deployer: string|null }>}
+     */
+    deployHistory: []
   }
 }
+
+/** Maximum entries kept in {@link createRegistryState().deployHistory}. */
+export const DEPLOY_HISTORY_MAX = 20
 
 /**
  * Reset all state to initial values
@@ -116,6 +127,7 @@ export function resetState(state) {
     state.cacheCoalesceBySubscriber.clear()
   }
   state.replicaMetadata?.clear()
+  if (Array.isArray(state.deployHistory)) state.deployHistory.length = 0
 
   // Note: rateLimitConfig is NOT reset - it's configuration set at startup
   // Only reset the runtime rate limiter state
@@ -147,7 +159,7 @@ export function serializeServicesMap(servicesMap) {
 /**
  * Build `replicas` object for REGISTRY_PULL (per-instance source hash / config version).
  * @param {ReturnType<typeof createRegistryState>} state
- * @returns {Record<string, Array<{ location: string, sourceHash?: string, configVersion?: string, registeredAt: number }>>}
+ * @returns {Record<string, Array<{ location: string, sourceHash?: string, configVersion?: string, nodeId?: string, registeredAt: number }>>}
  */
 export function serializeReplicaMetadata(state) {
   const out = {}

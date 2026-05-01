@@ -16,8 +16,8 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "test": "yamf test -d .",
-    "test:all": "yamf test -d . --include-e2e",
+    "test": "node ./src/cli.js test -d .",
+    "test:all": "node ./src/cli.js test -d . --include-e2e",
     "perf:baseline0": "node ./perf/measure.mjs --baseline0",
     "perf:measure": "node ./perf/measure.mjs",
     "perf:phase1": "node ./perf/measure.mjs --phase1"

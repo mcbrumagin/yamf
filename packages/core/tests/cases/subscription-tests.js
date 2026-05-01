@@ -110,6 +110,7 @@ export async function testMultipleChannelSubscriptions() {
     const channelAMessages = []
     const channelBMessages = []
       
+    // throw new Error('test')
     await createSubscriptionService('multi-channel-sub', {
       'channel-a': async (message) => {
         channelAMessages.push(message)

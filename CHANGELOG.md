@@ -9,7 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Slice 9 (v1 hardening):** `auth-flow-integration-tests.js` — authenticate → verifyAccess → logout with full sessions; `sqlite-smoke-integration-tests.js`; `xss-security-integration-tests.js` (demoted from misnamed e2e).
+- **CLI §C coverage:** `cli-commands-coverage-tests.js`, `as-test-runner-tests.js`; expanded `deploy-driver-tests.js` and `cli-command-validation-tests.js` for `logs` / `restart` / `list`, `as-test-runner`, `planAndApply` edges, and `yamf test` guard rails.
+- **CLI §C + Slice 11 additions:** `testNodesHelp` / `testNodesMissingRegistryUrl` / `testListLiveRegistryNoUrl` added to `cli-commands-coverage-tests.js`; new `pm3-unit-tests.js` for PM3 internals (pollDefaults, broadcast stop, sigterm poll ms, pruneDeadProcesses with temp state).
+- **Deploy observability ring buffer:** `registry.deployHistory` (max 20 entries) populated by `registerDeployRouter` on each plan decision; exposed as `deployEvents` in the `HEALTH` response. `yamf status --health` prints a "recent deploys" table.
+- **`yamf status --versions --since <iso>`:** filters replica output to entries registered on or after the given ISO 8601 timestamp.
+
 ### Changed
+
+- **Slice 10 (v1 hardening):** `HttpError` import in registry/gateway `http-route-handler.js`; new core tests for `route-registry`, `bundle-store`, `http-route-handler`; shared `validateSchema` null guard test; access-control e2e uses ephemeral registry/gateway ports when defaults are taken; CLI high-impact tests (see Added).
+- **Slice 11 (v1 hardening, partial):** `notifyRegistryOfPureService` now never throws (`getRegistryConfig()` moved inside the try block; returns `null` when no `YAMF_REGISTRY_URL`). Redundant outer `try/catch` removed from `createPureService` and `createPureSubscriptionService`. `undefined` sentinel dropped from `pureServiceWrapper.before` — callers must return `Next` explicitly to skip.
+- **CLI:** `cli.js` entry detection uses `realpathSync` so global installs work when `process.argv[1]` is a symlink (e.g. `…/bin/yamf` → `…/cli.js`); the previous `resolve()`-only check skipped `main()` and exited with no output.
+- **CLI manifest (v1 hardening slice 8):** `yamf.config.js` service field `replicaKey` → `registeredServiceName` (in-bundle registered name when it differs from manifest `name`). `loadYamfConfig` migrates legacy `replicaKey` on read. `planAndApply` / rolling resolution use the new field.
+- **Environment (v1 hardening slice 6):** `YAMF_RETRY_DELAY` → `YAMF_RETRY_DELAY_MS` (legacy name still read as fallback). Framework booleans prefer `true`/`false`; `env-config` parses `on`/`off`/`yes`/`no` where unambiguous. Renamed: `MUTE_LOG_GROUP_OUTPUT` → `YAMF_LOG_QUIET_GROUPS`, `MUTE_SUCCESS_CASES` → `YAMF_TEST_QUIET_PASSES`, `DISABLE_ALL_CUSTOM_LOGS` → `YAMF_LOG_DISABLE_CUSTOM`. Logger and `@yamf/test` runner now read **`YAMF_*` only** for those three (pre‑v1 unprefixed names removed). Canonical Postgres test URL: `YAMF_TEST_POSTGRES_URL` (falls back to `YAMF_TEST_PSQL_URL`, `TEST_PSQL_URL`). Replica metadata field `node` → `nodeId` in registry state / `REGISTRY_PULL` (clients may still send `node` during migration). `YAMF_AS_TEST` child env is now `true` instead of `1`.
+- **CLI (v1 hardening slice 7):** subcommand `Map` + `dispatchYamfCli`; `registry` / `gateway` namespaces; `auth` command removed; flag/help work per `docs/V1-HARDENING.md` Slice 7.
 
 ### Documentation
 

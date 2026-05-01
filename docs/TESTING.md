@@ -37,15 +37,17 @@ If the only goal is “registry on a different port,” prefer **no** extra `wit
 
 ## Server helpers
 
-- Use **`terminateAfter(() => registryServer(), …, testFn)`** (and the same for gateway/services) so teardown order stays correct; see `terminateAfter` in [`packages/test/README.md`](../packages/test/README.md#terminateafterservers-testfn).
+- **Registry + gateway + HTTP services:** keep **`terminateAfter(factory, …, testFn)`** so every server gets `terminate()` in the right order (see [`packages/test/README.md`](../packages/test/README.md#terminateafterservers-testfn)). Use **named `function` thunks** (not `() =>` arrows) for factories when practical.
+- **Registry-only (or services that only need an in-process registry):** you may use **`terminateAfter(async function … () { await registryServer(); … })`**; teardown is remote registry shutdown via `terminateActiveRegistryServers()`.
 - For registry options (`broadcastShutdownOnTerminate`, `rateLimit`, optional `port`), pass a **single** options object: `registryServer({ … })` (see `registry-server.js`).
+- If the default `YAMF_REGISTRY_URL` / `YAMF_GATEWAY_URL` ports from `.env.test` may already be in use (local daemon, parallel `-f` matches), wrap the case in **`withEnv` + `pickListenPort()`** and `envConfig.reloadFromProcessEnv()` — see `access-control.e2e-tests.js`.
 
 **CLI gotcha:** `yamf test -f route-tests` matches any **basename** that contains that substring, including `call-route-tests.js`, so you may run two files and get `EADDRINUSE` on the default registry port. Use a more specific `-f` / `-n` filter, or one process at a time.
 
 ## package placement
 
 - Core integration-style tests: `packages/core/tests/`.
-- **CLI (slow, `execSync`):** `packages/cli/src/tests/` — e.g. `cli-journey.js`, `cli-as-test-tests.js` (`--as-test` glob behavior). Filter: `yamf test -d packages/cli -f cli-as-test`.
+- **CLI (slow, `execSync`):** `packages/cli/src/tests/` — e.g. `cli-journey.js`, `cli-as-test-tests.js`, `cli-command-validation-tests.js` (includes `yamf test` parse guard rails), `cli-commands-coverage-tests.js` (direct `logs` / `restart` / `list` + stubbed `PM3`), `as-test-runner-tests.js` (`discoverAsTestFiles`, generate payload, timeout path). Filter: `yamf test -d packages/cli -f cli-as-test`.
 - **pm3-service (integration, `registryServer` + `createPm3Service`):** `packages/services/pm3/tests/pm3-integration-tests.js` — `pnpm --filter @yamf/services-pm3 test` or `yamf test -d packages/services/pm3 -f pm3-integration`. Broader gap backlog: [V1-HARDENING.md](./V1-HARDENING.md).
 - **deploy-router (placement + `registerDeployRouter`):** `packages/services/deploy-router/tests/` — `pnpm --filter @yamf/services-deploy-router test`.
 - **`yamf nodes` / `yamf health` (registry URL):** `packages/cli/src/tests/cli-registry-nodes-health-tests.js` — `yamf test -d . -f registry-nodes` from `packages/cli`.

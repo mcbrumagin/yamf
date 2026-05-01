@@ -5,13 +5,13 @@ import parseArgs from '../lib/parse-args.js'
 const logger = new Logger()
 
 const ARGS = {
-  help:    { flags: ['-h', '--help'] },
+  help: { flags: ['-h', '--help'] },
   verbose: { flags: ['-v', '--verbose'] }
 }
 
-function getDrainHelp() {
+function getDrainHelp () {
   return `
-yamf drain - Ask the tracked registry to enter drain mode
+yamf registry drain - Ask the tracked registry to enter drain mode
 
 Issues REGISTRY_DRAIN to $YAMF_REGISTRY_URL without killing the registry.
 A draining registry rejects new SERVICE_SETUP / SERVICE_REGISTER with 503
@@ -19,7 +19,7 @@ while continuing to serve SERVICE_CALL, SERVICE_LOOKUP, SERVICE_UNREGISTER,
 REGISTRY_PULL, and HEALTH. Use as a pre-deploy prep step or for inspection.
 
 Usage:
-  yamf drain [options]
+  yamf registry drain [options]
 
 Environment:
   YAMF_REGISTRY_URL     (required) registry endpoint to drain
@@ -31,7 +31,7 @@ Options:
 `
 }
 
-export async function runDrainCommand(args) {
+export async function runDrainCommand (args) {
   const options = parseArgs(args, ARGS)
 
   if (options.help) {

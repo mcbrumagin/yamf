@@ -34,7 +34,7 @@ export async function runNodesCommand(args) {
 
   const registryUrl = process.env.YAMF_REGISTRY_URL
   if (!registryUrl) {
-    console.error('YAMF_REGISTRY_URL is not set. Run "yamf init --dev" to start a local registry.')
+    console.error('YAMF_REGISTRY_URL is not set. Run "yamf dev" (or set YAMF_REGISTRY_URL) to use a local registry.')
     process.exit(1)
   }
 

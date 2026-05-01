@@ -6,9 +6,9 @@ import { pathToFileURL } from 'node:url'
  * @typedef {Object} YamfConfigService
  * @property {string} name
  * @property {string} entry
- * @property {string} [replicaKey] - a {@code createService} name in the entry (e.g. {@code 'cache-service'}) so REGISTRY_PULL
- *   {@code replicas[replicaKey]} and {@code pm3.restartRolling} can find the process. Defaults to {@code name}
- *   (yamf service id must then match a registered service name; often false for monoliths).
+ * @property {string} [registeredServiceName] - Service name as registered in the bundle (`createService('…')`)
+ *   when it differs from manifest {@code name}. Drives REGISTRY_PULL {@code replicas[registeredServiceName]}
+ *   and local rolling restart resolution. Defaults to {@code name} at call sites when unset.
  * @property {number} [replicas]
  * @property {boolean} [internal]
  * @property {string[]} [env] - required env *names* (not values)
@@ -33,6 +33,30 @@ import { pathToFileURL } from 'node:url'
  */
 
 /**
+ * Strip legacy `replicaKey` and fold into `registeredServiceName` (Slice 8).
+ * @param {YamfConfig & { _path?: string }} c
+ * @returns {YamfConfig & { _path?: string }}
+ */
+function normalizeLoadedConfig (c) {
+  if (!c || typeof c !== 'object') return c
+  if (!Array.isArray(c.services) || c.services.length === 0) return { ...c }
+  const services = c.services.map((s) => {
+    if (!s || typeof s !== 'object') return s
+    const legacy = s.replicaKey
+    const next = { ...s }
+    delete next.replicaKey
+    const reg = s.registeredServiceName ?? legacy
+    if (reg != null && reg !== '') {
+      next.registeredServiceName = String(reg)
+    } else {
+      delete next.registeredServiceName
+    }
+    return next
+  })
+  return { ...c, services }
+}
+
+/**
  * @param {string} [cwd]
  * @returns {Promise<YamfConfig & { _path?: string } | null>}
  */
@@ -45,7 +69,7 @@ export async function loadYamfConfig (cwd = process.cwd()) {
     if (!c || typeof c !== 'object') {
       throw new Error(`${name} must export a default object`)
     }
-    return { root: '.', services: [], build: {}, ...c, _path: p }
+    return normalizeLoadedConfig({ root: '.', services: [], build: {}, ...c, _path: p })
   }
   return null
 }

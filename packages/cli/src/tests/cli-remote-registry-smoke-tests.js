@@ -2,6 +2,7 @@
  * CLI `--remote` paths: require `YAMF_REGISTRY_URL` (no live node; pm3-service wire not exercised).
  */
 import { assert, assertErr } from '@yamf/test'
+import { envTruthy } from '@yamf/core'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -9,14 +10,13 @@ import { dirname, join } from 'node:path'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const CLI_CWD = join(__dirname, '..')
-const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const DEBUG = envTruthy(process.env.YAMF_TEST_DEBUG)
 
 const BASE_ENV = {
   ...process.env,
   YAMF_REGISTRY_URL: '',
   YAMF_HOME: join(__dirname, '..', '.yamf-cli-remote-registry-smoke'),
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
-  // MUTE_LOG_GROUP_OUTPUT: 'true'
 }
 
 function runCli (cmd, env = BASE_ENV) {
@@ -59,6 +59,6 @@ export async function testDescribeRemoteRequiresRegistryUrl () {
 }
 
 export async function testListHelpMentionsRemotePm3Service () {
-  const out = runCli('list --help', { ...process.env, MUTE_LOG_GROUP_OUTPUT: 'true' })
-  await assert(out, (o) => o.includes('--remote') && o.includes('pm3-service'))
+  const out = runCli('list --help', { ...process.env, YAMF_LOG_QUIET_GROUPS: 'true' })
+  await assert(out, (o) => o.includes('--remote') && o.includes('pm3'))
 }

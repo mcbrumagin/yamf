@@ -25,7 +25,7 @@ function gitAt (dir) {
 
 const fixedArgs = {
   list: ['list'],
-  state: ['state'],
+  state: ['registry', 'state'],
   stopAll: ['stop', '--all']
 }
 
@@ -145,7 +145,7 @@ async function runSteps (steps, cwd) {
 function baseline0Steps () {
   const steps = [
     { label: 'list', args: ['list'] },
-    { label: 'state', args: ['state'] }
+    { label: 'state', args: ['registry', 'state'] }
   ]
   if (process.env.YAMF_PERF_STOP_TARGET) {
     steps.push({ label: 'oneStop', args: ['stop', process.env.YAMF_PERF_STOP_TARGET] })

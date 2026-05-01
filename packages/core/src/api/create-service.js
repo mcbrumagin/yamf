@@ -11,7 +11,7 @@
  */
 
 import Logger from '../utils/logger.js'
-import envConfig from '../shared/env-config.js'
+import envConfig, { envTruthy } from '../shared/env-config.js'
 
 import { createServiceState, updateCache, removeFromCache } from '../service/service-state.js'
 import { buildEnhancedContext, updateContext, bindServiceFunction } from '../service/service-context.js'
@@ -37,13 +37,12 @@ import {
 const logger = new Logger({ logGroup: 'yamf-api' })
 
 function isExtractServiceContract () {
-  const v = envConfig.get('YAMF_EXTRACT_SERVICE_CONTRACT')
-  return v === '1' || v === 1 || v === true
+  return envTruthy(envConfig.get('YAMF_EXTRACT_SERVICE_CONTRACT', false))
 }
 
 const DEFAULT_CONFIG = {
   tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
-  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 100),
+  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY_MS', envConfig.get('YAMF_RETRY_DELAY', 100)),
   muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false),
   /** Optional pre-created cache for batch operations. */
   sharedCache: null,
@@ -188,6 +187,7 @@ export default async function createService (serviceName, serviceFn, options = {
   const httpServerTerminate = server.terminate.bind(server)
   const runServiceShutdown = async () => {
     unregisterLocalService(serviceName)
+    await httpServerTerminate()
     removeFromCache(cache, { service: serviceName, location })
     try {
       await unregisterServiceFromRegistry(serviceName, location)
@@ -196,7 +196,6 @@ export default async function createService (serviceName, serviceFn, options = {
         throw err
       }
     }
-    await httpServerTerminate()
   }
   // Late-bound: lifecycle invokes whatever `server.terminate` resolves to at
   // shutdown time, so wrappers that override `server.terminate` to add cleanup
@@ -231,14 +230,11 @@ async function createPureService (serviceName, boundServiceFn, cache, context, c
   registerLocalService(serviceName, boundServiceFn, 'pure')
 
   // Notify registry for observability — pure services still work locally if this fails.
-  try {
-    const registryData = await notifyRegistryOfPureService(serviceName, config)
-    if (registryData) {
-      updateCache(cache, registryData)
-      updateContext(context, cache)
-    }
-  } catch (err) {
-    logger.warn(`Failed to notify registry of pure service "${serviceName}":`, err.message)
+  // notifyRegistryOfPureService never throws; returns null when no registry URL is set.
+  const registryData = await notifyRegistryOfPureService(serviceName, config)
+  if (registryData) {
+    updateCache(cache, registryData)
+    updateContext(context, cache)
   }
 
   logger.info(`Pure service "${serviceName}" registered (no HTTP server)`)
@@ -266,7 +262,7 @@ async function createPureService (serviceName, boundServiceFn, cache, context, c
       overrideHandler = async function preprocess (payload) {
         logger.debug('calling before override (pure service)', payload)
         const processedPayload = await overrideFn(payload, null, null)
-        if (processedPayload === undefined || processedPayload instanceof Next) {
+        if (processedPayload instanceof Next) {
           return processedPayload
         }
         logger.debug('calling original handler (pure service)', processedPayload)

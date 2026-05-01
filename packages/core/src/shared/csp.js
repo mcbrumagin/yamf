@@ -1,10 +1,12 @@
 /**
  * Content-Security-Policy and default security headers (slice A)
  */
-import envConfig from './env-config.js'
+import envConfig, { envTruthy } from './env-config.js'
 
 function cspMode() {
   const m = envConfig.get('YAMF_CSP_MODE', null)
+  // parseValue maps string "off" to boolean false — normalize back to mode token
+  if (m === false) return 'off'
   if (m === 'off' || m === 'strict' || m === 'relaxed') return m
   const env = String(envConfig.get('ENVIRONMENT', 'dev')).toLowerCase()
   if (env.includes('prod')) return 'strict'
@@ -87,7 +89,7 @@ export function getDefaultResponseSecurityHeaders(opts = {}) {
     'referrer-policy': 'strict-origin-when-cross-origin',
     'permissions-policy': 'interest-cohort=(), browsing-topics=()'
   }
-  if (String(envConfig.get('YAMF_HSTS', 'off')) === 'on') {
+  if (envTruthy(envConfig.get('YAMF_HSTS', false))) {
     h['strict-transport-security'] = 'max-age=31536000'
   }
   if (opts.csp === false) {
@@ -98,7 +100,7 @@ export function getDefaultResponseSecurityHeaders(opts = {}) {
     return h
   }
   const relaxed =
-    String(envConfig.get('YAMF_CSP_RELAXED', 'off')) === 'on' || mode === 'relaxed'
+    envTruthy(envConfig.get('YAMF_CSP_RELAXED', false)) || mode === 'relaxed'
   // Relaxed mode: unsafe-inline for script only (per roadmap); styles stay strict — override via opts.csp.styleSrc if needed for dev.
   const script = relaxed
     ? ["'self'", "'unsafe-inline'"]

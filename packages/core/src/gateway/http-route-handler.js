@@ -7,6 +7,7 @@ import { Buffer } from 'node:buffer'
 import { findControllerRoute } from './route-registry.js'
 import { streamProxyServiceCall } from './service-registry.js'
 import { detectContentType, Next } from '../http-primitives/index.js'
+import HttpError from '../http-primitives/http-error.js'
 import envConfig from '../shared/env-config.js'
 
 import Logger from '../utils/logger.js'

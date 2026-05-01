@@ -1,5 +1,5 @@
 /**
- * Rolling CLI command tests — `yamf restart --rolling`, `yamf drain`, `yamf status --health`.
+ * Rolling CLI command tests — `yamf restart --rolling`, `yamf registry drain`, `yamf status --health`.
  * Uses the same journey pattern as cli-journey.js (isolated YAMF_HOME + registry port).
  */
 
@@ -11,11 +11,14 @@ import { existsSync, readFileSync, rmSync, mkdtempSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 
+import { envTruthy } from '@yamf/core'
+import { runBootstrapWithEnv } from '../lib/bootstrap-for-tests.js'
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const EXAMPLES = join(__dirname, '..', 'example')
 const CLI_CWD = join(__dirname, '..')
-const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const DEBUG = envTruthy(process.env.YAMF_TEST_DEBUG)
 
 // Tighter than production defaults: this suite is integration-heavy; keeps exec timeouts sane.
 // Production remains unchanged; override here for faster feedback when tuning PM3/registry polling.
@@ -48,8 +51,13 @@ async function resetEnv () {
     YAMF_PM3_POLL_STABLE_CHECKS: '2',
     YAMF_PM3_BROADCAST_SETTLE_MS: '400',
     YAMF_PM3_REGISTRY_CHECK_ATTEMPTS: '6',
-    YAMF_PM3_REGISTRY_CHECK_MS: '50'
+    YAMF_PM3_REGISTRY_CHECK_MS: '50',
+    // Force keys onto `ENV` so runBootstrapWithEnv strips them from process.env (delete alone
+    // omits the key so the shell value would still be inherited by PM3-spawned dev-bootstrap).
+    YAMF_REGISTRY_TOKEN: undefined,
+    YAMF_DEPLOY_TOKEN: undefined
   }
+  await runBootstrapWithEnv(ENV)
 }
 
 function cli(cmd, { timeout = 20000 } = {}) {
@@ -103,7 +111,7 @@ export async function testRestartHelpMentionsRolling() {
 export async function testDrainHelpShown() {
   await resetEnv()
   try {
-    const out = cli('drain --help')
+    const out = cli('registry drain --help')
     assert(out,
       o => o.includes('REGISTRY_DRAIN') || o.includes('drain'),
       o => o.includes('YAMF_REGISTRY_URL')
@@ -141,7 +149,7 @@ export async function testDrainRejectsMissingRegistryUrl() {
     await assertErr(
       () => {
         // Clear registry URL for this invocation only
-        execSync(`node ${CLI} drain`, {
+        execSync(`node ${CLI} registry drain`, {
           env: { ...ENV, YAMF_REGISTRY_URL: '' },
           cwd: CLI_CWD,
           encoding: 'utf8',
@@ -161,11 +169,11 @@ export async function testDrainRejectsMissingRegistryUrl() {
 export async function testDrainAgainstLiveRegistry() {
   await resetEnv()
   try {
-    cli('init --dev')
-    const drainOut = cli('drain')
+    const drainOut = cli('registry drain')
     assert(drainOut, o => o.includes('Drain requested'))
 
     const statusOut = cli('status --health')
+    console.log('statusOut', statusOut)
     assert(statusOut,
       o => o.includes('draining:'),
       o => o.includes('YES')
@@ -178,7 +186,6 @@ export async function testDrainAgainstLiveRegistry() {
 export async function testStatusHealthShowsServiceCounts() {
   await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const out = cli('status --health')
@@ -207,7 +214,6 @@ function readPids(targetFragment = 'load-balanced.js') {
 export async function testRestartRollingReplacesLoadBalancedInstance() {
   await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const pidsBefore = readPids()
@@ -240,7 +246,6 @@ export async function testRestartRollingReplacesLoadBalancedInstance() {
 export async function testRestartRollingReplacesMultipleInstances() {
   await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
     cli(`start ${join(EXAMPLES, 'load-balanced.js')} --env YAMF_SERVICE_URL=http://127.0.0.1`)
 
@@ -263,7 +268,6 @@ export async function testRestartRollingReplacesMultipleInstances() {
 export async function testRestartRollingRefusesRegistry() {
   await resetEnv()
   try {
-    cli('init --dev')
     await assertErr(
       () => cli('restart --rolling dev-bootstrap'),
       err => {

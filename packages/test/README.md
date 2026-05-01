@@ -262,6 +262,21 @@ async function testServices() {
 }
 ```
 
+**Single-callback form** — when the test only needs a registry (and services register against it), you can pass one async function; teardown uses `terminateActiveRegistryServers()` from `@yamf/core` (no need to return the registry instance):
+
+```javascript
+export async function myTestCaseFunction() {
+  await terminateAfter(async () => {
+    await registryServer()
+    await createService('my-service', (p) => ({ ok: true }))
+    const result = await callService('my-service', {})
+    assert(result.ok, (v) => v === true)
+  })
+}
+```
+
+Prefer **named `async function …`** for that body (and for multi-arg factory thunks) so stack traces read clearly; avoid `() =>` wrappers for routine registry/service setup.
+
 ### `withInlineRegistry(...factories, testFn)`
 
 Shorthand for `terminateAfter(() => registryServer(), ...)`.
@@ -412,7 +427,7 @@ testFailingAssertion failed with error: AssertionFailure: ...
 ℹ duration_ms 42
 ```
 
-Each `✔` / `✘` line includes wall time for that test. For a **slowest-first table** (e.g. profiling), run `yamf test --timings` or set `YAMF_TEST_TIMINGS=1`, then use `-f` / `-n` to focus one file or test: `yamf test -d packages/cli -f cli-rolling --timings -n testRestart`.
+Each `✔` / `✘` line includes wall time for that test. For a **slowest-first table** (e.g. profiling), run `yamf test --timings` or set `YAMF_TEST_TIMINGS=true`, then use `-f` / `-n` to focus one file or test: `yamf test -d packages/cli -f cli-rolling --timings -n testRestart`.
 
 ## API Reference
 

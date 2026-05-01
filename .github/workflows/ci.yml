@@ -72,7 +72,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      YAMF_TEST_PSQL_URL: postgres://yamf:changeme@localhost:5432/yamf
+      YAMF_TEST_POSTGRES_URL: postgres://yamf:changeme@localhost:5432/yamf
     steps:
       - uses: actions/checkout@v4
 

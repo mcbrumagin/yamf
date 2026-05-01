@@ -24,7 +24,7 @@ export * from './shared/yamf-headers.js'
 export { lifecycle } from './shared/process-lifecycle.js'
 
 // Shared utilities (also exported from main index for convenience)
-export { envConfig } from './shared/index.js'
+export { envConfig, envTruthy } from './shared/index.js'
 export { buildCsp, getDefaultResponseSecurityHeaders } from './shared/csp.js'
 
 export * from './shared/crypto.js'

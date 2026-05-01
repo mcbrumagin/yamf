@@ -1,5 +1,5 @@
 import httpRequest from '../http-primitives/http-request.js'
-import { buildPublishHeaders } from '../shared/yamf-headers.js'
+import { buildPublishHeaders, HEADERS } from '../shared/yamf-headers.js'
 import envConfig from '../shared/env-config.js'
 import HttpError from '../http-primitives/http-error.js'
 import Logger from '../utils/logger.js'
@@ -14,17 +14,22 @@ const logger = new Logger({ logGroup: 'yamf-api' })
  * @param {any} message - The message payload to send
  * @returns {Promise<{results: Array, errors: Array}>} Results and errors from all subscribers
  */
-export default async function publishMessage(channel, message) {
+export default async function publishMessage (channel, message, { authToken = null } = {}) {
   let registryHost = process.env.YAMF_REGISTRY_URL
   if (!registryHost) throw new Error('Please define "YAMF_REGISTRY_URL" env variable')
-  
+
   const registryToken = envConfig.get('YAMF_REGISTRY_TOKEN')
-    
-  let result = await httpRequest(registryHost, {
+
+  const headers = {
+    ...buildPublishHeaders(channel, registryToken),
+    ...(authToken && { [HEADERS.AUTH_TOKEN]: authToken })
+  }
+
+  const result = await httpRequest(registryHost, {
     body: message,
-    headers: buildPublishHeaders(channel, registryToken)
+    headers
   })
-  
+
   return result
 }
 

@@ -24,7 +24,7 @@
  */
 
 import crypto from 'crypto'
-import { Logger } from '@yamf/core'
+import { Logger, envConfig, envTruthy } from '@yamf/core'
 
 const logger = new Logger({ includeLogLineNumbers: false })
 
@@ -213,7 +213,10 @@ function reportTestResults ({
   logger.info('\n')
   logger.info(`----- Testing Complete -----`)
 
-  if (testSuccess > 0 && process.env.MUTE_SUCCESS_CASES !== 'true') {
+  if (
+    testSuccess > 0 &&
+    !envTruthy(envConfig.get('YAMF_TEST_QUIET_PASSES', false))
+  ) {
     logger.info(logger.writeColor('green', '✔ ✔ ✔  Success Report  ✔ ✔ ✔'))
     logger.info(logger.writeColor('green', '\n  ' + successCases.join('\n  ')))
     logger.info('')
@@ -238,7 +241,7 @@ function reportTestResults ({
   if (isSoloRun) logger.warn(logger.writeColor('magenta', 'This was a solo test run, remove "solo" flags for a full test run'))
   if (isMuteRun) logger.warn(logger.writeColor('magenta', 'This was a partially muted test run, remove "mute" flags for a full test run'))
 
-  if (process.env.YAMF_TEST_TIMINGS === '1' && testTimings && testTimings.length > 0) {
+  if (envTruthy(envConfig.get('YAMF_TEST_TIMINGS', false)) && testTimings && testTimings.length > 0) {
     printTimingTable(testTimings)
   }
 }
@@ -295,7 +298,7 @@ export default async function runTests(testSuitesOrFns) {
   }
 }
 
-// Export for backwards compatibility
+// Named export mirrors the default export (`runTests`).
 export { runTests }
 
 // ============================================================================

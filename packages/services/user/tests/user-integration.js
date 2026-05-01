@@ -2,7 +2,7 @@
  * User Service Integration Tests
  * 
  * These tests require a running PostgreSQL database.
- * Configure via PGDATABASE, PGUSER, PGPASSWORD environment variables.
+ * Configure via PGDATABASE, PGUSER, PGPASSWORD or YAMF_TEST_POSTGRES_URL (legacy: YAMF_TEST_PSQL_URL, TEST_PSQL_URL).
  * 
  * Run: PGDATABASE=yamf_test PGUSER=yamf PGPASSWORD=changeme node tests/run-integration.js
  */
@@ -33,7 +33,9 @@ import createUserService from '../service.js'
 // Test Configuration
 // =============================================================================
 
-const TEST_PSQL_CONFIG = process.env.TEST_PSQL_URL || 
+const TEST_PSQL_CONFIG = process.env.YAMF_TEST_POSTGRES_URL ||
+  process.env.YAMF_TEST_PSQL_URL ||
+  process.env.TEST_PSQL_URL ||
   `postgres://${process.env.PGUSER || 'yamf'}:${process.env.PGPASSWORD || 'changeme'}@localhost/${process.env.PGDATABASE || 'yamf'}`
 
 // Unique test user prefix to avoid conflicts

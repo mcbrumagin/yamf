@@ -1,4 +1,4 @@
-import { Logger, httpRequest, HEADERS, COMMANDS } from '@yamf/core'
+import { Logger, httpRequest, HEADERS, COMMANDS, envConfig, envTruthy } from '@yamf/core'
 import { PM3 } from '../lib/pm3.js'
 import { formatPm3List, formatRegistryPullSection } from '../lib/pm3-format.js'
 import parseArgs from '../lib/parse-args.js'
@@ -36,14 +36,14 @@ Options:
                         registered service names and locations (source of truth; not PM3’s cached
                         per-process list, which is only updated when a process starts and can be
                         empty if the poll missed or a worker died — use -a to see stopped PIDs).
-                        Same if YAMF_LIST_LIVE=1 (no flag).
-  -r, --remote          List processes on the node reached via YAMF_REGISTRY_URL → pm3-service
+                        Same if YAMF_LIST_LIVE=true (no flag).
+  -r, --remote          List processes on the node reached via YAMF_REGISTRY_URL → pm3
   -h, --help            Show this help
 
 For remote, filepaths in the "Filepath" column are the paths to pass to yamf stop|restart|logs|delete|describe --remote.
-If multiple pm3-service instances are registered, each request may hit a different node. Set
+If multiple pm3 instances are registered, each request may hit a different node. Set
   YAMF_PM3_SERVICE_LOCATION
-to a pm3-service base URL (from REGISTRY_PULL or your ops notes) to send all --remote pm3 commands to that
+to a pm3 base URL (from REGISTRY_PULL or your ops notes) to send all --remote pm3 commands to that
 instance via the yamf-service-prefer-location header on SERVICE_CALL.
 `
 }
@@ -94,7 +94,7 @@ export async function runListCommand(args) {
   }
 
   const wantLiveRegistry =
-    options.liveRegistry || (!options.remote && process.env.YAMF_LIST_LIVE === '1')
+    options.liveRegistry || (!options.remote && envTruthy(envConfig.get('YAMF_LIST_LIVE', false)))
 
   if (wantLiveRegistry) {
     const u = process.env.YAMF_REGISTRY_URL

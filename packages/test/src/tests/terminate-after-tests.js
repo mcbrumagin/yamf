@@ -39,7 +39,7 @@ export async function testTerminateAfterSingleFnPropagatesBodyError () {
 
 export async function testTerminateAfterVerboseTeardownEnvSafe () {
   const prev = process.env.YAMF_TEST_VERBOSE_TEARDOWN
-  process.env.YAMF_TEST_VERBOSE_TEARDOWN = '1'
+  process.env.YAMF_TEST_VERBOSE_TEARDOWN = 'true'
   try {
     await terminateAfter(async () => {})
   } finally {

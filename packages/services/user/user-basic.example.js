@@ -2,9 +2,12 @@ import { registryServer, callService } from '@yamf/core'
 import createPostgresService from '@yamf/services-postgres'
 import createUserService from './service.js'
 
-const psql = process.env.YAMF_TEST_PSQL_URL
+const psql =
+  process.env.YAMF_TEST_POSTGRES_URL ||
+  process.env.YAMF_TEST_PSQL_URL ||
+  process.env.TEST_PSQL_URL
 if (!psql) {
-  console.warn('[user-basic.example] Set YAMF_TEST_PSQL_URL for full demo; exiting 0 for local smoke.')
+  console.warn('[user-basic.example] Set YAMF_TEST_POSTGRES_URL for full demo; exiting 0 for local smoke.')
   process.exit(0)
 }
 

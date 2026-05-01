@@ -39,9 +39,9 @@ export async function testPickNodeChoosesLeastLoadedFromReplicaMetadata () {
     listHealthyLocations: () => ['http://a:1', 'http://b:2'],
     _state: {
       replicaMetadata: new Map([
-        ['r1', { node: 'http://a:1' }],
-        ['r2', { node: 'http://a:1' }],
-        ['r3', { node: 'http://b:2' }]
+        ['r1', { nodeId: 'http://a:1' }],
+        ['r2', { nodeId: 'http://a:1' }],
+        ['r3', { nodeId: 'http://b:2' }]
       ])
     }
   }

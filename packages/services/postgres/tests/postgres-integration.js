@@ -2,7 +2,7 @@
  * PostgreSQL Service Integration Tests
  *
  * These tests require a running PostgreSQL database.
- * Configure via PGDATABASE, PGUSER, PGPASSWORD or TEST_PSQL_URL.
+ * Configure via PGDATABASE, PGUSER, PGPASSWORD or YAMF_TEST_POSTGRES_URL (legacy: YAMF_TEST_PSQL_URL, TEST_PSQL_URL).
  *
  * Run: yamf test -d packages/services/postgres
  * Or:  cd packages/services/postgres && pnpm test
@@ -21,7 +21,9 @@ import {
 
 import createPostgresService from '../service.js'
 
-const TEST_PSQL_CONFIG = process.env.TEST_PSQL_URL ||
+const TEST_PSQL_CONFIG = process.env.YAMF_TEST_POSTGRES_URL ||
+  process.env.YAMF_TEST_PSQL_URL ||
+  process.env.TEST_PSQL_URL ||
   `postgres://${process.env.PGUSER || 'yamf'}:${process.env.PGPASSWORD || 'changeme'}@localhost/${process.env.PGDATABASE || 'yamf'}`
 
 export async function testPostgres_BasicQuery() {

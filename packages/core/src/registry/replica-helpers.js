@@ -1,7 +1,7 @@
 /**
  * @param {*} state
  * @param {string} name
- * @returns {Array<{ location: string, sourceHash?: string, configVersion?: string, node?: string, registeredAt?: number }>}
+ * @returns {Array<{ location: string, sourceHash?: string, configVersion?: string, nodeId?: string, node?: string, registeredAt?: number }>}
  */
 export function getReplicasFor (state, name) {
   const locs = state.services.get(name)

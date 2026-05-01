@@ -11,7 +11,7 @@
  */
 
 import { assert, sleep } from '@yamf/test'
-import { httpRequest, HEADERS, COMMANDS } from '@yamf/core'
+import { httpRequest, HEADERS, COMMANDS, envTruthy } from '@yamf/core'
 import { execSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -19,12 +19,13 @@ import { createServer } from 'node:net'
 import { writeFileSync, existsSync, rmSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
+import { runBootstrapWithEnv } from '../lib/bootstrap-for-tests.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const HARNESS = join(__dirname, 'fixtures', 'build-deploy-harness')
 const CLI_CWD = join(__dirname, '..')
-const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const DEBUG = envTruthy(process.env.YAMF_TEST_DEBUG)
 const require = createRequire(fileURLToPath(new URL('../../package.json', import.meta.url)))
 const CORE_HREF = pathToFileURL(require.resolve('@yamf/core')).href
 
@@ -53,11 +54,11 @@ function makeTestEnv (registryBaseUrl) {
     YAMF_REGISTRY_URL: registryBaseUrl,
     YAMF_HOME: yamfHome,
     LOG_LEVEL: process.env.LOG_LEVEL || 'info',
-    // MUTE_LOG_GROUP_OUTPUT: 'true',
-    MUTE_SUCCESS_CASES: 'true'
+    YAMF_TEST_QUIET_PASSES: 'true',
+    // Strip inherited secrets for both child CLIs and runBootstrapWithEnv (see bootstrap-for-tests).
+    YAMF_REGISTRY_TOKEN: undefined,
+    YAMF_DEPLOY_TOKEN: undefined
   }
-  // Avoid inheriting a deploy token from the shell — pm3-service enforces it on deploy/rolling paths.
-  delete e.YAMF_DEPLOY_TOKEN
   return e
 }
 
@@ -174,7 +175,7 @@ export async function testYamfBuildAndDeployLocalRolloutWithSourceHashInRegistry
   const env = makeTestEnv(registryBaseUrl)
   cleanup(env)
   try {
-    cli('init --dev', { timeout: 45000, env })
+    await runBootstrapWithEnv(env)
     await sleep(1000)
 
     cli('build deploy-int-svc', { timeout: 120000, cwd: HARNESS, env })
@@ -207,7 +208,7 @@ export async function testYamfDeployNoopWhenSameHashAndRollingWhenBundleChanges 
   const env = makeTestEnv(registryBaseUrl)
   cleanup(env)
   try {
-    cli('init --dev', { timeout: 45000, env })
+    await runBootstrapWithEnv(env)
     await sleep(1000)
     writeFileSync(SERVICE_FILE, V1_SOURCE, 'utf8')
 

@@ -5,7 +5,7 @@
  * Processes are tracked by PID, validated for liveness on read.
  */
 
-import { httpRequest, HEADERS, COMMANDS, Logger, envConfig } from '@yamf/core'
+import { httpRequest, HEADERS, COMMANDS, Logger, envConfig, envTruthy } from '@yamf/core'
 import { writeFileSync, readFileSync, mkdirSync, renameSync, existsSync } from 'node:fs'
 import { join, resolve as pathResolve, basename } from 'node:path'
 import { spawnDetached } from './spawn.js'
@@ -410,7 +410,7 @@ export class PM3 {
 
   /** @returns {false} to skip; env `YAMF_PM3_STOP_REGISTRY_BROADCAST=0` disables. */
   shouldUseRegistryBroadcastStop () {
-    return envConfig.get('YAMF_PM3_STOP_REGISTRY_BROADCAST', '1') !== '0'
+    return envTruthy(envConfig.get('YAMF_PM3_STOP_REGISTRY_BROADCAST', true))
   }
 
   /**

@@ -153,6 +153,7 @@ export default async function createSubscriptionService (serviceName, channelMap
   const runSubShutdown = async () => {
     logger.debug(`Terminating subscription service: ${serviceName}`)
     unregisterLocalService(serviceName)
+    await httpServerTerminate()
     removeFromCache(cache, { service: serviceName, location })
     await pubSubManager.cleanup()
     try {
@@ -162,7 +163,6 @@ export default async function createSubscriptionService (serviceName, channelMap
         throw err
       }
     }
-    await httpServerTerminate()
     logger.info(`Subscription service "${serviceName}" terminated`)
   }
   // Late-bound: lifecycle invokes whatever `server.terminate` resolves to at shutdown time
@@ -209,11 +209,8 @@ async function createPureSubscriptionService (serviceName, channelMap, channels,
     logger.debug(`Pure subscription registered for channel: ${channel}`)
   }
 
-  try {
-    await notifyRegistryOfPureService(serviceName, options)
-  } catch (err) {
-    logger.warn(`Failed to notify registry of pure subscription service "${serviceName}":`, err.message)
-  }
+  // notifyRegistryOfPureService never throws; returns null when no registry URL is set.
+  await notifyRegistryOfPureService(serviceName, options)
 
   logger.info(`Pure subscription service "${serviceName}" registered (no HTTP server)`)
   logger.info(`Subscribed to ${channels.length} channels: ${channels.join(', ')}`)

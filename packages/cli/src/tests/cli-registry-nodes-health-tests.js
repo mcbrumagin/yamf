@@ -2,6 +2,7 @@
  * CLI: `yamf nodes` and `yamf health` against registry URL (missing / unreachable / help).
  */
 import { assert, assertErr } from '@yamf/test'
+import { envTruthy } from '@yamf/core'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -11,15 +12,14 @@ const CLI = join(__dirname, '..', 'cli.js')
 const CLI_CWD = join(__dirname, '..')
 /** Nothing should listen here — fast connection refused. */
 const UNREACHABLE_REGISTRY = 'http://127.0.0.1:59997'
-const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const DEBUG = envTruthy(process.env.YAMF_TEST_DEBUG)
 
 const BASE_ENV = {
   ...process.env,
   YAMF_REGISTRY_URL: '',
   YAMF_HOME: join(__dirname, '..', '.yamf-cli-registry-nodes-health'),
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
-  // MUTE_LOG_GROUP_OUTPUT: 'true',
-  MUTE_SUCCESS_CASES: 'true'
+  YAMF_TEST_QUIET_PASSES: 'true'
 }
 
 const ENV_UNREACHABLE = {
@@ -48,7 +48,7 @@ export async function testNodesExitsWhenRegistryUrlMissing () {
     (err) => {
       const msg = (err.stderr || '') + (err.stdout || '') + (err.message || '')
       if (DEBUG) console.log('[ERROR]', msg)
-      return msg.includes('YAMF_REGISTRY_URL') && msg.toLowerCase().includes('init')
+      return msg.includes('YAMF_REGISTRY_URL') && msg.includes('yamf dev')
     }
   )
 }
@@ -67,7 +67,7 @@ export async function testNodesPrintsErrorWhenRegistryUnreachable () {
 }
 
 export async function testNodesHelpMentionsRegistry () {
-  const out = runCli('nodes --help', { ...process.env, MUTE_LOG_GROUP_OUTPUT: 'true' })
+  const out = runCli('nodes --help', { ...process.env, YAMF_LOG_QUIET_GROUPS: 'true' })
   await assert(out, (o) => o.includes('yamf nodes') && o.includes('registry'))
 }
 
@@ -85,6 +85,6 @@ export async function testHealthFailsWhenRegistryUnreachable () {
 }
 
 export async function testHealthHelpShown () {
-  const out = runCli('health --help', { ...process.env, MUTE_LOG_GROUP_OUTPUT: 'true' })
+  const out = runCli('health --help', { ...process.env, YAMF_LOG_QUIET_GROUPS: 'true' })
   await assert(out, (o) => o.includes('yamf health') && o.includes('health'))
 }

@@ -3,9 +3,9 @@
  */
 process.env.LOG_JSON = 'true'
 process.env.LOG_LEVEL = 'info'
-process.env.DISABLE_ALL_CUSTOM_LOGS = ''
+process.env.YAMF_LOG_DISABLE_CUSTOM = ''
 process.env.LOG_INCLUDE_LINES = ''
-process.env.MUTE_LOG_GROUP_OUTPUT = ''
+process.env.YAMF_LOG_QUIET_GROUPS = ''
 
 const { default: Logger } = await import('../../src/utils/logger.js')
 

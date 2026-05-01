@@ -102,7 +102,12 @@ const PROTECTED_COMMANDS = new Set([
  * Health check command
  */
 function handleHealthCheck(state) {
-  return { status: 'ready', timestamp: Date.now(), draining: !!state?.draining }
+  return {
+    status: 'ready',
+    timestamp: Date.now(),
+    draining: !!state?.draining,
+    deployEvents: Array.isArray(state?.deployHistory) ? state.deployHistory.slice() : []
+  }
 }
 
 /**

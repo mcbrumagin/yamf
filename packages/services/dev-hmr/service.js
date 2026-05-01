@@ -2,10 +2,10 @@
  * @yamf/services-dev-hmr — SSE service that subscribes to `CHANNELS.DEV_RELOAD` and
  * sends a `reload` event to all browser EventSource clients (ROADMAP Phase 4 D2).
  *
- * Start only in dev: requires `YAMF_DEV=on` and `NODE_ENV !== 'production'`.
+ * Start only in dev: requires `YAMF_DEV=true` (or legacy `on`) and `NODE_ENV !== 'production'`.
  */
 
-import { createEventSourceService, CHANNELS, Logger } from '@yamf/core'
+import { createEventSourceService, CHANNELS, Logger, envConfig, envTruthy } from '@yamf/core'
 
 const logger = new Logger({ logGroup: 'yamf-dev-hmr' })
 const DEFAULT_SERVICE = 'yamf-dev'
@@ -17,8 +17,8 @@ const DEFAULT_SERVICE = 'yamf-dev'
  * @returns {Promise<object|null>} SSE server, or `null` when dev-hmr is disabled
  */
 export default async function createDevHmrService (options = {}) {
-  if (process.env.YAMF_DEV !== 'on' || process.env.NODE_ENV === 'production') {
-    logger.info('yamf dev-hmr skipped (set YAMF_DEV=on and non-production to enable)')
+  if (!envTruthy(envConfig.get('YAMF_DEV', false)) || process.env.NODE_ENV === 'production') {
+    logger.info('yamf dev-hmr skipped (set YAMF_DEV=true and non-production to enable)')
     return null
   }
 

@@ -28,8 +28,8 @@ function deployPlanHeaders (extra = {}) {
 }
 
 const PLAN_TEST_ENV = {
-  MUTE_LOG_GROUP_OUTPUT: 'true',
-  MUTE_SUCCESS_CASES: 'true',
+  YAMF_LOG_QUIET_GROUPS: 'true',
+  YAMF_TEST_QUIET_PASSES: 'true',
   LOG_LEVEL: 'error',
   YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
   YAMF_DEPLOY_TOKEN: ''

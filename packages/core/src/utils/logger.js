@@ -1,4 +1,4 @@
-import envConfig from '../shared/env-config.js'
+import envConfig, { envTruthy } from '../shared/env-config.js'
 
 // create our own copy of log fns so we can override console safely
 const ogConsole = {
@@ -151,7 +151,7 @@ function writeColor(color = colors.white, logContent, endColor = colors.reset) {
 let printedWarning = false
 function printWarningOnceAndReturnVanillaConsole() {
   if (!printedWarning) {
-    console.warn(writeColor('magenta', `DISABLE_ALL_CUSTOM_LOGS ACTIVE
+    console.warn(writeColor('magenta', `YAMF_LOG_DISABLE_CUSTOM ACTIVE
       --- normal console methods will be used instead of custom Logger`
     ))
     printedWarning = true
@@ -175,8 +175,8 @@ export default class Logger {
     ]
   ) {
 
-    const DISABLE_ALL_CUSTOM_LOGS = envConfig.get('DISABLE_ALL_CUSTOM_LOGS')
-    if (DISABLE_ALL_CUSTOM_LOGS) {
+    const disableCustomLogs = envTruthy(envConfig.get('YAMF_LOG_DISABLE_CUSTOM', false))
+    if (disableCustomLogs) {
       return printWarningOnceAndReturnVanillaConsole()
     }
 
@@ -188,10 +188,10 @@ export default class Logger {
       logFileRetainLineLimit: 0,
       includeLogLineNumbers: envConfig.get('LOG_INCLUDE_LINES'),
       excludeFullPathInLogLines: envConfig.get('LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES'),
-      muteLogGroupOutput: envConfig.get('MUTE_LOG_GROUP_OUTPUT'),
+      muteLogGroupOutput: envTruthy(envConfig.get('YAMF_LOG_QUIET_GROUPS', false)),
       includeLogLevelInOutput: false,
-      outputJson: logJsonEnv === true || logJsonEnv === '1',
-      includeTimestamp: envConfig.get('YAMF_LOG_TIMESTAMP', 'on') !== 'off',
+      outputJson: envTruthy(logJsonEnv),
+      includeTimestamp: envTruthy(envConfig.get('YAMF_LOG_TIMESTAMP', true)),
       warnLevel: false,
       maxDepth: 2
     }

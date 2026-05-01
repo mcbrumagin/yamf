@@ -105,7 +105,7 @@ Regression coverage lives in `packages/core/tests/cases/rolling-registry-tests.j
 | `YAMF_GATEWAY_READY_WAIT_MS` | `10000` | Gateway's initial wait for a non‑draining registry. |
 | `YAMF_GATEWAY_READY_POLL_MS` | `250` | Gateway's health‑poll interval during startup. |
 | `YAMF_REGISTRATION_RETRY_LIMIT` | `120` | Service registration retries (bridges a registry gap). |
-| `YAMF_RETRY_DELAY` | `100` | Initial backoff for retrying registrations. |
+| `YAMF_RETRY_DELAY_MS` | `100` | Initial backoff for retrying registrations (legacy: `YAMF_RETRY_DELAY`). |
 | `YAMF_PM3_POLL_MAX_ATTEMPTS` | `150` | CLI `pm3` startup polling cap. |
 | `YAMF_PM3_POLL_INTERVAL_MS` | `200` | CLI `pm3` startup polling interval. |
 | `YAMF_PM3_POLL_STABLE_CHECKS` | `3` | Consecutive stable snapshots before declaring ready. |
@@ -511,7 +511,7 @@ sequenceDiagram
 #### Design commitments
 
 1. **`yamf build`**. New CLI command, `packages/cli/src/commands/build.js`.
-   - Discovers services via `yamf.config.js` (`{ services: [{ name, entry, env?, replicas? }] }`) or `--service <entry>` flags.
+   - Discovers services via `yamf.config.js` (`{ services: [{ name, entry, env?, replicas?, registeredServiceName?, watch? }] }`) or `--service <entry>` flags.
    - Runs esbuild with `{ format: 'esm', platform: 'node', target: 'node20', sourcemap: true, external: ['@yamf/*'] }`.
    - Output: `.yamf/build/<service>/<sha256>.mjs` + `<sha256>.meta.json` (entry, env requirements, dep list, `createdAt`).
    - **Source hash** = sha256 over the bundle bytes, appended with the stable `meta.json` of dependencies.

@@ -8,12 +8,14 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
+import { envTruthy } from '@yamf/core'
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const CLI_CWD = join(__dirname, '..')
 /** Monorepo root (directory containing `packages/`). */
 const ROOT = join(__dirname, '..', '..', '..', '..')
-const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const DEBUG = envTruthy(process.env.YAMF_TEST_DEBUG)
 
 function exec (cmd, env = {}) {
   if (DEBUG) {
@@ -167,7 +169,7 @@ writeFileSync(${JSON.stringify(join(dir, 'env.out'))}, process.env.YAMF_AS_TEST 
 `
     )
     exec(`test --as-test -f "*.example.js" -d ${dir}`)
-    await assert(readFileSync(join(dir, 'env.out'), 'utf8'), s => s === '1')
+    await assert(readFileSync(join(dir, 'env.out'), 'utf8'), s => s === 'true')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

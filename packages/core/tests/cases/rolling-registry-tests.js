@@ -145,31 +145,29 @@ export async function testCallStillWorksWhenDraining() {
 }
 
 export async function testRegistryHealthShowsDraining() {
-  await terminateAfter(
-    () => registryServer(registryOpts),
-    async (reg) => {
-      const url = process.env.YAMF_REGISTRY_URL
-      const token = process.env.YAMF_REGISTRY_TOKEN
-      const other = '00000000-0000-4000-8000-000000000003'
-      if (other === reg._state.registryInstanceId) {
-        throw new Error('REGISTRY id collision in test')
-      }
-      const h0 = await httpRequest(url, { headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH } })
-      await assert(h0, (h) => h.draining === false)
-      await httpRequest(url, {
-        method: 'POST',
-        body: {},
-        headers: {
-          'content-type': 'application/json',
-          [HEADERS.COMMAND]: COMMANDS.REGISTRY_DRAIN,
-          [HEADERS.REGISTRY_INSTANCE_ID]: other,
-          [HEADERS.REGISTRY_TOKEN]: token
-        }
-      })
-      const h1 = await httpRequest(url, { headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH } })
-      await assert(h1, (h) => h.draining === true)
+  await terminateAfter(async () => {
+    let reg = await registryServer(registryOpts)
+    const url = process.env.YAMF_REGISTRY_URL
+    const token = process.env.YAMF_REGISTRY_TOKEN
+    const other = '00000000-0000-4000-8000-000000000003'
+    if (other === reg._state.registryInstanceId) {
+      throw new Error('REGISTRY id collision in test')
     }
-  )
+    const h0 = await httpRequest(url, { headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH } })
+    await assert(h0, (h) => h.draining === false)
+    await httpRequest(url, {
+      method: 'POST',
+      body: {},
+      headers: {
+        'content-type': 'application/json',
+        [HEADERS.COMMAND]: COMMANDS.REGISTRY_DRAIN,
+        [HEADERS.REGISTRY_INSTANCE_ID]: other,
+        [HEADERS.REGISTRY_TOKEN]: token
+      }
+    })
+    const h1 = await httpRequest(url, { headers: { [HEADERS.COMMAND]: COMMANDS.HEALTH } })
+    await assert(h1, (h) => h.draining === true)
+  })
 }
 
 /**

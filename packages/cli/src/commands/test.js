@@ -63,7 +63,7 @@ Options:
   --settle <ms>         --as-test only: wait after port open before SIGTERM. Default 250.
   --include-e2e         Include *.e2e-tests.js when scanning without -f (default: excluded)
   --list                List discovered suites/files without running
-  --timings             After the run, print a slowest-first per-test table (or set YAMF_TEST_TIMINGS=1)
+  --timings             After the run, print a slowest-first per-test table (or set YAMF_TEST_TIMINGS=true)
   -v, --verbose         Verbose output
   -h, --help            Show this help
 `
@@ -395,7 +395,9 @@ export async function runTestCommand (args) {
   }
 
   if (options.timings) {
-    process.env.YAMF_TEST_TIMINGS = '1'
+    process.env.YAMF_TEST_TIMINGS = 'true'
+    const { default: envConfigReload } = await import('@yamf/core/env-config')
+    envConfigReload.reloadFromProcessEnv()
   }
 
   try {

@@ -60,8 +60,8 @@ Backward compatibility becomes a hard contract at v1+, so this is the **last che
 
 - **Service factory shape.** Kernel keeps positional: `createService(serviceName, fn, options)`, `createSubscriptionService(serviceName, channelMap, options)`, `createEventSourceService(serviceName, handlers, options)`. First‑party services stay options‑only: `createXService({ serviceName = '<default>', ... })`. The `name` parameter on `createService` becomes `serviceName` for symmetry. The `createService(fn)` reverse‑overload (where the name is taken from `fn.name`) is dropped; explicit names always. `createSubscriptionService` collapses to **map‑only** — single‑channel callers wrap as `{ channel: handler }` (uniform with `createEventSourceService(handlers)`).
 - **First‑party service‑name defaults.** Kebab, no `-service` suffix. Use the *role* word, not the implementation: `'auth'`, `'cache'`, `'config'`, `'pm3'`, `'queue'`, `'sqlite'`, `'postgres'`, `'user'`, `'static-files'` (was `'static-file-service'`), `'uploads'` (was `'file-upload-service'`), `'dev-hmr'`, `'deploy-router'`. Apps can still override.
-- **Boolean env vars.** `=true|false` everywhere. `env-config.parseValue` already round‑trips these; the cleanup is migrating the `=on|off` and `=1|0` vars in framework code (HSTS, CSP_RELAXED, LOG_TIMESTAMP, DEV, AUTH_EPHEMERAL, AS_TEST, TEST_DEBUG, TEST_TIMINGS, DEPLOY_ALLOW_BREAKING, PM3_STOP_REGISTRY_BROADCAST, TEST_VERBOSE_TEARDOWN, MUTE_LOG_GROUP_OUTPUT, MUTE_SUCCESS_CASES, DISABLE_ALL_CUSTOM_LOGS) to a single boolean shape.
-- **Non‑`YAMF_*` env vars.** Keep widely‑recognized conventions (`LOG_LEVEL`, `NODE_ENV`, `ENVIRONMENT`, `PGUSER`/`PGPASSWORD`/`PGDATABASE`). Rename framework‑shaped ones into the `YAMF_*` namespace (`MUTE_LOG_GROUP_OUTPUT` → `YAMF_LOG_QUIET_GROUPS`, `MUTE_SUCCESS_CASES` → `YAMF_TEST_QUIET_PASSES`, `DISABLE_ALL_CUSTOM_LOGS` → `YAMF_LOG_DISABLE_CUSTOM`). Reconcile the `TEST_PSQL_URL` / `YAMF_TEST_PSQL_URL` split — single canonical name, paired with the postgres rename below. Remove the `ADMIN_USER` / `ADMIN_PASS` default validator from `createAuthService` entirely; apps must provide their own validator. The auth tests provide their own fixture credentials.
+- **Boolean env vars.** Prefer `=true|false`; `env-config.parseValue` coerces `true`/`false` plus legacy `on`/`off`/`yes`/`no` (see **Slice 6**). Call sites use `envTruthy()` for one consistent interpretation.
+- **Non‑`YAMF_*` env vars.** Keep widely‑recognized conventions (`LOG_LEVEL`, `NODE_ENV`, `ENVIRONMENT`, `PGUSER`/`PGPASSWORD`/`PGDATABASE`). Framework‑shaped toggles live under `YAMF_*` (see **Slice 6**: `YAMF_LOG_QUIET_GROUPS`, `YAMF_TEST_QUIET_PASSES`, `YAMF_LOG_DISABLE_CUSTOM`, `YAMF_TEST_POSTGRES_URL`, replica `nodeId`). Remove the `ADMIN_USER` / `ADMIN_PASS` default validator from `createAuthService` entirely; apps must provide their own validator. The auth tests provide their own fixture credentials.
 - **`yamf auth` CLI command.** Removed. Instead, `call`, `publish`, `request`, and `yamf registry state|lookup` accept `--auth user:pass` (login → exchange for token) and `--token <token>` (raw bearer). The duplicated `-a/--auth` short form is dropped (collided with `--all`); `--auth` is long‑only.
 - **Low‑level commands.** Move `state`, `lookup`, `route` under a `yamf registry` namespace (`yamf registry state <prop>`, `yamf registry lookup <filter>`, `yamf registry route <path> <svc>`, `yamf registry drain`). Reserve `yamf gateway` for the same shape (no subcommands today). Top‑level keeps the high‑frequency verbs (`status`, `health`, `list`, `describe`, `start/stop/restart/delete/clean`, `build`, `deploy`, `dev`, `init`, `test`, `logs`, `call`, `publish`, `request`, `nodes`, `drain`).
 - **`init --dev` vs `yamf dev`.** Folded. `yamf dev` auto‑bootstraps a local registry+cache+pm3 if the registry isn't reachable (the partial behavior already exists). `yamf init` becomes manifest scaffolding only.
@@ -114,14 +114,15 @@ Inside‑out: kernel wire and contract first, then services, then CLI. Each slic
 - Removed `ADMIN_USER` / `ADMIN_PASS` default validator from `createAuthService`. `validateUserPassword` is now a required option (`TypeError` if absent or non‑function); the `assertValidateUserPasswordSanity` probe still runs against whatever the caller passes. Auth tests now wrap with a tiny `createAuthSvc(opts)` helper that injects a fixture validator (caller‑supplied opts win via spread order, so the existing sanity‑check tests for always‑true / non‑boolean / throwing validators still exercise the right paths). `examples/all-in-one/bootstrap.js` inlines a credentials‑comparing validator since the example expected the old default.
 - `[B]` deferred to Slice 9 walk for the smoke / placeholder e2e cleanup table — Slice 5 only refreshes test naming where the rename forced it. `[C]` coverage adds (auth `logoutAll` / `kid` mismatch, file‑upload quota/mime/abort, pm3 deploy/spawn errors, file‑server SPA fallback) also tracked under §C and not folded in here.
 
-**Slice 6 — Env variable cleanup.**
-- `YAMF_RETRY_DELAY` → `YAMF_RETRY_DELAY_MS`.
-- Migrate every boolean env to `=true|false`. Update reads (`=== 'on'`, `=== '1'`) to `=== true` (env‑config already coerces).
-- Rename framework‑shaped non‑YAMF envs into the namespace (`MUTE_LOG_GROUP_OUTPUT` → `YAMF_LOG_QUIET_GROUPS`, `MUTE_SUCCESS_CASES` → `YAMF_TEST_QUIET_PASSES`, `DISABLE_ALL_CUSTOM_LOGS` → `YAMF_LOG_DISABLE_CUSTOM`). Keep `LOG_LEVEL`, `LOG_JSON`, `LOG_INCLUDE_LINES`, `LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES` (logger conventions) plus `NODE_ENV`, `ENVIRONMENT`, `PG*` standards.
-- Reconcile postgres test env: pick `YAMF_TEST_POSTGRES_URL` (matches `createPostgresService` rename); update tests + CHANGELOG migration note.
-- `YAMF_NODE_ID` ↔ replica metadata `node` field: pick `nodeId` everywhere (env stays `YAMF_NODE_ID`, replica field becomes `nodeId` in `REGISTRY_PULL` output and `yamf status`).
+**Slice 6 — Env variable cleanup.** ✓ **Landed.**
+- **`YAMF_RETRY_DELAY_MS`:** primary key for registration retry initial delay (ms); **`YAMF_RETRY_DELAY`** still read as fallback in `create-service.js` / `service-helpers.js`.
+- **`env-config.parseValue`:** recognizes `on`/`off`/`yes`/`no` (case‑insensitive) as booleans in addition to `true`/`false`. **`envTruthy()`** exported from `@yamf/core` for consistent boolean reads (accepts `1`/`0` strings and numeric flags).
+- **Renamed framework envs:** `MUTE_LOG_GROUP_OUTPUT` → **`YAMF_LOG_QUIET_GROUPS`**, `MUTE_SUCCESS_CASES` → **`YAMF_TEST_QUIET_PASSES`**, `DISABLE_ALL_CUSTOM_LOGS` → **`YAMF_LOG_DISABLE_CUSTOM`** — logger and `@yamf/test` runner read **`YAMF_*` only** (unprefixed names removed). All `**/.env.test` files and integration test env objects use the new names.
+- **Boolean reads migrated** off raw `=== '1'` / `=== 'on'` in CLI (`dev`, `list`, tests), `@yamf/test` (`runner`, `helpers` teardown), `deploy-driver`, `as-test-runner`, `pm3` (`YAMF_PM3_STOP_REGISTRY_BROADCAST`), `create-service` / `service-helpers` (`YAMF_DEPLOY_ALLOW_BREAKING`, `YAMF_EXTRACT_SERVICE_CONTRACT`), `csp.js` (`YAMF_HSTS`, `YAMF_CSP_RELAXED`), `logger.js` (`YAMF_LOG_TIMESTAMP`, `LOG_JSON`), `@yamf/services-auth` (`YAMF_AUTH_EPHEMERAL`), `@yamf/services-dev-hmr` + `dev-bootstrap` + Vite plugin (`YAMF_DEV`). `YAMF_AS_TEST` child value is now **`true`** (not `1`). `YAMF_TEST_TIMINGS` / `YAMF_TEST_DEBUG` / `YAMF_TEST_VERBOSE_TEARDOWN` use the same coercion path; `yamf test --timings` sets `true` and reloads `env-config`.
+- **Postgres test URL:** canonical **`YAMF_TEST_POSTGRES_URL`**; code and e2e smoke fall back to `YAMF_TEST_PSQL_URL` and `TEST_PSQL_URL`. CI workflow and examples updated; **`CHANGELOG.md`** migration note under `[Unreleased]`.
+- **Replica metadata:** registered field is **`nodeId`** (was `node`). `service-helpers` sends `nodeId`; `service-registry` stores `nodeId` and still accepts legacy **`node`** on register. `pickNode` / placement tests / `replica-helpers-tests` / `yamf status --versions` use **`nodeId`** (with read‑side fallback for old rows).
 
-**Slice 7 — CLI: flag normalization, command grouping, command surface.**
+**Slice 7 — CLI: flag normalization, command grouping, command surface.** ✓ **Landed.**
 - Resolve short‑flag collisions:
   - `-a` is `--all` only. `--auth` is long‑only and value is `user:pass` or a token (auto‑detected by `:` presence) — or paired with `--token <bearer>` when the caller already has one.
   - `-r` is `--remote` only. `route --remove` becomes long‑only `--remove`.
@@ -137,23 +138,40 @@ Inside‑out: kernel wire and contract first, then services, then CLI. Each slic
 - Rewrite the broken / copy‑pasted `--help` blocks (`auth` removed, `dev`, `build`, `clean`, `describe` audited).
 - `[D]` While here, extract the `cli.js` switch into a `Map<subcommand, () => import>` and expose `dispatchYamfCli(argv)` for in‑process routing tests. Several follow‑on slices benefit from being able to assert dispatch without `execSync`.
 - `[C]` Coverage closures for `commands/logs.js`, `commands/restart.js`, `commands/nodes.js`, `commands/list.js`, `commands/test.js`, `lib/deploy-driver.js`, `lib/pm3.js`, `lib/as-test-runner.js` are written against the renamed shapes.
+- **Shipped:** `SUBCOMMAND_HANDLERS` `Map` + exported `dispatchYamfCli(argv)` in `cli.js` (and `packages/cli` entry re-export); `yamf registry …` / `yamf gateway` dispatch; `yamf auth` removed with `--auth` / `--token` threaded to call/publish/request/registry; `auth.js` deleted; init vs dev split per bullets above.
 
-**Slice 8 — `yamf.config.js` schema + example.**
-- Rename `services[].replicaKey` → `services[].registeredServiceName` (the field telegraphs intent: "service name as registered in‑bundle, when it differs from the yamf process id"). Update `pm3.js`, `dev.js`, `deploy-driver.js` resolution paths.
-- Update `yamf.config.example.js` to include `registeredServiceName`, `watch`, and `build.packages`.
-- `[B]` Re‑validate the example matches `loadYamfConfig` JSDoc; add a `yamf-config-tests.js` if not already covered.
+**Slice 8 — `yamf.config.js` schema + example.** ✓ **Landed.**
+- Renamed manifest field `services[].replicaKey` → `services[].registeredServiceName`. `loadYamfConfig` normalizes legacy configs (migrates `replicaKey` → `registeredServiceName`, strips `replicaKey`). `deploy-driver` / `planAndApply` use `registeredServiceName || name` for REGISTRY_PULL `replicas[…]` and rolling target resolution (no separate `pm3.js` / `dev.js` call sites).
+- Updated `yamf.config.example.js` with `registeredServiceName`, `watch`, and `build.packages`.
+- `[B]` `yamf-config-tests.js` covers normalization + discovery; JSDoc on `load-yamf-config.js` matches the example.
 
-**Slice 9 — Smoke / placeholder e2e cleanup (§B walk).**
-After the renames stabilize, walk the §B table and act on each row. Each closure either grows the file into a real e2e or demotes it to integration. Files in scope: `auth-smoke.e2e-tests.js`, `psql-smoke.e2e-tests.js`, `sqlite-smoke.e2e-tests.js`, `user-smoke.e2e-tests.js`, `xss-integration.e2e-tests.js`, `access-control.e2e-tests.js`, plus the `*-smoke.example.js` files that are still trivial.
+**Slice 9 — Smoke / placeholder e2e cleanup (§B walk).** ✓ **Landed.**
+- **Auth:** removed trivial `auth-smoke.e2e-tests.js`; added `tests/auth-flow-integration-tests.js` (`authenticate` → `verifyAccess` → `logout` with `useSessions: true`, then assert post‑logout `verifyAccess` fails).
+- **Postgres e2e:** second query exercises `:answer` placeholder + snake_case → camelCase row mapping (`raw_snake_value` → `rawSnakeValue`).
+- **SQLite:** moved `:memory:` smoke to `sqlite-smoke-integration-tests.js` (removed from e2e bucket).
+- **User e2e:** fixed nested `get` response shape; added `invite` → `register` → `get` path when Postgres URL is set.
+- **XSS:** renamed to `xss-security-integration-tests.js` (no process boundary).
+- **`run-e2e-tests.mjs`:** scans only dirs that still contain `*.e2e-tests.js` (core cases, postgres, user).
+- **Smoke examples:** `example-tier-smoke.example.js` allocates an ephemeral TCP port with `node:net` (runs without a local `examples/node_modules`); `case-mapper-smoke.example.js` asserts mapper output; `pm3-smoke.example.js` / `dev-hmr-smoke.example.js` boot registry + service on an ephemeral port (`pickListenPort` when `YAMF_REGISTRY_URL` unset), `envConfig.reloadFromProcessEnv()`, then terminate cleanly.
 
-**Slice 10 — Coverage closures (§C remainder).**
-Land the medium‑impact gaps not picked up earlier (`http-route-handler.js` registry/gateway parity, `bundle-store.js` tmp+rename, `route-registry.js`, `validator/*` edges). Lower‑impact `client/*` and `shared/*` gaps stay open unless the underlying file churns.
+**Slice 10 — Coverage closures (§C remainder).** ✓ **Landed (medium tier + test conventions).**
+- **Registry / gateway `http-route-handler.js`:** missing `HttpError` import fixed (prod/no-match path threw `ReferenceError`). New `http-route-handler-tests.js` covers trailing-slash **301**, local **debug payload**, and production **`HttpError(404)`** for both registry and gateway handlers.
+- **`route-registry.js`:** `route-registry-tests.js` — register direct/controller, `findControllerRoute`, unregister validation (**400** empty path, **404** unknown), wildcard unregister.
+- **`bundle-store.js`:** `bundle-store-tests.js` — invalid `pathFor`, stream **tmp → rename** on hash match, **hash mismatch** clears `.part` and omits final file.
+- **`schema-validation.js`:** `packages/shared/tests/validator-schema-validation-tests.js` — `validateSchema(null)` → `SchemaError`.
+- **`terminateAfter` style:** auth/sqlite/postgres user smokes use **`terminateAfter(async function … () { await registryServer(); … })`** where teardown is registry-only; **access-control e2e** keeps multi-arg **`terminateAfter`** with **named function factories** plus **`withEnv` + `pickListenPort`** for isolated registry/gateway ports when `.env.test` ports are busy.
+- **CLI §C high-impact coverage:** `cli-commands-coverage-tests.js` exercises **`logs` / `restart` / `list`** (help, `--remote`/`--watch`/`--list` conflicts, `--list` empty/mapping, `pm3.logs`, `--all` restart filter, `--rolling`); **`as-test-runner-tests.js`** covers `globBasenameToRegex`, `discoverAsTestFiles`, **`buildGeneratePayload` / `defaultGenerateOutPath`**, and **`runScriptAsTest`** deadline when the child never opens the assigned registry port; **`deploy-driver-tests.js`** extended with **`mergeRequiredEnvFromProcess`**, **noop `dryRun`**, **missing bundle** error, **`uploadDeployBundleToRegistry`** token guard; **`cli-command-validation-tests.js`** extended for **`yamf test`** (`--generate` requires `--as-test`, `--as-test` requires `-f`, invalid `--timeout`, **`--list --as-test`**).
+- Docs: **`docs/TESTING.md`**, **`packages/test/README.md`** updated for the single-fn vs multi-arg split.
 
-**Slice 11 — D residuals.**
-- `createService` / `createSubscriptionService` cleanup (extract `createLocalService`, drop the `undefined` sentinel, collapse silent `notifyRegistryOfPureService` failures).
-- Deploy observability: registry `/health` deploy ring buffer + `yamf status --versions --since`.
-- C6 admin‑auth issuer (deferred unless a v1 consumer needs it).
-- Cross‑cut 4/5 (auto re‑placement, canary) — deferred unless product demand surfaces.
+**Slice 11 — D residuals.** ✓ **Landed (partial).**
+- **`notifyRegistryOfPureService` never throws:** moved `getRegistryConfig()` inside the try block so the function returns `null` when `YAMF_REGISTRY_URL` is unset instead of throwing. Removed the redundant outer `try/catch` from `createPureService` (`create-service.js`) and `createPureSubscriptionService` (`create-subscription-service.js`).
+- **Drop `undefined` sentinel in `pureServiceWrapper.before`:** callers must return `Next` explicitly to skip the main handler; implicit `undefined` no longer short-circuits. Makes the pure-service `before` contract match the HTTP service shape.
+- **Deploy observability ring buffer:** `createRegistryState()` gains `deployHistory: []`; `handleHealthCheck` exposes it as `deployEvents` in the `HEALTH` response; `registerDeployRouter` pushes each plan decision (service, fromHash, toHash, decision, at, deployer) to the ring (max 20 entries). `yamf status --health` prints the recent deploys table.
+- **`yamf status --versions --since <iso>`:** new `--since` flag filters the replica list to entries with `registeredAt ≥ since` (falls back to a "no replicas since…" message when the filter matches nothing). Invalid ISO dates exit 1.
+- **`createLocalService` extract / `undefined`-sentinel full cleanup** deferred (the sentinel fix + `notifyRegistry` collapse handles the main footgun; a full lifecycle-dedupe refactor is lower priority post-v1).
+- **C6 admin-auth issuer** — deferred.
+- **Cross-cut 4/5** (auto re-placement, canary) — deferred.
+- **CLI §C additions (landed alongside Slice 11):** `testNodesHelp` + `testNodesMissingRegistryUrl` in `cli-commands-coverage-tests.js`; `testListLiveRegistryNoUrl`; new `pm3-unit-tests.js` (pollDefaults, shouldUseRegistryBroadcastStop, getStopSigtermPollMs, pruneDeadProcesses).
 
 #### A.3 Versioning & migration
 
@@ -170,12 +188,12 @@ The `*.e2e-tests.js` bucket is currently a mix of useful end‑to‑end checks a
 
 | File | Today | Action |
 |------|-------|--------|
-| `packages/services/auth/tests/auth-smoke.e2e-tests.js` | Boots service, asserts `svc.name`. | Demote to integration, or expand to `authenticate → verifyAccess → logout` against a real validator. |
-| `packages/services/postgres/tests/psql-smoke.e2e-tests.js` | `SELECT 1` if `YAMF_TEST_PSQL_URL` is set, else skip. | Keep as e2e but add at least one parameterized template + camelCase mapping assertion. |
-| `packages/services/sqlite/tests/sqlite-smoke.e2e-tests.js` | `SELECT 1` against `:memory:`. | Move to integration; the `:memory:` path has nothing e2e‑shaped about it. |
-| `packages/services/user/tests/user-smoke.e2e-tests.js` | `create + get` round trip when `YAMF_TEST_PSQL_URL` is set. | Keep as e2e; add a registration‑token / verification flow next pass. |
-| `packages/shared/tests/xss-integration.e2e-tests.js` | (audit). | Confirm it actually crosses a process boundary; otherwise demote. |
-| `packages/core/tests/cases/access-control.e2e-tests.js` | Public‑vs‑private gateway access against a real registry + gateway. | Keep, but consider promoting more access‑control matrices alongside it. |
+| `packages/services/auth/tests/auth-flow-integration-tests.js` | (was trivial e2e smoke.) | **Landed:** full auth + logout integration; e2e file removed. |
+| `packages/services/postgres/tests/psql-smoke.e2e-tests.js` | `SELECT 1` + parameterized `:answer` / camelCase mapping when Postgres URL set. | **Landed** (e2e). |
+| `packages/services/sqlite/tests/sqlite-smoke-integration-tests.js` | `SELECT 1` against `:memory:`. | **Landed** (integration). |
+| `packages/services/user/tests/user-smoke.e2e-tests.js` | `create` + `get`; `invite` + `register` + `get` when URL set. | **Landed** (e2e). |
+| `packages/shared/tests/xss-security-integration-tests.js` | `sanitizeHtml` in‑process. | **Landed** (integration; renamed from `xss-integration.e2e-tests.js`). |
+| `packages/core/tests/cases/access-control.e2e-tests.js` | Public‑vs‑private gateway access against a real registry + gateway. | Unchanged (kept as e2e). |
 
 Same audit for `*-smoke.example.js` files: each is now a runnable script (good), but a few are essentially "import + log a name". These should either grow a meaningful demo or be deleted; the goal is "every example shows real API usage."
 
@@ -185,14 +203,14 @@ From the latest c8 report. Triage by impact on a v1 consumer reading or relying 
 
 **High impact (touch v1 surface or operator ergonomics):**
 
-- `packages/cli/src/commands/logs.js` — **40%**. Either cover the streaming + filter paths or trim the file to what's actually needed for v1.
-- `packages/cli/src/commands/restart.js` — **60%**. Rolling restart already has integration coverage; non‑rolling and edge flag combinations are the gap.
-- `packages/cli/src/commands/nodes.js` — **60%**. `--remote` + URL discovery; share fixtures with `cli-registry-nodes-health-tests.js`.
-- `packages/cli/src/commands/list.js` — **66%**. Empty state, remote pm3 path, JSON output.
-- `packages/cli/src/commands/test.js` — **71%**. The dispatch around `--as-test`, `--generate`, `--include-e2e`, `--timeout`, `--list` has gaps; pair with the §A flag review so we don't write tests for a shape we're about to rename.
-- `packages/cli/src/lib/deploy-driver.js` — **70%**. `planAndApply` is the single deploy entry point; rolling + scale + rollback decision paths deserve direct unit coverage.
-- `packages/cli/src/lib/pm3.js` — **76%**. Internals of broadcast / poll / restart‑rolling.
-- `packages/cli/src/lib/as-test-runner.js` — **79%**. Timeout + SIGKILL escalation + generate output paths.
+- `packages/cli/src/commands/logs.js` — **40%**. ~~Either cover the streaming + filter paths or trim the file~~ — **help / `--list` / `--remote` conflicts / stubbed `pm3.logs` covered** in `cli-commands-coverage-tests.js` (live `--watch` still manual / long-running).
+- `packages/cli/src/commands/restart.js` — **60%**. ~~Rolling restart already has integration coverage; non‑rolling and edge flag combinations are the gap~~ — **`--all` vs running-only, `--rolling` + `--remote`/`--all` rejects, stubbed paths** in `cli-commands-coverage-tests.js`.
+- `packages/cli/src/commands/nodes.js` — **60%**. `--remote` + URL discovery; share fixtures with `cli-registry-nodes-health-tests.js`. *(Unchanged — existing exec-based tests.)*
+- `packages/cli/src/commands/list.js` — **66%**. ~~Empty state, remote pm3 path, JSON output~~ — **help, `-v` log path lines, `--services` view** with stubbed `PM3` in `cli-commands-coverage-tests.js` (live registry section still best covered under integration).
+- `packages/cli/src/commands/test.js` — **71%**. ~~The dispatch around `--as-test`, `--generate`, `--include-e2e`, `--timeout`, `--list` has gaps~~ — **Guard rails + `--list --as-test`** in `cli-command-validation-tests.js` + `as-test-runner-tests.js`.
+- `packages/cli/src/lib/deploy-driver.js` — **70%**. **`mergeRequiredEnvFromProcess`, noop `dryRun`, missing bundle, upload token** in extended `deploy-driver-tests.js`.
+- `packages/cli/src/lib/pm3.js` — **76%**. Internals of broadcast / poll / restart‑rolling. *(Still open beyond stubbed surface.)*
+- `packages/cli/src/lib/as-test-runner.js` — **79%**. ~~Timeout + SIGKILL escalation + generate output paths~~ — **glob/discover/generate payload + timeout-or-early-exit path** in `as-test-runner-tests.js` (full SIGKILL escalation remains a rare branch).
 
 **Medium (framework correctness, not on the user‑written hot path):**
 

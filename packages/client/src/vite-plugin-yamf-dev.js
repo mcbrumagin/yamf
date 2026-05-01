@@ -4,7 +4,7 @@
  * after a service deploy (ROADMAP Phase 4 D3).
  *
  * Requires the Vite process to have `YAMF_REGISTRY_URL` (and `YAMF_REGISTRY_TOKEN` if your
- * registry enforces it). Set `YAMF_DEV=on` and run `yamf init --dev` with the same env so the
+ * registry enforces it). Set `YAMF_DEV=true` and run `yamf init --dev` with the same env so the
  * registry and `yamf-dev` SSE are reachable.
  *
  * @example
@@ -15,16 +15,16 @@
  * }
  *
  * @param {object} [options]
- * @param {boolean} [options.enabled=process.env.YAMF_DEV==='on'] - set `false` to disable
+ * @param {boolean} [options.enabled=envTruthy(process.env.YAMF_DEV)] - set `false` to disable
  * @param {number} [options.debounceMs=120] - coalesce bursty HMR invalidations
  * @param {(file: string) => boolean} [options.filter] - return false to ignore a file (default: skip node_modules and .git)
  * @returns {import('vite').Plugin}
  */
-import { publishMessage, CHANNELS } from '@yamf/core'
+import { publishMessage, CHANNELS, envTruthy } from '@yamf/core'
 
 export function yamfVitePluginDev (options = {}) {
   const {
-    enabled = process.env.YAMF_DEV === 'on',
+    enabled = envTruthy(process.env.YAMF_DEV),
     debounceMs = 120,
     filter = (file) => typeof file === 'string' && !file.includes('node_modules') && !file.includes('/.git/')
   } = options
@@ -38,7 +38,7 @@ export function yamfVitePluginDev (options = {}) {
       timer = null
       tail = tail.then(async () => {
         if (!process.env.YAMF_REGISTRY_URL) {
-          if (process.env.YAMF_VITE_DEV_LOG === '1') {
+          if (envTruthy(process.env.YAMF_VITE_DEV_LOG)) {
             console.warn('[yamf-vite-plugin-dev] YAMF_REGISTRY_URL is not set; skipping yamf:dev-reload publish')
           }
           return
@@ -49,7 +49,7 @@ export function yamfVitePluginDev (options = {}) {
             at: Date.now()
           })
         } catch (e) {
-          if (process.env.YAMF_VITE_DEV_LOG === '1') {
+          if (envTruthy(process.env.YAMF_VITE_DEV_LOG)) {
             console.warn('[yamf-vite-plugin-dev]', e?.message || e)
           }
         }

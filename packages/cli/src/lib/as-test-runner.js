@@ -187,7 +187,7 @@ export async function runScriptAsTest (absPath, opts) {
   const env = {
     ...process.env,
     YAMF_REGISTRY_URL: url,
-    YAMF_AS_TEST: '1',
+    YAMF_AS_TEST: 'true',
     YAMF_AS_TEST_TIMEOUT_MS: String(timeoutMs),
     YAMF_AS_TEST_SETTLE_MS: String(settleMs),
     // Cap per-terminable shutdown time so stacked services + registry finish within post-SIGTERM wait.

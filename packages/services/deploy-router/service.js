@@ -9,6 +9,15 @@ import {
 import { existsSync } from 'node:fs'
 import { pickNode } from './placement.js'
 
+const DEPLOY_HISTORY_MAX = 20
+
+function pushDeployEvent (registry, event) {
+  const h = registry?._state?.deployHistory
+  if (!Array.isArray(h)) return
+  h.push(event)
+  if (h.length > DEPLOY_HISTORY_MAX) h.splice(0, h.length - DEPLOY_HISTORY_MAX)
+}
+
 /**
  * Wire verbs registered by {@link registerDeployRouter}. Exported so CLI / deploy-driver code
  * can target them without stringly-typed literals.
@@ -65,15 +74,17 @@ export function registerDeployRouter (registry, { bundleStore, location, pm3Serv
         const { decision } = deployDecisionFromReplicas(reps, s.hash, s.replicas ?? 1)
         out.decisions.push({ service: s.name, hash: s.hash, decision })
         const fromHash = reps.map((r) => r.sourceHash).filter(Boolean).join(',') || null
+        const deployEvent = {
+          service: s.name,
+          fromHash,
+          toHash: s.hash,
+          decision,
+          at: Date.now(),
+          deployer: headers[HEADERS.DEPLOYER] || null
+        }
+        pushDeployEvent(registry, deployEvent)
         try {
-          await publishMessage('yamf:deploy', {
-            service: s.name,
-            fromHash,
-            toHash: s.hash,
-            decision,
-            at: Date.now(),
-            deployer: headers[HEADERS.DEPLOYER] || null
-          })
+          await publishMessage('yamf:deploy', deployEvent)
         } catch {
           // best-effort observability; missing pubsub does not fail the plan
         }

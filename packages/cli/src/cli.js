@@ -4,253 +4,163 @@
  * yamf - Command-line interface for yamf
  *
  * Usage:
- *   yamf init --dev
+ *   yamf init
+ *   yamf registry state|lookup|route|drain
  *   yamf nodes
- *   yamf call <service> <payload>
+ *   yamf call <service>
  *   yamf publish <channel> <message>
- *   yamf request <path> [options]
- *   yamf route <path> <service-name>
- *   yamf run <filename>
- *   yamf start <filename> [--remote <target>]
- *   yamf stop <filename>
- *   yamf restart <filename>
- *   yamf logs <filename>
- *   yamf list [--all] [-L]
- *   yamf delete <filename>
- *   yamf clean
- *   yamf lookup <service-filter>
- *   yamf state <state-property>
+ *   yamf request <path>
+ *   yamf start <filename>
  *   yamf test [options]
  */
 
-const subcommand = process.argv[2]
-const subcommandArgs = process.argv.slice(3)
+import { readFileSync, realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join, resolve } from 'node:path'
 
-async function main() {
-  if (!subcommand) {
-    printHelp()
-    process.exit(1)
-  }
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
-  switch (subcommand) {
+/** @type {Map<string, (args: string[]) => Promise<void>>} */
+const SUBCOMMAND_HANDLERS = new Map([
+  ['init', async (args) => (await import('./commands/init.js')).runInitCommand(args)],
+  ['nodes', async (args) => (await import('./commands/nodes.js')).runNodesCommand(args)],
+  ['status', async (args) => (await import('./commands/status.js')).runStatusCommand(args)],
+  ['call', async (args) => (await import('./commands/call.js')).runCallCommand(args)],
+  ['publish', async (args) => (await import('./commands/publish.js')).runPublishCommand(args)],
+  ['request', async (args) => (await import('./commands/request.js')).runRequestCommand(args)],
+  ['health', async (args) => (await import('./commands/health.js')).runHealthCommand(args)],
+  ['registry', async (args) => (await import('./commands/registry.js')).runRegistryCommand(args)],
+  ['gateway', async (args) => (await import('./commands/gateway.js')).runGatewayCommand(args)],
+  ['run', async (args) => (await import('./commands/run.js')).runRunCommand(args)],
+  ['start', async (args) => (await import('./commands/start.js')).runStartCommand(args)],
+  ['list', async (args) => (await import('./commands/list.js')).runListCommand(args)],
+  ['describe', async (args) => (await import('./commands/describe.js')).runDescribeCommand(args)],
+  ['logs', async (args) => (await import('./commands/logs.js')).runLogsCommand(args)],
+  ['restart', async (args) => (await import('./commands/restart.js')).runRestartCommand(args)],
+  ['stop', async (args) => (await import('./commands/stop.js')).runStopCommand(args)],
+  ['delete', async (args) => (await import('./commands/delete.js')).runDeleteCommand(args)],
+  ['clean', async (args) => (await import('./commands/clean.js')).runCleanCommand(args)],
+  ['test', async (args) => (await import('./commands/test.js')).runTestCommand(args)],
+  ['build', async (args) => (await import('./commands/build.js')).runBuildCommand(args)],
+  ['deploy', async (args) => (await import('./commands/deploy.js')).runDeployCommand(args)],
+  ['dev', async (args) => (await import('./commands/dev.js')).runDevCommand(args)],
+  ['config', async (args) => (await import('./commands/config.js')).runConfigCommand(args)]
+])
 
-    // environment commands
-    case 'init': {
-      const { runInitCommand } = await import('./commands/init.js')
-      await runInitCommand(subcommandArgs)
-      break
-    }
-    case 'nodes': {
-      const { runNodesCommand } = await import('./commands/nodes.js')
-      await runNodesCommand(subcommandArgs)
-      break
-    }
-    case 'status': {
-      const { runStatusCommand } = await import('./commands/status.js')
-      await runStatusCommand(subcommandArgs)
-      break
-    }
-
-
-    // api commands
-    case 'call': {
-      const { runCallCommand } = await import('./commands/call.js')
-      await runCallCommand(subcommandArgs)
-      break
-    }
-    case 'publish': {
-      const { runPublishCommand } = await import('./commands/publish.js')
-      await runPublishCommand(subcommandArgs)
-      break
-    }
-    case 'request': {
-      const { runRequestCommand } = await import('./commands/request.js')
-      await runRequestCommand(subcommandArgs)
-      break
-    }
-    case 'auth': {
-      const { runAuthCommand } = await import('./commands/auth.js')
-      await runAuthCommand(subcommandArgs)
-      break
-    }
-
-
-    // registry commands
-    case 'health': {
-      const { runHealthCommand } = await import('./commands/health.js')
-      await runHealthCommand(subcommandArgs)
-      break
-    }
-    case 'drain': {
-      const { runDrainCommand } = await import('./commands/drain.js')
-      await runDrainCommand(subcommandArgs)
-      break
-    }
-    case 'route': {
-      const { runRouteCommand } = await import('./commands/route.js')
-      await runRouteCommand(subcommandArgs)
-      break
-    }
-    case 'lookup': {
-      const { runLookupCommand } = await import('./commands/lookup.js')
-      await runLookupCommand(subcommandArgs)
-      break
-    }
-    case 'state': {
-      const { runStateCommand } = await import('./commands/state.js')
-      await runStateCommand(subcommandArgs)
-      break
-    }
-
-
-    // node wrapper commands
-    case 'run': {
-      const { runRunCommand } = await import('./commands/run.js')
-      await runRunCommand(subcommandArgs)
-      break
-    }
-
-
-    // pm3 process management commands
-    case 'start': {
-      const { runStartCommand } = await import('./commands/start.js')
-      await runStartCommand(subcommandArgs)
-      break
-    }
-    case 'list': {
-      const { runListCommand } = await import('./commands/list.js')
-      await runListCommand(subcommandArgs)
-      break
-    }
-    case 'describe': {
-      const { runDescribeCommand } = await import('./commands/describe.js')
-      await runDescribeCommand(subcommandArgs)
-      break
-    }
-    case 'logs': {
-      const { runLogsCommand } = await import('./commands/logs.js')
-      await runLogsCommand(subcommandArgs)
-      break
-    }
-    case 'restart': {
-      const { runRestartCommand } = await import('./commands/restart.js')
-      await runRestartCommand(subcommandArgs)
-      break
-    }
-    case 'stop': {
-      const { runStopCommand } = await import('./commands/stop.js')
-      await runStopCommand(subcommandArgs)
-      break
-    }
-    case 'delete': {
-      const { runDeleteCommand } = await import('./commands/delete.js')
-      await runDeleteCommand(subcommandArgs)
-      break
-    }
-    case 'clean': {
-      const { runCleanCommand } = await import('./commands/clean.js')
-      await runCleanCommand(subcommandArgs)
-      break
-    }
-
-    case 'test': {
-      const { runTestCommand } = await import('./commands/test.js')
-      await runTestCommand(subcommandArgs)
-      break
-    }
-    case 'build': {
-      const { runBuildCommand } = await import('./commands/build.js')
-      await runBuildCommand(subcommandArgs)
-      break
-    }
-    case 'deploy': {
-      const { runDeployCommand } = await import('./commands/deploy.js')
-      await runDeployCommand(subcommandArgs)
-      break
-    }
-    case 'dev': {
-      const { runDevCommand } = await import('./commands/dev.js')
-      await runDevCommand(subcommandArgs)
-      break
-    }
-    case 'config': {
-      const { runConfigCommand } = await import('./commands/config.js')
-      await runConfigCommand(subcommandArgs)
-      break
-    }
-    case '--help':
-    case '-h':
-      printHelp()
-      break
-    case '--version':
-    case '-v': {
-      const { readFileSync } = await import('node:fs')
-      const { fileURLToPath } = await import('node:url')
-      const { dirname, join } = await import('node:path')
-      const __dirname = dirname(fileURLToPath(import.meta.url))
-      const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'))
-      console.log(pkg.version ?? '0.1.0')
-      break
-    }
-    default:
-      console.error(`Unknown command: ${subcommand}`)
-      console.error('Run "yamf --help" for usage.')
-      process.exit(1)
-  }
-}
-
-function printHelp() {
+function printHelp () {
   console.log(`
 yamf - Command-line interface for yamf
 
 Usage:
   yamf <command> [options]
 
+Top-level flags:
+  -h, --help          Show this help
+  --version           Print CLI version
+  -v                  Same as --version at the top level only (subcommands use -v for --verbose)
+
 Environment:
-  init --dev          Start local dev environment (registry + cache + pm3-service)
-  nodes               List known service host nodes
-  status              Get status of yamf environment - health, nodes, and processes
+  init                  Write yamf.config.js from the template (use yamf dev for local stack)
+  nodes                 List known service host nodes
+  status                Environment status — health, nodes, processes
 
 API:
-  call <service>      Call a service with a payload
-  publish <channel>   Publish a message to a channel
-  request <path>      Make an HTTP request to a registered route
+  call <service>        Call a service with a payload
+  publish <channel>     Publish a message to a channel
+  request <path>        HTTP request to a registered route
 
 Registry:
-  health              Get health of yamf environment
-  drain               Ask the registry to drain (reject new registrations)
-  route <path> <svc>  Register a route (--remove to unregister)
-  lookup <filter>     Look up services, routes, or channels
-  state <property>    Get registry state
+  health                Registry / environment health
+  registry state        Registry pull / state
+  registry lookup       Service lookup
+  registry route        Register or unregister routes
+  registry drain        Drain mode (reject new registrations)
 
-Process Management (pm3):
-  start <filename>    Start a script as a managed process (-i N for instances)
-  stop <filename>     Stop managed process(es)
-  restart <filename>  Restart managed process(es)
-  list                List processes (--services, --locations, --all, --remote)
-  describe <target>   JSON state for one process (same as --remote list + other commands)
-  logs <filename>     View logs for a managed process
-  delete <filename>   Stop and remove from process list
-  clean               Stop all processes and remove .yamf/ (same as delete --all + rm)
+Gateway:
+  gateway               Stub; see help for planned surface
+
+Process management (pm3):
+  start <filename>      Start a script (-i / --replicas for multiple local processes)
+  stop <filename>       Stop managed process(es)
+  restart <filename>    Restart managed process(es)
+  list                  List processes (--services, --locations, --all, --remote)
+  describe <target>     JSON state for one process
+  logs <filename>       View logs for a managed process
+  delete <filename>     Stop and remove from process list
+  clean                 Stop all and remove .yamf/
 
 Utilities:
-  run <filename>      Run a script directly with Node
-  test                Run tests (requires @yamf/test)
+  run <filename>        Run a script with Node
+  test                  Run @yamf/test suites (see yamf test --help)
 
 Deploy:
-  build [name]        Bundle services with esbuild into .yamf/build/ (needs yamf.config.js)
-  deploy --local SVC  Plan/apply a local deploy (YAMF_SOURCE_HASH + pm3)
-  deploy --remote SVC  Remote deploy (registry bundle + pm3-service; needs YAMF_DEPLOY_TOKEN)
-  dev [name|entry.js] Watch and redeploy; optional one service (see yamf dev --help)
-  config get|set|list  Config-service overlay for deploys
-
-Options:
-  --help, -h          Show this help
-  --version, -v       Show version
+  build [name]          Bundle services into .yamf/build/
+  deploy --local|…      Plan/apply deploy
+  dev [name|entry.js]   Watch and redeploy
+  config get|set|list   Config-service overlay
 `)
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+/**
+ * Dispatch the yamf CLI from a synthetic argv (e.g. process.argv or ['node','yamf','list']).
+ * @param {string[]} argv
+ */
+export async function dispatchYamfCli (argv) {
+  const subcommand = argv[2]
+  const subcommandArgs = argv.slice(3)
+
+  if (!subcommand) {
+    printHelp()
+    process.exit(1)
+    return
+  }
+
+  if (subcommand === '--help' || subcommand === '-h') {
+    printHelp()
+    return
+  }
+
+  if (subcommand === '--version' || subcommand === '-v') {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'))
+    console.log(pkg.version ?? '0.1.0')
+    return
+  }
+
+  const handler = SUBCOMMAND_HANDLERS.get(subcommand)
+  if (!handler) {
+    const err = new Error(`Unknown command: ${subcommand}\nRun "yamf --help" for usage.`)
+    err.code = 'YAMF_CLI_UNKNOWN'
+    throw err
+  }
+
+  await handler(subcommandArgs)
+}
+
+async function main () {
+  await dispatchYamfCli(process.argv)
+}
+
+/**
+ * True when this file was invoked as the program entry (not merely imported).
+ * Compare real paths: global bins are often symlinks (e.g. /usr/local/bin/yamf → …/cli.js)
+ * while import.meta.url points at the target file, so plain resolve() never matched.
+ */
+function isCliEntryModule () {
+  const entry = process.argv[1]
+  if (entry == null || entry === '') return false
+  const here = realpathSync(fileURLToPath(import.meta.url))
+  try {
+    return realpathSync(resolve(entry)) === here
+  } catch {
+    return false
+  }
+}
+
+const isCliEntry = isCliEntryModule()
+
+if (isCliEntry) {
+  main().catch((err) => {
+    console.error(err.message || err)
+    process.exit(1)
+  })
+}

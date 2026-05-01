@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Run `*.e2e-tests.js` under selected test directories (postgres-backed / integration).
+ * Run `*.e2e-tests.js` under selected test directories (core access-control, postgres-backed services).
  */
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -13,10 +13,7 @@ const cli = path.join(root, 'packages/cli/src/cli.js')
 const dirs = [
   'packages/core/tests/cases',
   'packages/services/postgres/tests',
-  'packages/services/sqlite/tests',
-  'packages/services/user/tests',
-  'packages/services/auth/tests',
-  'packages/shared/tests'
+  'packages/services/user/tests'
 ]
 
 function hasE2e (dir) {

@@ -28,7 +28,7 @@ export function testGetReplicasForUnknownService () {
 export function testGetReplicasForMergesMetadata () {
   const state = buildState({
     auth: [
-      { location: 'http://a:1', metadata: { sourceHash: 'h1', node: 'n1' } },
+      { location: 'http://a:1', metadata: { sourceHash: 'h1', nodeId: 'n1' } },
       { location: 'http://b:2', metadata: { configVersion: 'v2' } }
     ]
   })
@@ -36,7 +36,7 @@ export function testGetReplicasForMergesMetadata () {
   assert(getReplicasFor(state, 'auth'),
     r => r.length === 2,
     r => r.find(x => x.location === 'http://a:1')?.sourceHash === 'h1',
-    r => r.find(x => x.location === 'http://a:1')?.node === 'n1',
+    r => r.find(x => x.location === 'http://a:1')?.nodeId === 'n1',
     r => r.find(x => x.location === 'http://b:2')?.configVersion === 'v2',
     // location is preserved alongside spread metadata fields:
     r => r.every(x => typeof x.location === 'string' && x.location.startsWith('http://'))

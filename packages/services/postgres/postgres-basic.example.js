@@ -1,9 +1,12 @@
 import { registryServer, callService } from '@yamf/core'
 import createPostgresService from './service.js'
 
-const url = process.env.YAMF_TEST_PSQL_URL
+const url =
+  process.env.YAMF_TEST_POSTGRES_URL ||
+  process.env.YAMF_TEST_PSQL_URL ||
+  process.env.TEST_PSQL_URL
 if (!url) {
-  console.warn('[postgres-basic.example] Set YAMF_TEST_PSQL_URL to run against Postgres; exiting 0 for local smoke.')
+  console.warn('[postgres-basic.example] Set YAMF_TEST_POSTGRES_URL to run against Postgres; exiting 0 for local smoke.')
   process.exit(0)
 }
 

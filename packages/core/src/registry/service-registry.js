@@ -317,15 +317,16 @@ export async function registerService(state, { service, location, useAuthService
 
   const replicaKey = `${service}\0${location}`
   const metaObj = metadata && typeof metadata === 'object' ? metadata : {}
-  const { sourceHash, configVersion, node, ...metadataForService } = metaObj
+  const { sourceHash, configVersion, nodeId: metaNodeId, node: legacyNode, ...metadataForService } = metaObj
+  const nodeIdVal = metaNodeId != null ? metaNodeId : legacyNode
 
-  if (sourceHash != null || configVersion != null || node != null) {
+  if (sourceHash != null || configVersion != null || nodeIdVal != null) {
     const prevR = state.replicaMetadata.get(replicaKey) || {}
     state.replicaMetadata.set(replicaKey, {
       ...prevR,
       ...(sourceHash != null ? { sourceHash } : {}),
       ...(configVersion != null ? { configVersion: String(configVersion) } : {}),
-      ...(node != null ? { node: String(node) } : {}),
+      ...(nodeIdVal != null ? { nodeId: String(nodeIdVal) } : {}),
       registeredAt: Date.now()
     })
   }

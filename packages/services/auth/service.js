@@ -4,6 +4,7 @@ import {
   HttpError,
   next,
   envConfig,
+  envTruthy,
   HEADERS,
   loadOrCreateEd25519KeyPair
 } from '@yamf/core'
@@ -68,7 +69,7 @@ export default async function createAuthService ({
   enrichTokenPayload = null,
   keyName = 'default',
   keyDir = defaultKeyDir(),
-  ephemeral = process.env.NODE_ENV === 'test' || process.env.YAMF_AUTH_EPHEMERAL === '1',
+  ephemeral = process.env.NODE_ENV === 'test' || envTruthy(envConfig.get('YAMF_AUTH_EPHEMERAL', false)),
   accessTokenExpiry = 60000 * 30,
   refreshTokenExpiry = 60000 * 60 * 24,
   maxSessionsPerUser = null,
