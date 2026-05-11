@@ -16,7 +16,9 @@ export async function testUserCreateGetE2E () {
   await terminateAfter(async function userSmokeBody () {
     await registryServer()
     await createPostgresService({ psqlConfig: url })
-    await createUserService({})
+    let service = await createUserService()
+    await service.createOrValidateUserTable()
+
     await callService('user-service', {
       create: { username: email, password: 'ExamplePass123!' }
     })

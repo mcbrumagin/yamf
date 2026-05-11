@@ -17,6 +17,29 @@ The user service stores data via **@yamf/services-postgres** (it calls the postg
 
 ## Quick Start
 
+Set up Postgres and allow your app host to connect (adjust paths for your distro; database and role names must match what you define in the migration):
+
+```
+# Example: /etc/postgresql/16/main/pg_hba.conf on many Linux installs
+# TYPE    DATABASE          USER        ADDRESS            METHOD
+host      example_database  yamf_admin  <your-app-ip>/32  scram-sha-256
+host      example_database  yamf_app    <your-app-ip>/32  scram-sha-256
+```
+
+Edit **`migrations/000_init_schema_and_user.sql`**: replace the placeholder passwords, and rename `example_database` (and role names if you change them) consistently in that file and in `pg_hba.conf`. The script creates schema **`yamf`** (not `public`) to avoid namespace clashes; keep that unless you intend to relocate objects and grants.
+
+Apply the bootstrap SQL as a superuser from the maintenance database, for example:
+
+```bash
+psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f migrations/000_init_schema_and_user.sql
+```
+
+The file uses a psql **`\connect`** to switch into the new database before `CREATE SCHEMA`; if you use a non-psql client, run the “phase 1” statements against `postgres` (or your admin DB) and the schema/grant block against the application database in a second session. The service runs **`CREATE TABLE` / `ALTER TABLE`** on startup paths that validate the schema, so point **`psqlConfig` at a role that can DDL in `yamf`** (typically `yamf_admin`) unless you create the table yourself with a migration-only user.
+
+**Optional PostGIS** for native `geolocation` (instead of TEXT EWKT): run **`migrations/optional_postgis_geolocation.sql`** manually, or enable **`postgisGeography`** in user-service options so the service applies the same change on startup.
+
+For a minimal local dev URL (single role, no split admin/app), you can still use something like `postgres://yamf:changeme@localhost/yamf` if your instance is provisioned that way (for example the CI image in this repo).
+
 ```javascript
 import { registryServer, callService } from '@yamf/core'
 import createPostgresService from '@yamf/services-postgres'
