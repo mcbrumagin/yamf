@@ -86,5 +86,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Bootstrap yamf schema for e2e
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          psql "$YAMF_TEST_POSTGRES_URL" -v ON_ERROR_STOP=1 \
+            -f packages/services/user/migrations/ci_e2e_bootstrap_yamf_schema.sql
+
       - name: E2E tests (postgres-backed packages)
         run: pnpm run test:e2e
