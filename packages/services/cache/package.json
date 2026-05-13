@@ -1,6 +1,6 @@
 {
   "name": "@yamf/services-cache",
-  "version": "1.0.0",
+  "version": "0.9.0",
   "type": "module",
   "description": "In-memory caching service for YAMF microservices",
   "main": "service.js",
