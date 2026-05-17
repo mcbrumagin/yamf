@@ -410,11 +410,17 @@ export default async function createEventSourceService(serviceName, handlers = {
     await httpServerTerminate()
     logger.info(`SSE service "${serviceName}" terminated`)
   }
-  const unregisterFromLifecycle = lifecycle.registerTerminable(runSseShutdown, { priority: 10 })
+  // Late-bound: lifecycle invokes whatever `server.terminate` resolves to at
+  // shutdown time so wrapper-added cleanup (e.g. clearInterval) is honored.
+  let unregisterFromLifecycle
   server.terminate = async () => {
-    unregisterFromLifecycle()
+    unregisterFromLifecycle?.()
     await runSseShutdown()
   }
+  unregisterFromLifecycle = lifecycle.registerTerminable(
+    () => server.terminate(),
+    { priority: 10 }
+  )
   shutdownTerminateRef.terminate = () => server.terminate()
 
   return server

@@ -5,7 +5,7 @@
  * - Main guard: when the registry/pm3 runs `node <this-bundle.mjs>`, start the service. When the CLI
  *   dynamic-imports the bundle for contract diff, process.argv[1] is not this file, so the guard is skipped.
  */
-import { createService } from '@yamf/core'
+import { createService } from "file:///home/mcbrumagin/Development/gitea/yamf/packages/core/src/index.js"
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 

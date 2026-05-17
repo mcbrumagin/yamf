@@ -16,7 +16,7 @@ import {
 } from './service-registry.js'
 import { registerRoute, unregisterRoute, findControllerRoute } from './route-registry.js'
 import { resolvePossibleRoute } from './http-route-handler.js'
-import { HEADERS,COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/yamf-headers.js'
+import { HEADERS, COMMANDS, RESERVED_COMMANDS, parseCommandHeaders, isHeaderBasedCommand } from '../shared/yamf-headers.js'
 import HttpError from '../http-primitives/http-error.js'
 import { validateRegistryToken, validateDeployToken } from './registry-auth.js'
 import envConfig from '../shared/env-config.js'
@@ -102,7 +102,12 @@ const PROTECTED_COMMANDS = new Set([
  * Health check command
  */
 function handleHealthCheck(state) {
-  return { status: 'ready', timestamp: Date.now(), draining: !!state?.draining }
+  return {
+    status: 'ready',
+    timestamp: Date.now(),
+    draining: !!state?.draining,
+    deployEvents: Array.isArray(state?.deployHistory) ? state.deployHistory.slice() : []
+  }
 }
 
 /**
@@ -465,8 +470,8 @@ async function routeCommandByHeaders(state, payload, request, response, options)
     case COMMANDS.AUTH_LOGOUT: {
       // Allow caller to target a non-default auth service via yamf-service-name, as long as
       // that name is a known auth service (registered with serviceType === 'auth-service').
-      // Absent a valid override, fall back to the conventional 'auth-service'.
-      const DEFAULT_AUTH_SERVICE = 'auth-service'
+      // Absent a valid override, fall back to the conventional 'auth' service name.
+      const DEFAULT_AUTH_SERVICE = 'auth'
       let authServiceName = DEFAULT_AUTH_SERVICE
       if (serviceName && serviceName !== DEFAULT_AUTH_SERVICE) {
         const requestedType = state.serviceTypes.get(serviceName)
@@ -501,11 +506,31 @@ async function routeCommandByHeaders(state, payload, request, response, options)
   }
 }
 
-const RESERVED_YAMF_COMMANDS = new Set(Object.values(COMMANDS))
-
 /**
- * Register a custom `yamf-command` handler (slice F). Built-in COMMANDS values are reserved.
- * Cleared when the owning service+location unregisters (see service-registry).
+ * Register a custom `yamf-command` verb (registry plugin tier).
+ *
+ * **Trust boundary.** Plugin handlers run **in-process** with direct registry-state access
+ * (`getReplicasFor`, `_bundleStore`, `_state`) **after** token validation. This is the
+ * *privileged* extension point — only trusted boot code should call it (the canonical
+ * caller is {@link import('@yamf/services-deploy-router').registerDeployRouter}). For
+ * app-level extension via service-extended commands (apps registering their own verbs
+ * against a service handler over the wire), see the v1 plan: that surface is deferred to
+ * post-v1; do not add it ad-hoc here.
+ *
+ * **Reservation.** Built-in {@link COMMANDS} values are rejected with HTTP 400; duplicate
+ * names are rejected with HTTP 409. Registrations are cleared automatically when the
+ * owning `{ service, location }` unregisters (see `service-registry.js`).
+ *
+ * @param {object} state - Registry state from `createRegistryState()`.
+ * @param {string} name - Wire verb (becomes the `yamf-command` header value).
+ * @param {(ctx: { headers: object, body: any, request: object, requesterLocation: string|null, response: object }) => any} handler
+ * @param {object} options
+ * @param {string} options.service - Owning service name; used as the cleanup key.
+ * @param {string} options.location - Owning service location; used as the cleanup key.
+ * @param {boolean} [options.requireRegistryToken=true] - Validate `yamf-registry-token` first.
+ * @param {boolean} [options.requireDeployToken=false] - Validate `yamf-deploy-token` first.
+ * @param {boolean} [options.parseJsonBody=true] - When false, pass the raw request stream
+ *   through (used for streamed uploads, e.g. `deploy-bundle`).
  */
 export function registerCommand(state, name, handler, { service, location, requireRegistryToken = true, requireDeployToken = false, parseJsonBody = true } = {}) {
   if (!name || typeof name !== 'string' || !handler) {
@@ -514,7 +539,7 @@ export function registerCommand(state, name, handler, { service, location, requi
   if (!service || !location) {
     throw new Error('registerCommand: service and location are required for lifecycle cleanup')
   }
-  if (RESERVED_YAMF_COMMANDS.has(name)) {
+  if (RESERVED_COMMANDS.has(name)) {
     throw new HttpError(400, `Command "${name}" is reserved`)
   }
   if (!state.pluginCommands) {

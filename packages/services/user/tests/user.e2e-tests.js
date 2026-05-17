@@ -1,8 +1,8 @@
 /**
- * User Service Integration Tests
+ * User Service E2E Tests
  * 
  * These tests require a running PostgreSQL database.
- * Configure via PGDATABASE, PGUSER, PGPASSWORD environment variables.
+ * Configure via PGDATABASE, PGUSER, PGPASSWORD or YAMF_TEST_POSTGRES_URL (legacy: YAMF_TEST_PSQL_URL, TEST_PSQL_URL).
  * 
  * Run: PGDATABASE=yamf_test PGUSER=yamf PGPASSWORD=changeme node tests/run-integration.js
  */
@@ -21,7 +21,7 @@ import {
   overrideConsoleGlobally
 } from '@yamf/core'
 
-import createPostgreSqlService from '@yamf/services-postgres'
+import createPostgresService from '@yamf/services-postgres'
 import createUserService from '../service.js'
 
 
@@ -33,7 +33,9 @@ import createUserService from '../service.js'
 // Test Configuration
 // =============================================================================
 
-const TEST_PSQL_CONFIG = process.env.TEST_PSQL_URL || 
+const TEST_PSQL_CONFIG = process.env.YAMF_TEST_POSTGRES_URL ||
+  process.env.YAMF_TEST_PSQL_URL ||
+  process.env.TEST_PSQL_URL ||
   `postgres://${process.env.PGUSER || 'yamf'}:${process.env.PGPASSWORD || 'changeme'}@localhost/${process.env.PGDATABASE || 'yamf'}`
 
 // Unique test user prefix to avoid conflicts
@@ -57,7 +59,7 @@ async function ensureUserSchema(userServiceServer) {
  */
 async function cleanupTestUsers(prefix) {
   try {
-    await callService('postgres-service', {
+    await callService('postgres', {
       template: `DELETE FROM yamf.user WHERE username LIKE :pattern`,
       data: { pattern: `${prefix}%` }
     })
@@ -73,9 +75,9 @@ async function cleanupTestUsers(prefix) {
 export async function testPostgresService_BasicQuery() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
-      const result = await callService('postgres-service', {
+      const result = await callService('postgres', {
         template: 'SELECT 1 + 1 AS sum',
         data: {}
       })
@@ -92,9 +94,9 @@ export async function testPostgresService_BasicQuery() {
 export async function testPostgresService_ParameterizedQuery() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
-      const result = await callService('postgres-service', {
+      const result = await callService('postgres', {
         template: 'SELECT :a::integer + :b::integer AS sum',
         data: { a: 5, b: 3 }
       })
@@ -109,10 +111,10 @@ export async function testPostgresService_ParameterizedQuery() {
 export async function testPostgresService_CaseMapping() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       // Query with snake_case column names
-      const result = await callService('postgres-service', {
+      const result = await callService('postgres', {
         template: `SELECT 'test' AS my_column_name, 123 AS another_value`,
         data: {}
       })
@@ -129,10 +131,10 @@ export async function testPostgresService_CaseMapping() {
 export async function testPostgresService_InvalidPlaceholder() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     async () => {
       await assertErr(
-        async () => callService('postgres-service', {
+        async () => callService('postgres', {
           template: 'SELECT :missingParam AS value',
           data: { otherParam: 1 }
         }),
@@ -153,7 +155,7 @@ export async function testUserService_SelfSignupFlow() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -230,7 +232,7 @@ export async function testUserService_AdminInviteFlow() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -294,7 +296,7 @@ export async function testUserService_VerifyAndRegister() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -340,7 +342,7 @@ export async function testUserService_VerifyAndRegister() {
 export async function testUserService_InvalidToken() {
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -365,7 +367,7 @@ export async function testUserService_TokenRegeneration() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -430,7 +432,7 @@ export async function testUserService_DuplicateUsername() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -462,7 +464,7 @@ export async function testUserService_UsernameUpdate() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -508,7 +510,7 @@ export async function testUserService_RemoveUser() {
   
   await terminateAfter(
     () => registryServer(),
-    () => createPostgreSqlService({ psqlConfig: TEST_PSQL_CONFIG }),
+    () => createPostgresService({ psqlConfig: TEST_PSQL_CONFIG }),
     () => createUserService(),
     async (_reg, _pg, userSvc) => {
       await ensureUserSchema(userSvc)
@@ -540,4 +542,45 @@ export async function testUserService_RemoveUser() {
       await assert(getAfter, r => r.get === undefined)
     }
   )
+}
+
+export async function testUserCreateGetE2E () {
+  const url =
+    process.env.YAMF_TEST_POSTGRES_URL ||
+    process.env.YAMF_TEST_PSQL_URL ||
+    process.env.TEST_PSQL_URL
+  if (!url) {
+    console.warn('skip testUserCreateGetE2E: YAMF_TEST_POSTGRES_URL not set')
+    return
+  }
+  const email = `e2e_${Date.now()}@example.com`
+  await terminateAfter(async function userSmokeBody () {
+    await registryServer()
+    await createPostgresService({ psqlConfig: url })
+    let service = await createUserService()
+    await service.createOrValidateUserTable()
+
+    await callService('user-service', {
+      create: { username: email, password: 'ExamplePass123!' }
+    })
+    const created = await callService('user-service', { get: { username: email } })
+    await assert(created?.get, (g) => g.username === email)
+
+    const inviteEmail = `e2e_inv_${Date.now()}@example.com`
+    const inv = await callService('user-service', {
+      invite: { username: inviteEmail, isActive: true }
+    })
+    await assert(inv?.invite, (i) => i.isRegistered === false && typeof i.token === 'string')
+
+    const reg = await callService('user-service', {
+      register: {
+        token: inv.invite.token,
+        password: 'ExamplePass123!'
+      }
+    })
+    await assert(reg?.register, (r) => r.isRegistered === true && r.isVerified === true)
+
+    const got = await callService('user-service', { get: { username: inviteEmail } })
+    await assert(got?.get, (g) => g.username === inviteEmail && g.isVerified === true)
+  })
 }

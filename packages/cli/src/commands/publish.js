@@ -1,16 +1,18 @@
 import { publishMessage, Logger } from '@yamf/core'
 import parseArgs from '../lib/parse-args.js'
+import { resolveCliRegistryToken } from '../lib/resolve-cli-auth.js'
 
 const logger = new Logger({ maxDepth: 10 })
 
 const ARGS = {
-  help:      { flags: ['-h', '--help'] },
-  verbose:   { flags: ['-v', '--verbose'] },
-  message:   { flags: ['-m', '--message'], type: 'string' },
-  authToken: { flags: ['-a', '--auth'], type: 'string' }
+  help: { flags: ['-h', '--help'] },
+  verbose: { flags: ['-v', '--verbose'] },
+  message: { flags: ['-m', '--message'], type: 'string' },
+  auth: { flags: ['--auth'], type: 'string' },
+  token: { flags: ['--token'], type: 'string' }
 }
 
-function getPublishHelp() {
+function getPublishHelp () {
   return `
 yamf publish - Publish a message to a channel
 
@@ -19,13 +21,14 @@ Usage:
 
 Options:
   -m, --message <json>    Message to publish (must be valid JSON)
-  -a, --auth <token>      Authentication token
+  --auth user:pass        Log in via the auth service; use token for this publish
+  --token <bearer>        Bearer token as yamf-auth-token
   -v, --verbose           Verbose output
   -h, --help              Show this help
 `
 }
 
-export async function runPublishCommand(args) {
+export async function runPublishCommand (args) {
   const options = parseArgs(args, ARGS)
   const channel = options._positional[0]
 
@@ -45,9 +48,19 @@ export async function runPublishCommand(args) {
     throw new Error('Message must be valid JSON')
   }
 
-  const result = await publishMessage(channel, message, {
-    authToken: options.authToken
-  })
+  let authToken = null
+  if (options.auth || options.token) {
+    const registryUrl = process.env.YAMF_REGISTRY_URL
+    if (!registryUrl) {
+      throw new Error('YAMF_REGISTRY_URL is required when using --auth or --token')
+    }
+    authToken = await resolveCliRegistryToken(
+      { auth: options.auth, token: options.token },
+      registryUrl
+    )
+  }
+
+  const result = await publishMessage(channel, message, { authToken })
 
   logger.info('publish result:', result)
   return result

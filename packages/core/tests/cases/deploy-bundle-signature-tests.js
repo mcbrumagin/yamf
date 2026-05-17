@@ -38,9 +38,19 @@ export async function testEnforcePolicyRequiresSigWhenKeyFile () {
     await assert(noSig, (o) => 'status' in o && o.status === 401)
     const good = enforceDeployBundleEd25519Policy({
       hash,
-      headers: { 'yamf-bundle-ed25519-sig': sigB64 }
+      headers: { 'yamf-bundle-signature': sigB64 }
     })
     await assert(good, (o) => o && o.ok === true)
+    const goodWithAlg = enforceDeployBundleEd25519Policy({
+      hash,
+      headers: { 'yamf-bundle-signature': sigB64, 'yamf-bundle-signature-alg': 'ed25519' }
+    })
+    await assert(goodWithAlg, (o) => o && o.ok === true)
+    const unsupportedAlg = enforceDeployBundleEd25519Policy({
+      hash,
+      headers: { 'yamf-bundle-signature': sigB64, 'yamf-bundle-signature-alg': 'ed448' }
+    })
+    await assert(unsupportedAlg, (o) => 'status' in o && o.status === 415)
   } finally {
     if (prev != null) process.env.YAMF_DEPLOY_AUTHORIZED_KEYS = prev
     else delete process.env.YAMF_DEPLOY_AUTHORIZED_KEYS

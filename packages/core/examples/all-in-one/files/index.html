@@ -353,7 +353,7 @@
 
             try {
 
-                // await callService('auth-service', { authenticate: { user: 'admin', password: 'password' } })
+                // await callService('auth', { authenticate: { user: 'admin', password: 'password' } })
                 let authResult = await fetch('/', {
                     method: 'POST',
                     body: JSON.stringify({ authenticate: { user: 'admin', password: 'password' } }),

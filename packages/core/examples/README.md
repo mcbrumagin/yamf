@@ -17,8 +17,8 @@ Demonstrates the new range request support for audio/video streaming with full s
 
 **Quick Start:**
 ```bash
-# From the project root
-node examples/media-streaming-example.js
+# From packages/core/examples (or project root with adjusted path)
+node media-streaming-example.js
 
 # Open browser to http://localhost:10000/
 ```
@@ -52,7 +52,7 @@ Full-stack example using **@yamf/services-postgres**, **@yamf/services-user**, a
 
 - **Postgres** – Parameterized queries and `yamf.user` table.
 - **User** – Self-signup (with password), admin-invite (registration token), verify, get/update/remove, generateToken.
-- **Auth** – Custom `validateUserPassword` (loads user from Postgres, checks Argon hash and `is_active` / `is_registered` / `is_verified`); login via `COMMANDS.AUTH_LOGIN`; protected services via `useAuthService: 'auth-service'` and `HEADERS.AUTH_TOKEN`.
+- **Auth** – Custom `validateUserPassword` (loads user from Postgres, checks Argon hash and `is_active` / `is_registered` / `is_verified`); login via `COMMANDS.AUTH_LOGIN`; protected services via `useAuthService: 'auth'` and `HEADERS.AUTH_TOKEN`.
 
 Run from the example directory (requires local Postgres and `yamf` DB). See the example `index.js` for the full flow.
 
@@ -118,5 +118,5 @@ If you have questions or issues with any examples:
 1. Check the example's README if it has one
 2. Review the main project README
 3. Look at the relevant documentation files
-4. Check test files in `/test/cases/` for usage patterns
+4. Check test files in `packages/core/tests/cases/` for usage patterns
 

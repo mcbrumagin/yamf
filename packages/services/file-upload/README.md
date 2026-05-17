@@ -2,7 +2,7 @@
 
 Multipart file upload service for YAMF microservices with validation and metadata extraction.
 
-[![Version](https://img.shields.io/badge/version-0.1.2-blue)]()
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ## Installation

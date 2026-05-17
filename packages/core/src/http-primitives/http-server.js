@@ -5,10 +5,9 @@ import Logger from '../utils/logger.js'
 import fs from 'node:fs'
 import { detectContentType } from './content-type-detector.js'
 import { getDefaultResponseSecurityHeaders } from '../shared/csp.js'
+import { installTerminate } from './terminate-server.js'
 
 const logger = new Logger({ logGroup: 'http-primitives' })
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 function prependServiceNameToErrorStack(err, serviceName) {
   // helpful for cascading errors
@@ -18,16 +17,47 @@ function prependServiceNameToErrorStack(err, serviceName) {
   err.stack = errFrags.join('\n')
 }
 
-function overrideResponse(response) {
+/**
+ * Guard response methods so double-send logs a warning instead of throwing (e.g. user onSuccess + framework).
+ * @param {import('http').ServerResponse} response
+ * @param {{ name?: string, port?: number }} ctx
+ */
+function overrideResponse (response, ctx = { name: 'http-server', port: 0 }) {
   response.isEnded = false
   const originalEnd = response.end.bind(response)
+  const originalWriteHead = response.writeHead.bind(response)
+  const originalSetHeader = response.setHeader.bind(response)
+
+  const warnDouble = (what) => {
+    logger.warn(`${what} after response ended or headers sent`, { port: ctx.port, name: ctx.name })
+  }
+
+  response.writeHead = function writeHeadGuard (...args) {
+    if (response.writableEnded || response.headersSent) {
+      warnDouble('writeHead')
+      return response
+    }
+    return originalWriteHead.apply(response, args)
+  }
+
+  response.setHeader = function setHeaderGuard (name, value) {
+    if (response.writableEnded || response.headersSent) {
+      warnDouble('setHeader')
+      return
+    }
+    return originalSetHeader.call(response, name, value)
+  }
+
   response.end = (sanitizedPayload) => {
-    // logger.info('response.end', { type: typeof sanitizedPayload, isBuffer: Buffer.isBuffer(sanitizedPayload) })
-    if (!Buffer.isBuffer(sanitizedPayload) && typeof sanitizedPayload === 'object')
+    if (!Buffer.isBuffer(sanitizedPayload) && typeof sanitizedPayload === 'object' && sanitizedPayload != null) {
       sanitizedPayload = JSON.stringify(sanitizedPayload)
-    
-    if (!response.isEnded) originalEnd.call(response, sanitizedPayload)
-    else logger.warn('response already ended', { port, name: serverFn.name })
+    }
+
+    if (!response.isEnded && !response.writableEnded) {
+      originalEnd.call(response, sanitizedPayload)
+    } else {
+      warnDouble('end')
+    }
     response.isEnded = true
   }
   return response
@@ -52,7 +82,8 @@ export default async function createServer(port, serverFn, options = {}) {
       requestTimeout,
       headersTimeout: Math.min(headersTimeout, requestTimeout || Infinity),
     }, async (request, response) => {
-      response = overrideResponse(response) // TODO VERIFY
+      // Response methods are wrapped to avoid process crash on double-send (see overrideResponse).
+      response = overrideResponse(response, { name: serverFn.name, port })
       try {
         let body
         const contentType = request.headers['content-type'] || ''
@@ -162,17 +193,7 @@ export default async function createServer(port, serverFn, options = {}) {
       reject(err)
     })
 
-    server.terminate = () => new Promise(resolve => {
-      server.on('close', async () => {
-        // I hate this, but for some reason, in tests,
-        // terminating and restarting causes subsequent create-service registrations to fail.
-        // This should permit whatever outlying OS network freeing outside nodejs
-        await sleep(5) // TODO
-        // not having sleep currently only fails testRouteMissingService
-        resolve()
-      })
-      server.close()
-    })
+    installTerminate(server)
     
     server.listen(port, () => {
       server.port = port

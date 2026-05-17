@@ -24,7 +24,7 @@ export * from './shared/yamf-headers.js'
 export { lifecycle } from './shared/process-lifecycle.js'
 
 // Shared utilities (also exported from main index for convenience)
-export { envConfig } from './shared/index.js'
+export { envConfig, envTruthy } from './shared/index.js'
 export { buildCsp, getDefaultResponseSecurityHeaders } from './shared/csp.js'
 
 export * from './shared/crypto.js'
@@ -39,6 +39,7 @@ export {
   signDeployHashWithEd25519Pem
 } from './registry/deploy-bundle-signature.js'
 export { getReplicasFor, listServiceLocations } from './registry/replica-helpers.js'
+export { terminateActiveRegistryServers } from './registry/active-registry.js'
 
 // Contract cross-cut 2: import from @yamf/core/contract-compatibility (not the main entry) so app
 // bundles that only need createService do not load or resolve this module.

@@ -28,12 +28,13 @@ function validatePlaceholderName(name) {
   return true
 }
 
-export default async function createPostgreSqlService({
-  serviceName = 'postgres-service',
+export default async function createPostgresService ({
+  serviceName = 'postgres',
+
   psqlConfig = defaultPsqlConfig,
   schema = null,
   seed = null
-}) {
+} = {}) {
   const sql = postgres(psqlConfig) // psql environment variables
 
   /**

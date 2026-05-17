@@ -62,7 +62,7 @@ export async function testBasicStaticFileServiceWorkingDir() {
         fileMap: 'package.json'
       }),
       async () => {
-        let result = await callService('static-file-service', { url: '/' })
+        let result = await callService('static-files', { url: '/' })
         await assert(result || 'no result',
           r => r !== 'no result',
           r => !!r.scripts.test // should exist in any package.json that is running this
@@ -88,7 +88,7 @@ export async function testBasicStaticFileServiceExternalTempDir() {
         externalRootDir: true
       }),
       async () => {
-        let result = await callService('static-file-service', { url: '/' })
+        let result = await callService('static-files', { url: '/' })
         await assert(result, 
           r => r.includes('Index Page'),
           r => r.includes('<html>')
@@ -117,8 +117,8 @@ export async function testStaticFileWithMultipleRoutes() {
         externalRootDir: true
       }),
       async () => {
-        let indexResult = await callService('static-file-service', { url: '/' })
-        let aboutResult = await callService('static-file-service', { url: '/about' })
+        let indexResult = await callService('static-files', { url: '/' })
+        let aboutResult = await callService('static-files', { url: '/about' })
         
         await assert(indexResult, r => r.includes('Index Page'))
         await assert(aboutResult, r => r.includes('About Page'))
@@ -147,8 +147,8 @@ export async function testStaticFileWithWildcardMapping() {
         externalRootDir: true
       }),
       async () => {
-        let styleResult = await callService('static-file-service', { url: '/public/style.css' })
-        let scriptResult = await callService('static-file-service', { url: '/public/script.js' })
+        let styleResult = await callService('static-files', { url: '/public/style.css' })
+        let scriptResult = await callService('static-files', { url: '/public/script.js' })
         
         await assert(styleResult, r => r.includes('body { color: red; }'))
         await assert(scriptResult, r => r.includes('console.log'))
@@ -178,12 +178,12 @@ export async function testStaticFileCatchAllFallback() {
       }),
       async () => {
         // Explicit mappings should work
-        let styleResult = await callService('static-file-service', { url: '/public/style.css' })
+        let styleResult = await callService('static-files', { url: '/public/style.css' })
         await assert(styleResult, r => r.includes('body { color: red; }'))
         
         // Unmatched paths should fall back to index.html (SPA-style)
-        let dashboardResult = await callService('static-file-service', { url: '/dashboard' })
-        let nestedResult = await callService('static-file-service', { url: '/app/settings/profile' })
+        let dashboardResult = await callService('static-files', { url: '/dashboard' })
+        let nestedResult = await callService('static-files', { url: '/app/settings/profile' })
         
         await assert(dashboardResult, r => r.includes('Index Page'))
         await assert(nestedResult, r => r.includes('Index Page'))
@@ -217,9 +217,9 @@ export async function testStaticFileSpaModeFallback() {
         externalRootDir: true
       }),
       async () => {
-        const spaRoute = await callService('static-file-service', { url: '/dashboard' })
-        const nestedSpaRoute = await callService('static-file-service', { url: '/app/settings/profile' })
-        const knownAsset = await callService('static-file-service', { url: '/public/style.css' })
+        const spaRoute = await callService('static-files', { url: '/dashboard' })
+        const nestedSpaRoute = await callService('static-files', { url: '/app/settings/profile' })
+        const knownAsset = await callService('static-files', { url: '/public/style.css' })
 
         await assert(spaRoute, r => r.includes('Index Page'))
         await assert(nestedSpaRoute, r => r.includes('Index Page'))
@@ -253,11 +253,11 @@ export async function testStaticFileSpaModeExcludesPrefixesAndExtensions() {
       }),
       async () => {
         await assertErr(
-          async () => callService('static-file-service', { url: '/api/missing' }),
+          async () => callService('static-files', { url: '/api/missing' }),
           err => err.status === 404
         )
         await assertErr(
-          async () => callService('static-file-service', { url: '/missing.js' }),
+          async () => callService('static-files', { url: '/missing.js' }),
           err => err.status === 404
         )
       }
@@ -282,7 +282,7 @@ export async function testStaticFileSecurityAllowsLibrarySegment() {
         externalRootDir: true
       }),
       async () => {
-        const result = await callService('static-file-service', { url: '/public/library.js' })
+        const result = await callService('static-files', { url: '/public/library.js' })
         await assert(result, r => r.includes('library'))
       }
     )
@@ -317,7 +317,7 @@ export async function testStaticFileFileMapWithParentSegmentOutsideRoot() {
         externalRootDir: true
       }),
       async () => {
-        const out = await callService('static-file-service', { url: '/u/hello.txt' })
+        const out = await callService('static-files', { url: '/u/hello.txt' })
         await assert(out, (r) => r.includes('from-parent-path'))
       }
     )
@@ -339,7 +339,7 @@ export async function testStaticFileNotFound() {
         externalRootDir: true
       }),
       async () => assertErr(
-        async () => callService('static-file-service', { url: '/nonexistent.html' }),
+        async () => callService('static-files', { url: '/nonexistent.html' }),
         err => err.status === 404,
         err => err.message.includes('Not found')
       )
@@ -362,7 +362,7 @@ export async function testStaticFileWithCustomResolver() {
         externalRootDir: true
       }, (url) => `Custom response for: ${url}`),
       async () => assert(
-        await callService('static-file-service', { url: 'custom-route' }),
+        await callService('static-files', { url: 'custom-route' }),
         r => r.includes('Custom response for: custom-route')
       )
     )
@@ -398,9 +398,9 @@ export async function testStaticFileUrlSanitization() {
       }),
       async () => {
         // Test with trailing slash
-        let result1 = await callService('static-file-service', { url: '/' })
+        let result1 = await callService('static-files', { url: '/' })
         // Test without leading slash
-        let result2 = await callService('static-file-service', { url: 'index.html/' })
+        let result2 = await callService('static-files', { url: 'index.html/' })
         
         await assert(result1, r => r.includes('Index Page'))
         await assert(result2, r => r.includes('Index Page'))
@@ -425,7 +425,7 @@ export async function testStaticFileWithDefaultRequestUrl() {
         externalRootDir: true
       }),
       async () => {
-        let result = await callService('static-file-service')
+        let result = await callService('static-files')
         await assert(
           result,
           r => r.includes('Index Page'),
@@ -454,7 +454,7 @@ export async function testStaticFileResponseHeaders() {
         let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/index.html`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'static-file-service'
+            [HEADERS.SERVICE_NAME]: 'static-files'
           }
         })
         
@@ -486,7 +486,7 @@ export async function testStaticFileDirectoryTreePopulation() {
         externalRootDir: true
       }),
       async () => {
-        let result = await callService('static-file-service', { url: '/public/assets/logo.png' })
+        let result = await callService('static-files', { url: '/public/assets/logo.png' })
         await assert(result, r => r.includes('fake-png-data'))
         return result
       }
@@ -517,7 +517,7 @@ export async function testStaticFileRangeHeaderAdvertisement() {
         let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'static-file-service'
+            [HEADERS.SERVICE_NAME]: 'static-files'
           }
         })
         
@@ -557,7 +557,7 @@ export async function testStaticFileRangeRequest() {
         let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            [HEADERS.SERVICE_NAME]: 'static-files',
             'Range': 'bytes=100-199'
           }
         })
@@ -606,7 +606,7 @@ export async function testStaticFileInvalidRangeRequest() {
         let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            [HEADERS.SERVICE_NAME]: 'static-files',
             'Range': 'bytes=2000-3000' // File is only 1000 bytes
           }
         })
@@ -645,7 +645,7 @@ export async function testStaticFileRangeWithIfRange() {
         let initialResponse = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'static-file-service'
+            [HEADERS.SERVICE_NAME]: 'static-files'
           }
         })
         
@@ -656,7 +656,7 @@ export async function testStaticFileRangeWithIfRange() {
         let rangeResponse = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            [HEADERS.SERVICE_NAME]: 'static-files',
             'Range': 'bytes=100-199',
             'If-Range': lastModified
           }
@@ -671,7 +671,7 @@ export async function testStaticFileRangeWithIfRange() {
         let fullResponse = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            [HEADERS.SERVICE_NAME]: 'static-files',
             'Range': 'bytes=100-199',
             'If-Range': 'Wed, 01 Jan 2020 00:00:00 GMT' // Old date
           }
@@ -710,7 +710,7 @@ export async function testStaticFileOpenEndedRangeRequest() {
         let response = await fetch(`${process.env.YAMF_REGISTRY_URL}/audio.mp3`, {
           headers: {
             [HEADERS.COMMAND]: COMMANDS.SERVICE_CALL,
-            [HEADERS.SERVICE_NAME]: 'static-file-service',
+            [HEADERS.SERVICE_NAME]: 'static-files',
             'Range': 'bytes=900-'
           }
         })

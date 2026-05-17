@@ -12,7 +12,7 @@ import { Readable } from 'node:stream'
 
 import { PM3 } from '@yamf/cli'
 
-const logger = new Logger({ logGroup: 'pm3-service' })
+const logger = new Logger({ logGroup: 'pm3' })
 
 /**
  * When YAMF_DEPLOY_TOKEN is set, deploy and rolling-deploy require the same value in
@@ -70,7 +70,7 @@ async function ensureBundleFile (managedServicePath, hash) {
  * For now, this service is NOT recommended for production use.
  */
 export default async function createPm3Service ({
-  serviceName = 'pm3-service',
+  serviceName = 'pm3',
   managedServicePath = '/tmp/yamf/services'
 } = {}) {
   const pm3 = new PM3()

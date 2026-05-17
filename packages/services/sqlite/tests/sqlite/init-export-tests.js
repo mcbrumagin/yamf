@@ -29,7 +29,7 @@ export async function testEnsureDbPath_CreatesNestedDir() {
 
   await ensureDbPath(dbPath)
 
-  await assert(existsSync(join(baseDir, 'nested', 'dir')), x => x === true)
+  await assert(join(baseDir, 'nested', 'dir'), p => existsSync(p))
 }
 
 export async function testEnsureDbPath_SkipsMemory() {
@@ -50,7 +50,7 @@ export async function testSchema_RunsOnInit() {
       `
     }),
     async (registry, service) => {
-      const result = await callService('sqlite-service', {
+      const result = await callService('sqlite', {
         template: 'SELECT name FROM sqlite_master WHERE type = :type AND name = :name',
         data: { type: 'table', name: '_schema_test' }
       })
@@ -76,7 +76,7 @@ export async function testSeed_RunsAfterSchema() {
       seed: `INSERT INTO _seed_test (id, val) VALUES (1, 'seeded')`
     }),
     async (registry, service) => {
-      const result = await callService('sqlite-service', {
+      const result = await callService('sqlite', {
         template: 'SELECT val FROM _seed_test WHERE id = :id',
         data: { id: 1 }
       })
@@ -104,8 +104,8 @@ export async function testBackup_ExportsToFile() {
     async (registry, service) => {
       const pages = await service.backup(backupPath)
       await assert(pages, p => typeof p === 'number' && p > 0)
-      await assert(existsSync(backupPath), x => x === true)
-      await assert(readFileSync(backupPath).length > 0, x => x > 0)
+      await assert(backupPath, p => existsSync(p))
+      await assert(readFileSync(backupPath), buf => buf.length > 0)
     }
   )
 }
@@ -127,14 +127,14 @@ export async function testFileDb_InitAndBackup() {
       `
     }),
     async (registry, service) => {
-      const result = await callService('sqlite-service', {
+      const result = await callService('sqlite', {
         template: 'SELECT label FROM _persist_test WHERE id = :id',
         data: { id: 1 }
       })
       await assert(result, r => r[0].label === 'from_file')
 
       await service.backup(backupPath)
-      await assert(existsSync(backupPath), x => x === true)
+      await assert(backupPath, p => existsSync(p))
     }
   )
 }

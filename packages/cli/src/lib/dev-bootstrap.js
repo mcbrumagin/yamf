@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * Dev environment bootstrap - started by `yamf init --dev`.
+ * Dev environment bootstrap — launched by PM3 when `yamf dev` or tests start the local stack.
  * Launches registry + cache service + pm3-service in a single process.
  * This process is managed by pm3 itself (tagged as internal).
  */
 
-import { registryServer, Logger, lifecycle } from '@yamf/core'
+import { registryServer, Logger, lifecycle, envConfig, envTruthy } from '@yamf/core'
 import { DEFAULT_LOCAL_REGISTRY_URL } from './registry-url.js'
 
 const logger = new Logger({ logGroup: 'yamf-dev' })
@@ -16,10 +16,10 @@ async function bootstrap() {
   logger.info('Registry running')
 
   try {
-    const { attachDeployRouter } = await import('@yamf/services-deploy-router/service.js')
+    const { registerDeployRouter, DEPLOY_COMMANDS } = await import('@yamf/services-deploy-router')
     const regUrl = process.env.YAMF_REGISTRY_URL || DEFAULT_LOCAL_REGISTRY_URL
-    attachDeployRouter(registry, { location: regUrl, bundleStore: registry._bundleStore })
-    logger.info('Deploy router attached (deploy-plan, deploy-bundle)')
+    registerDeployRouter(registry, { location: regUrl, bundleStore: registry._bundleStore })
+    logger.info(`Deploy router registered (${DEPLOY_COMMANDS.PLAN}, ${DEPLOY_COMMANDS.BUNDLE})`)
   } catch (err) {
     logger.warn('Deploy router not available —', err?.message || err)
   }
@@ -46,10 +46,10 @@ async function bootstrap() {
     logger.warn('pm3-service (@yamf/services-pm3) not available — skipping')
   }
 
-  if (process.env.YAMF_DEV === 'on' && process.env.NODE_ENV !== 'production') {
+  if (envTruthy(envConfig.get('YAMF_DEV', false)) && process.env.NODE_ENV !== 'production') {
     try {
-      const { default: createYamfDevHmrService } = await import('@yamf/services-dev-hmr')
-      const devHmr = await createYamfDevHmrService()
+      const { default: createDevHmrService } = await import('@yamf/services-dev-hmr')
+      const devHmr = await createDevHmrService()
       if (devHmr) logger.info('dev-hmr (SSE reload) running — yamf dev will publish to yamf:dev-reload')
     } catch (e) {
       logger.warn('dev-hmr (@yamf/services-dev-hmr) not available —', e?.message || e)

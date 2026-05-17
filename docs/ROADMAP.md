@@ -10,8 +10,8 @@ Living document. Framework‑level plans (YAMF) live here; product roadmaps for 
 
 ## Index
 
+- **v1 hardening (recently completed work + remaining gaps + final API design review checkpoint)** — [V1-HARDENING.md](./V1-HARDENING.md). The single consolidated v1 doc; replaces the prior `V1-READINESS`, `V1-EXAMPLES-AS-SCRIPTS-REWORK`, and `TEST-PLAN-*` set.
 - **This doc** — YAMF framework plan: **What shipped** (including orchestrator slice summary), **Active follow‑on** (cross‑cuts, config refinements), **Shipped slice specifications (reference)**, and **Deferred** (horizon).
-- **Test coverage follow-up (near-term debt)** — [TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md): optional tests and coverage not covered by the main gap plan (e.g. `replica-helpers`, browser-only `patch-dom` paths, gateway e2e SSR). **Earlier than horizon** R&D; pick up alongside related slices.
 - **SoundClone product roadmaps** (under `soundclone-deployment/docs/`):
   - [Immediate & near‑term (alpha → ~6 months)](../../soundclone-deployment/docs/ROADMAP-IMMEDIATE-NEAR-TERM.md)
   - [Cloud‑hosted & community release (~6 months → later)](../../soundclone-deployment/docs/ROADMAP-CLOUD-HOSTED.md)
@@ -52,7 +52,7 @@ Living document. Framework‑level plans (YAMF) live here; product roadmaps for 
 
 ## Test coverage follow-up (near-term)
 
-The [under-50% gap plan](./TEST-PLAN-UNDER-50.md) and the first passes on CLI, `@yamf/client`, and `@yamf/services-dev-hmr` are **not** meant to exhaust every surface. Consolidated **remaining** test work (core helpers, optional CLI dispatch refactor, browser/e2e client paths, optional dev-hmr assertions) lives in **[TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md)**. Track it as **near-term debt** before long-horizon items in the Deferred section below.
+Tier‑A spine (pm3, deploy‑router, registry/nodes/health), Tier‑B CLI command validation, and the first passes on `@yamf/client` (`patch-dom`, `ssr-hydrate`, D4 dev‑hmr) and `@yamf/services-dev-hmr` are all in tree. Remaining gaps (low‑coverage CLI commands, deploy driver / pm3 internals, smoke/placeholder e2e cleanup) are tracked in **[V1-HARDENING.md](./V1-HARDENING.md)** under *Remaining work / known gaps*. Treat as **near-term debt** before long-horizon items in the Deferred section below.
 
 ---
 
@@ -105,7 +105,7 @@ Regression coverage lives in `packages/core/tests/cases/rolling-registry-tests.j
 | `YAMF_GATEWAY_READY_WAIT_MS` | `10000` | Gateway's initial wait for a non‑draining registry. |
 | `YAMF_GATEWAY_READY_POLL_MS` | `250` | Gateway's health‑poll interval during startup. |
 | `YAMF_REGISTRATION_RETRY_LIMIT` | `120` | Service registration retries (bridges a registry gap). |
-| `YAMF_RETRY_DELAY` | `100` | Initial backoff for retrying registrations. |
+| `YAMF_RETRY_DELAY_MS` | `100` | Initial backoff for retrying registrations (legacy: `YAMF_RETRY_DELAY`). |
 | `YAMF_PM3_POLL_MAX_ATTEMPTS` | `150` | CLI `pm3` startup polling cap. |
 | `YAMF_PM3_POLL_INTERVAL_MS` | `200` | CLI `pm3` startup polling interval. |
 | `YAMF_PM3_POLL_STABLE_CHECKS` | `3` | Consecutive stable snapshots before declaring ready. |
@@ -511,7 +511,7 @@ sequenceDiagram
 #### Design commitments
 
 1. **`yamf build`**. New CLI command, `packages/cli/src/commands/build.js`.
-   - Discovers services via `yamf.config.js` (`{ services: [{ name, entry, env?, replicas? }] }`) or `--service <entry>` flags.
+   - Discovers services via `yamf.config.js` (`{ services: [{ name, entry, env?, replicas?, registeredServiceName?, watch? }] }`) or `--service <entry>` flags.
    - Runs esbuild with `{ format: 'esm', platform: 'node', target: 'node20', sourcemap: true, external: ['@yamf/*'] }`.
    - Output: `.yamf/build/<service>/<sha256>.mjs` + `<sha256>.meta.json` (entry, env requirements, dep list, `createdAt`).
    - **Source hash** = sha256 over the bundle bytes, appended with the stable `meta.json` of dependencies.
@@ -722,7 +722,7 @@ import { pipeline } from 'node:stream/promises'
 import { createWriteStream, renameSync, unlinkSync, existsSync } from 'node:fs'
 import { HttpError, publishMessage } from '@yamf/core'
 
-export function attachDeployRouter (registry, { bundleStore, deployToken }) {
+export function registerDeployRouter (registry, { bundleStore, deployToken }) {
   // deploy-plan: CLI → registry decision. Same table as Phase 2 `planAndApply`, but server‑side.
   registry.registerCommand('deploy-plan', async ({ body }) => {
     const decisions = []

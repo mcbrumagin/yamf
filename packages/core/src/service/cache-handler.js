@@ -113,9 +113,9 @@ export function createCacheAwareHandler(serviceFn, cache, context, serviceOption
       validateCacheMessageRegistryToken(request)
       const h = parseCommandHeaders(request.headers)
 
-      if (h.cacheBulk) {
+      if (h.cacheWindowId) {
         let p = payload
-        if (p == null || p === undefined) {
+        if (p == null) {
           const raw = await readStream(request)
           const s = raw && raw.length ? raw.toString('utf8') : '{}'
           try {
@@ -139,7 +139,7 @@ export function createCacheAwareHandler(serviceFn, cache, context, serviceOption
         return {
           status: 'cache_updated_bulk',
           count: updates.length,
-          windowId: p?.windowId
+          windowId: h.cacheWindowId
         }
       }
 

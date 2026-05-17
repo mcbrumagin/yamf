@@ -6,7 +6,7 @@
 
 import httpServer from '../http-primitives/http-server.js'
 import httpRequest from '../http-primitives/http-request.js'
-import envConfig from '../shared/env-config.js'
+import envConfig, { envTruthy } from '../shared/env-config.js'
 import retry from '../shared/retry-helper.js'
 import { buildSetupHeaders, buildRegisterHeaders, buildUnregisterHeaders } from '../shared/yamf-headers.js'
 import Logger from '../utils/logger.js'
@@ -15,10 +15,7 @@ import { hasLocalService, getLocalServiceAccess } from '../shared/local-state.js
 const logger = new Logger({ logGroup: 'yamf-service-helpers' })
 
 function allowBreakingContractFromEnv () {
-  return (
-    envConfig.get('YAMF_DEPLOY_ALLOW_BREAKING') === '1' ||
-    envConfig.get('YAMF_DEPLOY_ALLOW_BREAKING') === true
-  )
+  return envTruthy(envConfig.get('YAMF_DEPLOY_ALLOW_BREAKING', false))
 }
 
 /**
@@ -26,7 +23,7 @@ function allowBreakingContractFromEnv () {
  */
 const DEFAULT_RETRY_CONFIG = {
   tryRegisterLimit: envConfig.get('YAMF_RETRY_LIMIT', 3),
-  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY', 100),
+  retryInitialDelay: envConfig.get('YAMF_RETRY_DELAY_MS', envConfig.get('YAMF_RETRY_DELAY', 100)),
   muteRetryWarnings: envConfig.get('YAMF_MUTE_RETRY_WARNINGS', false)
 }
 
@@ -140,7 +137,7 @@ export async function registerServiceWithRegistry(serviceName, location, options
       ...(configVersion != null && configVersion !== ''
         ? { configVersion: String(configVersion) }
         : {}),
-      ...(nodeId != null && nodeId !== '' ? { node: String(nodeId) } : {})
+      ...(nodeId != null && nodeId !== '' ? { nodeId: String(nodeId) } : {})
     }
   }
 
@@ -163,22 +160,23 @@ export async function registerServiceWithRegistry(serviceName, location, options
 }
 
 /**
- * Notify registry of a pure service (for observability only)
+ * Notify registry of a pure service (for observability only).
  * Pure services don't have HTTP servers, but we notify the registry so:
  * 1. Other nodes know the name is taken
  * 2. Observability tools can track all services
- * 
+ *
+ * This function **never throws**: any failure (including no YAMF_REGISTRY_URL set) is logged
+ * and returns `null`. Callers do not need their own try/catch.
+ *
  * @param {string} serviceName - Name of the service
  * @param {Object} options - Service options
- * @returns {Promise<Object|null>} Registry data or null if notification fails
+ * @returns {Promise<Object|null>} Registry data or null if notification fails / no registry URL
  */
 export async function notifyRegistryOfPureService(serviceName, options = {}) {
-  const { registryHost, registryToken } = getRegistryConfig()
-  const { useAuthService, contract } = options
-  
-  logger.debug(`notifyRegistryOfPureService - ${serviceName}`)
-  
   try {
+    const { registryHost, registryToken } = getRegistryConfig()
+    const { useAuthService, contract } = options
+    logger.debug(`notifyRegistryOfPureService - ${serviceName}`)
     return await httpRequest(registryHost, {
       headers: buildRegisterHeaders(serviceName, 'pure://local', {
         useAuthService,

@@ -2,7 +2,7 @@
 
 User management service for YAMF: CRUD, self-signup, admin-invite with registration tokens, and optional verification workflows.
 
-[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## Installation
@@ -13,17 +13,42 @@ npm install @yamf/services-user @yamf/services-postgres @yamf/core
 
 The user service stores data via **@yamf/services-postgres** (it calls the postgres service by default). You must run a Postgres service and ensure the `yamf.user` table exists (the service creates it if not present).
 
+**Password hashes** come from `@yamf/core` (`createArgonSaltAndHash` / `checkArgonPassword`): **Argon2** on Node.js 24+ (`crypto.argon2`), **scrypt** (hashes prefixed with `scrypt1:`) on Node 22–23. Rows produced on Node 24 remain Argon2-only until passwords are reset if you later run only Node 22.
+
 ## Quick Start
+
+Set up Postgres and allow your app host to connect (adjust paths for your distro; database and role names must match what you define in the migration):
+
+```
+# Example: /etc/postgresql/16/main/pg_hba.conf on many Linux installs
+# TYPE    DATABASE          USER        ADDRESS            METHOD
+host      example_database  yamf_admin  <your-app-ip>/32  scram-sha-256
+host      example_database  yamf_app    <your-app-ip>/32  scram-sha-256
+```
+
+Edit **`migrations/000_init_schema_and_user.sql`**: replace the placeholder passwords, and rename `example_database` (and role names if you change them) consistently in that file and in `pg_hba.conf`. The script creates schema **`yamf`** (not `public`) to avoid namespace clashes; keep that unless you intend to relocate objects and grants.
+
+Apply the bootstrap SQL as a superuser from the maintenance database, for example:
+
+```bash
+psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f migrations/000_init_schema_and_user.sql
+```
+
+The file uses a psql **`\connect`** to switch into the new database before `CREATE SCHEMA`; if you use a non-psql client, run the “phase 1” statements against `postgres` (or your admin DB) and the schema/grant block against the application database in a second session. The service runs **`CREATE TABLE` / `ALTER TABLE`** on startup paths that validate the schema, so point **`psqlConfig` at a role that can DDL in `yamf`** (typically `yamf_admin`) unless you create the table yourself with a migration-only user.
+
+**Optional PostGIS** for native `geolocation` (instead of TEXT EWKT): run **`migrations/optional_postgis_geolocation.sql`** manually, or enable **`postgisGeography`** in user-service options so the service applies the same change on startup.
+
+For a minimal local dev URL (single role, no split admin/app), you can still use something like `postgres://yamf:changeme@localhost/yamf` if your instance is provisioned that way (for example the CI image in this repo).
 
 ```javascript
 import { registryServer, callService } from '@yamf/core'
-import createPostgreSqlService from '@yamf/services-postgres'
+import createPostgresService from '@yamf/services-postgres'
 import createUserService from '@yamf/services-user'
 
 await registryServer()
-await createPostgreSqlService({ psqlConfig: 'postgres://yamf:changeme@localhost/yamf' })
+await createPostgresService({ psqlConfig: 'postgres://yamf:changeme@localhost/yamf' })
 await createUserService({
-  dataService: 'postgres-service',  // default
+  dataService: 'postgres',  // default
 })
 
 // Self-signup: create with password
@@ -112,7 +137,7 @@ For a **complete runnable example** that combines Postgres, User, and Auth (self
 | Option | Default | Description |
 |--------|---------|-------------|
 | `serviceName` | `'user-service'` | YAMF service name. |
-| `dataService` | `'postgres-service'` | Service name for DB calls (Postgres service). |
+| `dataService` | `'postgres'` | Service name for DB calls (Postgres service). |
 | `registrationToken.defaultExpiry` | `48 * 60 * 60 * 1000` (48h) | Token expiry in ms. |
 | `registrationToken.length` | `32` | Token byte length. |
 
@@ -142,7 +167,7 @@ The [psql-user-auth example](../../core/examples/psql-user-auth/) shows how to:
 1. Run registry, gateway, postgres, user, and auth services.
 2. Implement `validateUserPassword(username, password)` that loads user from postgres, checks `salt`/`hash` with `checkArgonPassword`, and enforces `is_active`, `is_registered`, `is_verified`.
 3. Pass `validateUserPassword` into `createAuthService({ validateUserPassword })`.
-4. Protect other services with `useAuthService: 'auth-service'` and send the auth token in headers.
+4. Protect other services with `useAuthService: 'auth'` and send the auth token in headers.
 
 ---
 

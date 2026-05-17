@@ -22,6 +22,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs'
 import { lifecycle } from '../shared/process-lifecycle.js'
 import { setDefaultRateLimit, setServiceRateLimit } from '../rate-limiter/rate-limiter.js'
 import { validateConfig } from '../rate-limiter/rate-limiter-config.js'
+import { registerActiveRegistryServer, unregisterActiveRegistryServer } from './active-registry.js'
 
 const logger = new Logger({ logGroup: 'yamf-registry' })
 
@@ -306,13 +307,25 @@ export default async function createRegistryServer(rawOptions) {
     resetState(state)
     await httpServerTerminate()
   }
-  const unregisterFromLifecycle = lifecycle.registerTerminable(runRegistryShutdown, { priority: 0 })
+  // Late-bound: lifecycle invokes whatever `server.terminate` resolves to at
+  // shutdown time so wrappers that override `server.terminate` are honored.
+  let unregisterFromLifecycle
   server.terminate = async () => {
-    unregisterFromLifecycle()
-    await runRegistryShutdown()
+    unregisterFromLifecycle?.()
+    try {
+      await runRegistryShutdown()
+    } finally {
+      unregisterActiveRegistryServer(server)
+    }
   }
-  
+  unregisterFromLifecycle = lifecycle.registerTerminable(
+    () => server.terminate(),
+    { priority: 0 }
+  )
+
   server.isRegistry = true
+
+  registerActiveRegistryServer(server)
 
   // Expose state for testing
   // Note: In production, access to state should be restricted

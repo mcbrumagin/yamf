@@ -1,17 +1,19 @@
 import { callRoute, Logger } from '@yamf/core'
 import parseArgs from '../lib/parse-args.js'
+import { resolveCliRegistryToken } from '../lib/resolve-cli-auth.js'
 
 const logger = new Logger()
 
 const ARGS = {
-  help:      { flags: ['-h', '--help'] },
-  verbose:   { flags: ['-v', '--verbose'] },
-  payload:   { flags: ['-p', '--payload'], type: 'string' },
-  method:    { flags: ['-m', '--method'], type: 'string', default: 'GET' },
-  authToken: { flags: ['-a', '--auth'], type: 'string' }
+  help: { flags: ['-h', '--help'] },
+  verbose: { flags: ['-v', '--verbose'] },
+  payload: { flags: ['-p', '--payload'], type: 'string' },
+  method: { flags: ['-m', '--method'], type: 'string', default: 'GET' },
+  auth: { flags: ['--auth'], type: 'string' },
+  token: { flags: ['--token'], type: 'string' }
 }
 
-function getRequestHelp() {
+function getRequestHelp () {
   return `
 yamf request - Make an HTTP request to a registered route
 
@@ -21,7 +23,8 @@ Usage:
 Options:
   -p, --payload <json>    Request body (JSON string, implies POST)
   -m, --method <method>   HTTP method (default: GET, or POST if payload given)
-  -a, --auth <token>      Authentication token
+  --auth user:pass        Log in via the auth service; use token for this request
+  --token <bearer>        Bearer token as yamf-auth-token
   -v, --verbose           Verbose output
   -h, --help              Show this help
 
@@ -32,7 +35,7 @@ Examples:
 `
 }
 
-export async function runRequestCommand(args) {
+export async function runRequestCommand (args) {
   const options = parseArgs(args, ARGS)
   const path = options._positional[0]
 
@@ -56,10 +59,22 @@ export async function runRequestCommand(args) {
 
   const method = body && options.method === 'GET' ? 'POST' : options.method
 
+  let authToken = null
+  if (options.auth || options.token) {
+    const registryUrl = process.env.YAMF_REGISTRY_URL
+    if (!registryUrl) {
+      throw new Error('YAMF_REGISTRY_URL is required when using --auth or --token')
+    }
+    authToken = await resolveCliRegistryToken(
+      { auth: options.auth, token: options.token },
+      registryUrl
+    )
+  }
+
   const result = await callRoute(path, {
     method,
     body,
-    authToken: options.authToken
+    authToken
   })
 
   if (options.verbose) {

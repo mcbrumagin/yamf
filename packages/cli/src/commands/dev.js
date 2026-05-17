@@ -1,13 +1,10 @@
 import { existsSync, statSync } from 'node:fs'
 import chokidar from 'chokidar'
-import { fileURLToPath } from 'node:url'
-import { dirname, isAbsolute, join, resolve as pathResolve, sep } from 'node:path'
+import { dirname, isAbsolute, resolve as pathResolve, sep } from 'node:path'
 import {
   publishMessage,
-  PUBSUB_CHANNEL_YAMF_DEV_RELOAD,
-  httpRequest,
-  HEADERS,
-  COMMANDS
+  CHANNELS,
+  envTruthy
 } from '@yamf/core'
 import { loadYamfConfig } from '../lib/load-yamf-config.js'
 import { buildServiceEntry } from './build.js'
@@ -19,47 +16,13 @@ import {
   resolveLocalRegistryUrl,
   checkLocalRegistryBootstrapTarget
 } from '../lib/registry-url.js'
+import {
+  ensureLocalDevStack,
+  isRegistryReachable
+} from '../lib/local-dev-stack.js'
 import parseArgs from '../lib/parse-args.js'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const DEV_BOOTSTRAP_PATH = join(__dirname, '..', 'lib', 'dev-bootstrap.js')
-
 let printedNoopHint = false
-
-async function isRegistryReachable (registryUrl) {
-  try {
-    await httpRequest(registryUrl, {
-      headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL }
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
-/** After dev-bootstrap (or on cold start), ensure REGISTRY_PULL succeeds before build/deploy. */
-async function waitUntilDevRegistryResponds (registryUrl) {
-  const step = 200
-  const maxMs = Number(process.env.YAMF_DEV_REGISTRY_READY_MS || 20_000)
-  const n = Math.ceil(maxMs / step)
-  for (let i = 0; i < n; i++) {
-    if (await isRegistryReachable(registryUrl)) {
-      if (i > 0) {
-        process.stdout.write(
-          `[dev] Registry at ${registryUrl} is ready (after ~${(i + 1) * step}ms).\n`
-        )
-      }
-      return
-    }
-    if (i === 0) {
-      process.stdout.write(`[dev] Waiting for registry at ${registryUrl}…\n`)
-    }
-    await new Promise((r) => setTimeout(r, step))
-  }
-  throw new Error(
-    `[dev] Registry at ${registryUrl} is not accepting requests after ${maxMs}ms. Check .yamf/pm3/logs for dev-bootstrap.`
-  )
-}
 
 const ARGS = {
   help: { flags: ['-h', '--help'] },
@@ -102,22 +65,23 @@ Options:
   -e, --env       Config-service / deploy env key (default: dev)
   -h, --help      This help
 
-Local: if the registry is not reachable (e.g. after yamf stop --all), the same dev stack as
-yamf init --dev is started automatically so you can re-run yamf dev without re-initializing.
+Local: if the registry is not reachable (e.g. after yamf stop --all), a dev stack (registry + cache
++ pm3-service via dev-bootstrap) is started automatically so you can re-run yamf dev without a
+separate bootstrap step.
 Default local registry URL is ${DEFAULT_LOCAL_REGISTRY_URL}.
 If YAMF_REGISTRY_URL is unset, yamf dev will first try the last local PM3 registry URL from state.
 
-After each successful build/deploy, publishes ${PUBSUB_CHANNEL_YAMF_DEV_RELOAD} so
+After each successful build/deploy, publishes ${CHANNELS.DEV_RELOAD} so
 @yamf/services-dev-hmr (dev-bootstrap) can push SSE reload to browsers. Dev-bootstrap is started
-with YAMF_DEV=on when yamf dev starts the stack, so the yamf-dev service registers.
+with YAMF_DEV=true when yamf dev starts the stack, so the yamf-dev service registers.
 
 If you import from outside the service entry tree (e.g. ../lib next to src/app), set per-service
 \`watch: ['src/lib', …]\` in yamf.config.js so \`yamf dev\` rebuilds on those file changes.
 
-Browser full reload (Vite): set VITE_YAMF_DEV_HMR=1 and point SOUNCLONE_VITE_DEV_HMR_TARGET (in .env)
+Browser full reload (Vite): set VITE_YAMF_DEV_HMR=true and point SOUNCLONE_VITE_DEV_HMR_TARGET (in .env)
 at the yamf-dev base URL from \`yamf list\`. For the Vite plugin to publish the same channel on HMR,
-run Vite with YAMF_REGISTRY_URL and YAMF_DEV=on. Set YAMF_DEV_RELOAD_LOG=1 to log pub/sub errors; YAMF_DEV_WATCH_LOG=1 to log which files trigger rebuilds;
-YAMF_DEV_CHOKIDAR_POLL=1 to poll the filesystem (e.g. bind mounts) if changes are not detected.
+run Vite with YAMF_REGISTRY_URL and YAMF_DEV=true. Set YAMF_DEV_RELOAD_LOG=true to log pub/sub errors; YAMF_DEV_WATCH_LOG=true to log which files trigger rebuilds;
+YAMF_DEV_CHOKIDAR_POLL=true to poll the filesystem (e.g. bind mounts) if changes are not detected.
 `
 }
 
@@ -182,17 +146,10 @@ export async function runDevCommand (args) {
         )
       }
       process.stdout.write(
-        `[dev] Registry not reachable at ${registryUrl}; starting dev stack (same as yamf init --dev)…\n`
+        `[dev] Registry not reachable at ${registryUrl}; starting local dev stack…\n`
       )
-      await pm3.start(DEV_BOOTSTRAP_PATH, {
-        env: {
-          YAMF_REGISTRY_URL: registryUrl,
-          // Enable @yamf/services-dev-hmr in bootstrap even if the parent shell has no YAMF_DEV=on
-          YAMF_DEV: 'on'
-        }
-      })
+      await ensureLocalDevStack(pm3, registryUrl, { yamfDev: true })
     }
-    await waitUntilDevRegistryResponds(registryUrl)
   }
   const timers = new Map()
 
@@ -228,14 +185,14 @@ export async function runDevCommand (args) {
             )
           }
           try {
-            await publishMessage(PUBSUB_CHANNEL_YAMF_DEV_RELOAD, {
+            await publishMessage(CHANNELS.DEV_RELOAD, {
               service: svc.name,
               hash: String(hash),
               at: Date.now(),
               source: 'yamf-dev'
             })
           } catch (pubErr) {
-            if (process.env.YAMF_DEV_RELOAD_LOG === '1') {
+            if (envTruthy(process.env.YAMF_DEV_RELOAD_LOG)) {
               process.stderr.write(
                 `[dev] ${svc.name} dev-reload pub/sub: ${pubErr?.message || pubErr}\n`
               )
@@ -303,7 +260,7 @@ export async function runDevCommand (args) {
     },
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 },
-    ...(process.env.YAMF_DEV_CHOKIDAR_POLL === '1' ? { usePolling: true, interval: 1000 } : {})
+    ...(envTruthy(process.env.YAMF_DEV_CHOKIDAR_POLL) ? { usePolling: true, interval: 1000 } : {})
   })
   process.stdout.write(
     `[dev] File watcher on (${watchList.length} path(s)): ${watchList.join(', ')}\n`
@@ -312,7 +269,7 @@ export async function runDevCommand (args) {
     const ap = toAbsolutePath(p)
     for (const svc of devServices) {
       if (fileTriggersService(ap, svc)) {
-        if (process.env.YAMF_DEV_WATCH_LOG === '1') {
+        if (envTruthy(process.env.YAMF_DEV_WATCH_LOG)) {
           process.stdout.write(`[dev] watch → ${svc.name} (${ap})\n`)
         }
         trigger(svc)

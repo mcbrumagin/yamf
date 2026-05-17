@@ -293,7 +293,7 @@ export function createInMemoryCache({
 }
 
 export default async function createCacheService({
-  serviceName = 'cache-service',
+  serviceName = 'cache',
   expireTime = 60000 * 10,
   evictionInterval = 30000,
   useAuthService = null

@@ -1,13 +1,17 @@
 {
   "name": "@yamf/services-postgres",
-  "version": "0.1.2",
+  "version": "0.9.0",
   "description": "",
-  "license": "ISC",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "author": "",
   "type": "module",
   "main": "service.js",
   "scripts": {
-    "test": "yamf test -d ."
+    "test": "echo 'No unit tests for postgres wrapper service' && exit 0",
+    "test:all": "yamf test -d . --include-e2e"
   },
   "files": [
     "service.js",

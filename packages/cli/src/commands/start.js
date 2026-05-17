@@ -6,11 +6,11 @@ import { createRemotePm3Cli, requireRegistryUrlForRemote } from '../lib/remote-p
 const logger = new Logger()
 
 const ARGS = {
-  help:      { flags: ['-h', '--help'] },
-  verbose:   { flags: ['-v', '--verbose'] },
-  remote:    { flags: ['-r', '--remote'] },
-  env:       { flags: ['-e', '--env'], type: 'string' },
-  instances: { flags: ['-i', '--instances'], type: 'number', default: 1 }
+  help: { flags: ['-h', '--help'] },
+  verbose: { flags: ['-v', '--verbose'] },
+  remote: { flags: ['-r', '--remote'] },
+  env: { flags: ['-e', '--env'], type: 'string' },
+  replicas: { flags: ['-i', '--replicas'], type: 'number', default: 1 }
 }
 
 function getStartHelp() {
@@ -25,7 +25,7 @@ the filepath from an existing process entry and re-start it.
 New services require a filepath.
 
 Options:
-  -i, --instances <N>    Start N instances of the script (default: 1)
+  -i, --replicas <N>     Start N replicas of the script (default: 1)
   -r, --remote            Start on the node reached via YAMF_REGISTRY_URL → pm3-service
   -e, --env <KEY=VALUE>  Set environment variable for child process(es)
   -v, --verbose          Verbose output
@@ -33,7 +33,7 @@ Options:
 
 Examples:
   yamf start ./my-service.js
-  yamf start ./my-service.js --instances 4
+  yamf start ./my-service.js --replicas 4
   yamf start simple-service
   yamf start /var/lib/yamf/svc.mjs --remote
   yamf start ./my-service.js --env YAMF_SERVICE_URL=http://127.0.0.1
@@ -71,7 +71,7 @@ export async function runStartCommand(args) {
       if (eqIndex === -1) throw new Error('--env expects KEY=VALUE format')
       env = { [options.env.slice(0, eqIndex)]: options.env.slice(eqIndex + 1) }
     }
-    const count = Math.max(1, Math.floor(options.instances))
+    const count = Math.max(1, Math.floor(options.replicas))
     for (let i = 0; i < count; i++) {
       const result = await remote.startFile(filename, env ? { env } : undefined)
       if (options.verbose) {
@@ -103,7 +103,7 @@ export async function runStartCommand(args) {
     env = { [options.env.slice(0, eqIndex)]: options.env.slice(eqIndex + 1) }
   }
 
-  const count = Math.max(1, Math.floor(options.instances))
+  const count = Math.max(1, Math.floor(options.replicas))
 
   for (let i = 0; i < count; i++) {
     const result = await pm3.start(filename, { env })

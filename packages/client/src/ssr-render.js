@@ -10,7 +10,7 @@ import { runWithRenderContext } from './render-context.js'
  * Pass a **factory** `() => new elements.Button({ onclick: ... }, 'x')` (recommended) or
  * a pre-constructed node only for markup without interactive handlers.
  *
- * @param {import('./Element.js').default | () => import('./Element.js').default} elementOrFactory
+ * @param {import('./element.js').default | () => import('./element.js').default} elementOrFactory
  * @param {{ registerHandler: (fn: Function) => { slot: string, signedId: string } }} bindings
  * @returns {{ html: string }}
  */

@@ -2,7 +2,7 @@
 
 A minimal, zero-dependency testing library with polymorphic async/await and simultaneous assertion reports.
 
-[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## Features
@@ -45,6 +45,10 @@ runTests({ testAddition, testAsyncFetch })
 ### `assert(value, ...assertFns)`
 
 Assert that a value or function result passes all assertion functions.
+
+**Failure output:** the runner prints the distilled **first argument** (`for target … value = …`) and each failing predicate (`failed -> …`). Put the value under test first and express expectations in the callbacks — avoid `assert(expr, x => x === true)` where `expr` is already a boolean, or failures only show `true`/`false` with no useful predicate text.
+
+**Errors:** for `Error` values (e.g. a caught `execSync` failure), use **`assertErr(error, …)`** instead of `assert` — see below.
 
 ```javascript
 // Direct value
@@ -248,14 +252,50 @@ import { registryServer, createService } from '@yamf/core'
 
 async function testServices() {
   await terminateAfter(
-    registryServer(),
-    createService(function myService(p) { return { ok: true } }),
+    () => registryServer(),
+    () => createService('my-service', (p) => ({ ok: true })),
     async (registry, service) => {
-      const result = await callService('myService', {})
+      const result = await callService('my-service', {})
       assert(result.ok, v => v === true)
     }
   )
 }
+```
+
+**Single-callback form** — when the test only needs a registry (and services register against it), you can pass one async function; teardown uses `terminateActiveRegistryServers()` from `@yamf/core` (no need to return the registry instance):
+
+```javascript
+export async function myTestCaseFunction() {
+  await terminateAfter(async () => {
+    await registryServer()
+    await createService('my-service', (p) => ({ ok: true }))
+    const result = await callService('my-service', {})
+    assert(result.ok, (v) => v === true)
+  })
+}
+```
+
+Prefer **named `async function …`** for that body (and for multi-arg factory thunks) so stack traces read clearly; avoid `() =>` wrappers for routine registry/service setup.
+
+### `withInlineRegistry(...factories, testFn)`
+
+Shorthand for `terminateAfter(() => registryServer(), ...)`.
+
+### `pickListenPort()`
+
+Returns a free TCP port on `127.0.0.1`. Use with `withEnv({ YAMF_REGISTRY_URL: \`http://127.0.0.1:${port}\` }, …)` when fixed ports from `.env.test` conflict (e.g. parallel runs or drain races).
+
+```javascript
+import { pickListenPort, withEnv, terminateAfter } from '@yamf/test'
+import { registryServer } from '@yamf/core'
+
+const port = await pickListenPort()
+await withEnv({ YAMF_REGISTRY_URL: `http://127.0.0.1:${port}` }, async () => {
+  await terminateAfter(
+    () => registryServer(),
+    async () => { /* … */ }
+  )
+})
 ```
 
 ### `withEnv(envVars, testFn)`
@@ -387,7 +427,7 @@ testFailingAssertion failed with error: AssertionFailure: ...
 ℹ duration_ms 42
 ```
 
-Each `✔` / `✘` line includes wall time for that test. For a **slowest-first table** (e.g. profiling), run `yamf test --timings` or set `YAMF_TEST_TIMINGS=1`, then use `-f` / `-n` to focus one file or test: `yamf test -d packages/cli -f cli-rolling --timings -n testRestart`.
+Each `✔` / `✘` line includes wall time for that test. For a **slowest-first table** (e.g. profiling), run `yamf test --timings` or set `YAMF_TEST_TIMINGS=true`, then use `-f` / `-n` to focus one file or test: `yamf test -d packages/cli -f cli-rolling --timings -n testRestart`.
 
 ## API Reference
 

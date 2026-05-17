@@ -12,7 +12,7 @@ const ARGS = {
   lines: { flags: ['-n', '--lines'], type: 'number', default: 50 },
   all:   { flags: ['--all'] },
   watch: { flags: ['-w', '--watch'] },
-  list:  { flags: ['-l', '--list'] },
+  list:  { flags: ['--list'] },
   remote: { flags: ['-r', '--remote'] }
 }
 
@@ -25,7 +25,7 @@ Usage:
   yamf logs --list
 
 Options:
-  -l, --list            List log file locations
+  --list                List log file locations
   -n, --lines <num>     Number of lines to show (default: 50)
   --all                 Show all log lines
   -w, --watch           Watch for new log output (live tail; not available with --remote)

@@ -1,4 +1,4 @@
-// Modern environment configuration utility for Node.js 24+
+// Modern environment configuration utility for Node.js 22+
 import { readFile } from 'node:fs/promises'
 // NOTE no custom logger here, this config is required for Logger initialization
 
@@ -13,18 +13,32 @@ class EnvConfig {
   // Load environment variables with validation and type conversion
   loadEnvironmentVariables() {
     for (const [key, value] of Object.entries(process.env)) {
-      this.config.set(key, this.parseValue(value))
+      let parsed = this.parseValue(value)
+      if (key === 'LOG_LEVEL' && typeof parsed === 'string') {
+        parsed = parsed.toLowerCase()
+      }
+      this.config.set(key, parsed)
     }
+  }
+
+  /** Resync from process.env after callers mutate env (e.g. yamf test loading .env.test). */
+  reloadFromProcessEnv () {
+    this.config.clear()
+    this.loadEnvironmentVariables()
   }
 
   // Parse values to appropriate types
   parseValue(value) {
     if (!value) return value
-    
-    // Boolean values
-    if (value.toLowerCase() === 'true') return true
-    if (value.toLowerCase() === 'false') return false
-    
+
+    const lower = value.toLowerCase()
+
+    // Boolean values (canonical + common legacy encodings)
+    if (lower === 'true') return true
+    if (lower === 'false') return false
+    if (lower === 'on' || lower === 'yes') return true
+    if (lower === 'off' || lower === 'no') return false
+
     // Numeric values
     if (/^\d+$/.test(value)) return parseInt(value, 10)
     if (/^\d+\.\d+$/.test(value)) return parseFloat(value)
@@ -64,7 +78,7 @@ class EnvConfig {
     return this.config.has(key)
   }
 
-  // Load additional configuration from .env file (Node.js 24+ --env-file alternative)
+  // Load additional configuration from .env file (Node.js --env-file style alternative)
   async loadEnvFile(filePath = '.env') {
     try {
       const envContent = await readFile(filePath, 'utf8')
@@ -104,3 +118,21 @@ class EnvConfig {
 const envConfig = new EnvConfig()
 export default envConfig
 export { EnvConfig }
+
+/**
+ * Coerce an env-config value (or raw process.env string) to boolean.
+ * Accepts `true` / `false`, `1` / `0`, `on` / `off`, `yes` / `no` (case-insensitive).
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function envTruthy (value) {
+  if (value === true || value === 1) return true
+  if (value === false || value === 0) return false
+  if (value == null || value === '') return false
+  if (typeof value === 'string') {
+    const s = value.toLowerCase()
+    if (s === 'true' || s === '1' || s === 'on' || s === 'yes') return true
+    if (s === 'false' || s === '0' || s === 'off' || s === 'no') return false
+  }
+  return false
+}

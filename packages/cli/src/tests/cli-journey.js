@@ -5,38 +5,63 @@
  * real stdout/stderr output. Uses the example services shipped with the CLI.
  *
  * The test follows a full developer journey:
- *   init --dev -> start services -> list -> logs -> stop -> delete
+ *   local dev stack -> start services -> list -> logs -> stop -> delete
  */
 
-import { assert, assertErr } from '@yamf/test'
+import { assert, assertErr, sleep } from '@yamf/test'
+import { envTruthy } from '@yamf/core'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, rmSync, mkdtempSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
+import { runBootstrapWithEnv } from '../lib/bootstrap-for-tests.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const EXAMPLES = join(__dirname, '..', 'example')
-const YAMF_HOME = join(__dirname, '..', '.yamf-test')
 const CLI_CWD = join(__dirname, '..')
-const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const DEBUG = envTruthy(process.env.YAMF_TEST_DEBUG)
 
-const ENV = {
-  ...process.env,
-  YAMF_REGISTRY_URL: 'http://localhost:18001',
-  YAMF_HOME,
-  LOG_LEVEL: 'info',
-  MUTE_LOG_GROUP_OUTPUT: 'true',
-  YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
-  YAMF_PM3_STOP_GRACE_MS: '5000',
-  YAMF_PM3_POLL_INTERVAL_MS: '80',
-  YAMF_PM3_POLL_STABLE_CHECKS: '2',
-  YAMF_PM3_BROADCAST_SETTLE_MS: '400',
-  YAMF_PM3_REGISTRY_CHECK_ATTEMPTS: '6',
-  YAMF_PM3_REGISTRY_CHECK_MS: '50'
+let ENV = null
+
+function reserveRegistryBaseUrl () {
+  return new Promise((resolve, reject) => {
+    const s = createServer()
+    s.listen(0, '127.0.0.1', () => {
+      const addr = s.address()
+      const port = typeof addr === 'object' && addr ? addr.port : 0
+      s.close((err) => (err != null ? reject(err) : resolve(`http://127.0.0.1:${port}`)))
+    })
+    s.on('error', reject)
+  })
+}
+
+async function resetEnv () {
+  cleanup()
+  const registryBaseUrl = await reserveRegistryBaseUrl()
+  const yamfHome = mkdtempSync(join(tmpdir(), 'yamf-cli-journey-'))
+  ENV = {
+    ...process.env,
+    YAMF_REGISTRY_URL: registryBaseUrl,
+    YAMF_HOME: yamfHome,
+    LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+    YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
+    YAMF_PM3_STOP_GRACE_MS: '5000',
+    YAMF_PM3_POLL_INTERVAL_MS: '80',
+    YAMF_PM3_POLL_STABLE_CHECKS: '2',
+    YAMF_PM3_BROADCAST_SETTLE_MS: '400',
+    YAMF_PM3_REGISTRY_CHECK_ATTEMPTS: '6',
+    YAMF_PM3_REGISTRY_CHECK_MS: '50',
+    YAMF_REGISTRY_TOKEN: undefined,
+    YAMF_DEPLOY_TOKEN: undefined
+  }
+  await runBootstrapWithEnv(ENV)
 }
 
 function cli(cmd) {
+  if (!ENV) throw new Error('test ENV not initialized; call resetEnv() before CLI usage')
   if (DEBUG) console.log(`\n> yamf ${cmd}`)
   try {
     const stdout = execSync(`node ${CLI} ${cmd}`, {
@@ -66,53 +91,73 @@ function cliSafe(cmd) {
 }
 
 function cleanup() {
+  if (!ENV) return
   cliSafe('stop --all')
   cliSafe('delete --all')
-  if (existsSync(YAMF_HOME)) {
-    rmSync(YAMF_HOME, { recursive: true, force: true })
+  if (ENV.YAMF_HOME && existsSync(ENV.YAMF_HOME)) {
+    rmSync(ENV.YAMF_HOME, { recursive: true, force: true })
   }
+  ENV = null
+}
+
+async function waitForServiceInList (serviceName, attempts = 20, delayMs = 150) {
+  for (let i = 0; i < attempts; i++) {
+    const out = cliSafe('list --services')
+    if (out.includes(serviceName)) return out
+    await sleep(delayMs)
+  }
+  return cliSafe('list --services')
 }
 
 // -- Tests --
 
 export async function testCliHelp() {
-  const out = cli('--help')
-  assert(out,
-    o => o.includes('yamf <command>'),
-    o => o.includes('start'),
-    o => o.includes('stop'),
-    o => o.includes('list'),
-    o => o.includes('route'),
-    o => o.includes('request')
-  )
+  await resetEnv()
+  try {
+    const out = cli('--help')
+    assert(out,
+      o => o.includes('yamf <command>'),
+      o => o.includes('start'),
+      o => o.includes('stop'),
+      o => o.includes('list'),
+      o => o.includes('registry'),
+      o => o.includes('request')
+    )
+  } finally {
+    cleanup()
+  }
 }
 
 export async function testUnknownCommandErrors() {
-  await assertErr(
-    () => cli('nonexistent'),
-    err => (err.output || err.stderr || '').includes('Unknown command')
-  )
+  await resetEnv()
+  try {
+    await assertErr(
+      () => cli('nonexistent'),
+      err => (err.output || err.stderr || '').includes('Unknown command')
+    )
+  } finally {
+    cleanup()
+  }
 }
 
 export async function testStartMissingFileErrors() {
-  await assertErr(
-    () => cli('start'),
-    err => {
-      const msg = err.output || err.stderr || ''
-      return msg.includes('Filename is required') || msg.includes('required')
-    }
-  )
+  await resetEnv()
+  try {
+    await assertErr(
+      () => cli('start'),
+      err => {
+        const msg = err.output || err.stderr || ''
+        return msg.includes('Filename is required') || msg.includes('required')
+      }
+    )
+  } finally {
+    cleanup()
+  }
 }
 
 export async function testInitDevStartsBootstrap() {
-  cleanup()
+  await resetEnv()
   try {
-    const out = cli('init --dev')
-    assert(out,
-      o => o.includes('Started process'),
-      o => o.includes('dev-bootstrap')
-    )
-
     const listOut = cli('list --all')
     assert(listOut,
       o => o.includes('running'),
@@ -124,9 +169,8 @@ export async function testInitDevStartsBootstrap() {
 }
 
 export async function testStartAndStopService() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     const startOut = cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
     assert(startOut,
       o => o.includes('Started process'),
@@ -149,12 +193,11 @@ export async function testStartAndStopService() {
 }
 
 export async function testStopByServiceName() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
-    const listOut = cli('list --services')
+    const listOut = await waitForServiceInList('simple-service')
     assert(listOut, o => o.includes('simple-service'))
 
     const stopOut = cli('stop simple-service')
@@ -165,10 +208,10 @@ export async function testStopByServiceName() {
 }
 
 export async function testDeleteByServiceName() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
+    await waitForServiceInList('simple-service')
 
     cli('delete simple-service')
     const listOut = cli('list')
@@ -181,10 +224,10 @@ export async function testDeleteByServiceName() {
 }
 
 export async function testStartByServiceNameRestartsExisting() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
+    await waitForServiceInList('simple-service')
 
     const startOut = cli('start simple-service')
     assert(startOut,
@@ -196,7 +239,7 @@ export async function testStartByServiceNameRestartsExisting() {
 }
 
 export async function testStartUnknownServiceNameErrors() {
-  cleanup()
+  await resetEnv()
   try {
     await assertErr(
       () => cli('start nonexistent-service'),
@@ -211,11 +254,11 @@ export async function testStartUnknownServiceNameErrors() {
 }
 
 export async function testMultipleInstancesAndViews() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
     cli(`start ${join(EXAMPLES, 'load-balanced.js')} --env YAMF_SERVICE_URL=http://127.0.0.1`)
+    await waitForServiceInList('simple-service')
 
     const listOut = cli('list')
     assert(listOut,
@@ -236,9 +279,8 @@ export async function testMultipleInstancesAndViews() {
 }
 
 export async function testLogsCommand() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const logsOut = cli(`logs ${join(EXAMPLES, 'load-balanced.js')}`)
@@ -251,9 +293,8 @@ export async function testLogsCommand() {
 }
 
 export async function testLogsList() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const listOut = cli('logs --list')
@@ -267,9 +308,8 @@ export async function testLogsList() {
 }
 
 export async function testDeleteRemovesFromList() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     cli(`delete ${join(EXAMPLES, 'load-balanced.js')}`)
@@ -283,9 +323,8 @@ export async function testDeleteRemovesFromList() {
 }
 
 export async function testStopAllAndDeleteAll() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     cli('stop --all')

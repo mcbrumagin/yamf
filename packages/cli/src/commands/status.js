@@ -10,7 +10,8 @@ const ARGS = {
   help:    { flags: ['-h', '--help'] },
   verbose: { flags: ['-v', '--verbose'] },
   health:  { flags: ['--health'] },
-  versions: { flags: ['--versions'] }
+  versions: { flags: ['--versions'] },
+  since:   { flags: ['--since'], type: 'string' }
 }
 
 function getStatusHelp() {
@@ -22,7 +23,10 @@ Usage:
 
 Options:
   --health              Focused health view: draining state + active service counts
+                        (also shows recent deploy history from the registry)
   --versions            Show per-replica sourceHash / configVersion (REGISTRY_PULL replicas)
+  --since <iso>         With --versions: only show replicas registered on or after <iso>
+                        (ISO 8601 date-time, e.g. 2026-04-30T00:00:00Z)
   -v, --verbose         Verbose output
   -h, --help            Show this help
 `
@@ -69,7 +73,7 @@ async function runFocusedHealthStatus(options) {
   console.log('\nRegistry health:')
   console.log(`  url:        ${registryUrl}`)
   console.log(`  status:     ${health.status}`)
-  console.log(`  draining:   ${health.draining ? 'YES — rejecting new registrations' : 'no'}`)
+  console.log(`  draining:   ${health.draining ? 'YES - rejecting new registrations' : 'no'}`)
   console.log(`  timestamp:  ${new Date(health.timestamp).toISOString()}`)
   console.log(`  services:   ${serviceNames.length} name(s), ${totalInstances} instance(s)`)
 
@@ -83,16 +87,38 @@ async function runFocusedHealthStatus(options) {
       }
     }
   }
+
+  const deployEvents = Array.isArray(health.deployEvents) ? health.deployEvents : []
+  if (deployEvents.length > 0) {
+    console.log()
+    console.log('  recent deploys:')
+    for (const ev of deployEvents) {
+      const ts = new Date(ev.at).toISOString()
+      const from = ev.fromHash ? ev.fromHash.slice(0, 8) : '(none)'
+      const to = ev.toHash ? ev.toHash.slice(0, 8) : '?'
+      const by = ev.deployer ? `  deployer=${ev.deployer}` : ''
+      console.log(`    ${ts}  ${ev.service}  ${from} -> ${to}  [${ev.decision}]${by}`)
+    }
+  }
+
   console.log()
 
   return { health, services }
 }
 
 async function runVersionsStatus (options) {
+  const sinceMs = options.since ? Date.parse(options.since) : null
+  if (options.since && Number.isNaN(sinceMs)) {
+    console.error(`--since: invalid date "${options.since}" (use ISO 8601, e.g. 2026-04-30T00:00:00Z)`)
+    process.exit(1)
+    return
+  }
+
   const registryUrl = process.env.YAMF_REGISTRY_URL
   if (!registryUrl) {
     console.error('YAMF_REGISTRY_URL is not set.')
     process.exit(1)
+    return
   }
   const registryState = await httpRequest(registryUrl, {
     headers: {
@@ -101,17 +127,25 @@ async function runVersionsStatus (options) {
     }
   })
   const rep = registryState.replicas || {}
+
   const names = Object.keys(rep).sort()
   if (!names.length) {
     console.log('No per-replica metadata (replicas block empty or legacy services).')
     return
   }
-  console.log('\nReplica versions:')
+  console.log(`\nReplica versions:${sinceMs != null ? `  (since ${new Date(sinceMs).toISOString()})` : ''}`)
+  let shown = 0
   for (const n of names) {
     for (const row of rep[n]) {
-      const bits = [row.sourceHash, row.configVersion].filter(Boolean).join('  ')
+      if (sinceMs != null && (row.registeredAt == null || row.registeredAt < sinceMs)) continue
+      const nid = row.nodeId ?? row.node
+      const bits = [row.sourceHash, row.configVersion, nid && `nodeId=${nid}`].filter(Boolean).join('  ')
       console.log(`  ${n}  @ ${row.location}${bits ? '  ' + bits : ''}`)
+      shown++
     }
+  }
+  if (shown === 0 && sinceMs != null) {
+    console.log('  (no replicas registered since the given timestamp)')
   }
   if (options.verbose) {
     console.log()

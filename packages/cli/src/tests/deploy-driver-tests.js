@@ -1,18 +1,18 @@
-import { assert } from '@yamf/test'
+import { assert, assertErr } from '@yamf/test'
 import { HEADERS, COMMANDS } from '@yamf/core'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
-import { planAndApply, resolveLocalRollingTarget } from '../lib/deploy-driver.js'
+import { planAndApply, resolveLocalRollingTarget, mergeRequiredEnvFromProcess, uploadDeployBundleToRegistry } from '../lib/deploy-driver.js'
 
 /**
  * ESM that dynamic-imports @yamf/core and supports YAMF_EXTRACT_SERVICE_CONTRACT (no node_modules in tmp cwd).
  * @param {string} [serviceName]
  */
 function makeTestServiceBundle (serviceName = 'sample-svc') {
-  const require = createRequire(fileURLToPath(new URL('../../../package.json', import.meta.url)))
+  const require = createRequire(fileURLToPath(new URL('../../package.json', import.meta.url)))
   const href = pathToFileURL(require.resolve('@yamf/core')).href
   return `import { createService } from ${JSON.stringify(href)}
 export default async function yamfDeployTestEntry () {
@@ -118,7 +118,7 @@ export async function testPlanAndApplyRollingUsesFilepathFallbackWhenServiceKeyM
   }
   try {
     const res = await planAndApply({
-      yamfService: { name: 'sample-svc', replicaKey: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
+      yamfService: { name: 'sample-svc', registeredServiceName: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
       hash: newHash,
       pm3,
       registryUrl,
@@ -167,7 +167,7 @@ export async function testPlanAndApplyRemoteRollingDoesNotUseLocalFilepathFallba
   }
   try {
     const res = await planAndApply({
-      yamfService: { name: 'sample-svc', replicaKey: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
+      yamfService: { name: 'sample-svc', registeredServiceName: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
       hash: newHash,
       pm3,
       registryUrl,
@@ -222,7 +222,7 @@ export async function testPlanAndApplyFromYamfDevRedeploysWhenRegistryNoopButNoR
 
   try {
     const res = await planAndApply({
-      yamfService: { name: 'sample-svc', replicaKey: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
+      yamfService: { name: 'sample-svc', registeredServiceName: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
       hash,
       pm3,
       registryUrl,
@@ -267,7 +267,7 @@ export async function testPlanAndApplyFromYamfDevStaysNoopWhenPm3RunsThisBundle 
 
   try {
     const res = await planAndApply({
-      yamfService: { name: 'sample-svc', replicaKey: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
+      yamfService: { name: 'sample-svc', registeredServiceName: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
       hash,
       pm3,
       registryUrl,
@@ -281,4 +281,95 @@ export async function testPlanAndApplyFromYamfDevStaysNoopWhenPm3RunsThisBundle 
     global.fetch = originalFetch
     rmSync(cwd, { recursive: true, force: true })
   }
+}
+
+export function testMergeRequiredEnvFromProcessFillsMissingFromProcessEnv () {
+  const key = 'YAMF_CLI_MERGE_TEST_ABC'
+  const prev = process.env[key]
+  process.env[key] = 'env-val'
+  try {
+    const out = mergeRequiredEnvFromProcess([key, 'PATH'], { PATH: '/x' })
+    assert(out[key], (v) => v === 'env-val')
+    assert(out.PATH, (v) => v === '/x')
+  } finally {
+    if (prev === undefined) delete process.env[key]
+    else process.env[key] = prev
+  }
+}
+
+export async function testPlanAndApplyNoopDryRunReturnsSkippedContract () {
+  const cwd = mkdtempSync(join(tmpdir(), 'yamf-deploy-driver-'))
+  const registryUrl = 'http://registry.test'
+  const hash = 'sha256-same'
+  const pm3 = { async list () { return [] } }
+  const originalFetch = global.fetch
+  global.fetch = async (url, options = {}) => {
+    if (url === registryUrl && options?.headers?.[HEADERS.COMMAND] === COMMANDS.REGISTRY_PULL) {
+      return jsonResponse({
+        replicas: { 'sample-svc': [{ sourceHash: hash }] }
+      })
+    }
+    throw new Error(`Unexpected fetch: ${url}`)
+  }
+  try {
+    const res = await planAndApply({
+      yamfService: { name: 'sample-svc', registeredServiceName: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
+      hash,
+      pm3,
+      registryUrl,
+      cwd,
+      remote: false,
+      dryRun: true
+    })
+    await assert(res.decision, (d) => d === 'noop')
+    await assert(res.dryRun, (x) => x === true)
+    await assert(res.contract?.skipped, (s) => typeof s === 'string' && s.includes('no deploy needed'))
+  } finally {
+    global.fetch = originalFetch
+    rmSync(cwd, { recursive: true, force: true })
+  }
+}
+
+export async function testPlanAndApplyThrowsWhenBundleFileMissing () {
+  const cwd = mkdtempSync(join(tmpdir(), 'yamf-deploy-driver-'))
+  const registryUrl = 'http://registry.test'
+  const newHash = 'sha256-missing-file'
+  const pm3 = { async list () { return [] } }
+  const originalFetch = global.fetch
+  global.fetch = async (url, options = {}) => {
+    if (url === registryUrl && options?.headers?.[HEADERS.COMMAND] === COMMANDS.REGISTRY_PULL) {
+      return jsonResponse({ replicas: {} })
+    }
+    throw new Error(`Unexpected fetch: ${url}`)
+  }
+  try {
+    await assertErr(
+      async () =>
+        planAndApply({
+          yamfService: { name: 'sample-svc', registeredServiceName: 'sample-svc', entry: 'src/app.js', replicas: 1, env: [] },
+          hash: newHash,
+          pm3,
+          registryUrl,
+          cwd,
+          remote: false
+        }),
+      (e) => /Bundle missing/i.test(e.message)
+    )
+  } finally {
+    global.fetch = originalFetch
+    rmSync(cwd, { recursive: true, force: true })
+  }
+}
+
+export async function testUploadDeployBundleRequiresToken () {
+  await assertErr(
+    async () =>
+      uploadDeployBundleToRegistry({
+        registryUrl: 'http://r.test',
+        hash: 'sha256-x',
+        bundlePath: join(tmpdir(), 'nonexistent-bundle.mjs'),
+        deployToken: ''
+      }),
+    (e) => /YAMF_DEPLOY_TOKEN/i.test(e.message)
+  )
 }

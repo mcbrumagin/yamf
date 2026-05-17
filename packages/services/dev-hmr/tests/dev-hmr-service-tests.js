@@ -2,9 +2,9 @@
  * @yamf/services-dev-hmr `service.js` — env gates (no listening) + registry/pubsub + SSE.
  */
 import { assert, terminateAfter, sleep, withEnv } from '@yamf/test'
-import { registryServer, publishMessage, PUBSUB_CHANNEL_YAMF_DEV_RELOAD } from '@yamf/core'
+import { registryServer, publishMessage, CHANNELS } from '@yamf/core'
 import { subscribeToEventSource } from '@yamf/client/event-source'
-import createYamfDevHmrService from '../service.js'
+import createDevHmrService from '../service.js'
 
 const TEST_SERVICE = 'yamf-dev-hmr-integration'
 
@@ -17,7 +17,7 @@ export async function testCreateYamfDevHmrServiceSkipsWhenYamfDevOff () {
   process.env.YAMF_DEV = ''
   process.env.NODE_ENV = 'test'
   try {
-    const s = await createYamfDevHmrService()
+    const s = await createDevHmrService()
     await assert(s, (v) => v == null)
   } finally {
     if (prev !== undefined) process.env.YAMF_DEV = prev
@@ -31,7 +31,7 @@ export async function testCreateYamfDevHmrServiceSkipsWhenNodeEnvProduction () {
   await withEnv(
     { YAMF_DEV: 'on', NODE_ENV: 'production' },
     async () => {
-      const s = await createYamfDevHmrService({ serviceName: TEST_SERVICE })
+      const s = await createDevHmrService({ serviceName: TEST_SERVICE })
       await assert(s, (v) => v == null)
     }
   )
@@ -46,7 +46,7 @@ export async function testYamfDevHmrPubsubForwardsReloadToClients () {
     async () =>
       terminateAfter(
         () => registryServer(),
-        () => createYamfDevHmrService({ serviceName: TEST_SERVICE, accessControl: 'public' }),
+        () => createDevHmrService({ serviceName: TEST_SERVICE, accessControl: 'public' }),
         async (registry, service) => {
           await assert(
             service,
@@ -58,7 +58,7 @@ export async function testYamfDevHmrPubsubForwardsReloadToClients () {
           const es = await subscribeToEventSource(service.location, (e) => events.push(e))
           await sleep(250)
 
-          await publishMessage(PUBSUB_CHANNEL_YAMF_DEV_RELOAD, {
+          await publishMessage(CHANNELS.DEV_RELOAD, {
             service: 'my-app',
             hash: 'deadbeef',
             at: 12345,

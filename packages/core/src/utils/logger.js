@@ -1,4 +1,4 @@
-import envConfig from '../shared/env-config.js'
+import envConfig, { envTruthy } from '../shared/env-config.js'
 
 // create our own copy of log fns so we can override console safely
 const ogConsole = {
@@ -151,7 +151,7 @@ function writeColor(color = colors.white, logContent, endColor = colors.reset) {
 let printedWarning = false
 function printWarningOnceAndReturnVanillaConsole() {
   if (!printedWarning) {
-    console.warn(writeColor('magenta', `DISABLE_ALL_CUSTOM_LOGS ACTIVE
+    console.warn(writeColor('magenta', `YAMF_LOG_DISABLE_CUSTOM ACTIVE
       --- normal console methods will be used instead of custom Logger`
     ))
     printedWarning = true
@@ -175,24 +175,29 @@ export default class Logger {
     ]
   ) {
 
-    const DISABLE_ALL_CUSTOM_LOGS = envConfig.get('DISABLE_ALL_CUSTOM_LOGS')
-    if (DISABLE_ALL_CUSTOM_LOGS) {
+    const disableCustomLogs = envTruthy(envConfig.get('YAMF_LOG_DISABLE_CUSTOM', false))
+    if (disableCustomLogs) {
       return printWarningOnceAndReturnVanillaConsole()
     }
 
-    this.options = Object.assign({
+    const logJsonEnv = envConfig.get('LOG_JSON')
+    const defaults = {
       logGroup: '',
-      useLogFile: false, // TODO
+      useLogFile: false,
       logFilePath: './logs',
       logFileRetainLineLimit: 0,
       includeLogLineNumbers: envConfig.get('LOG_INCLUDE_LINES'),
       excludeFullPathInLogLines: envConfig.get('LOG_EXCLUDE_FULL_PATH_IN_LOG_LINES'),
-      muteLogGroupOutput: envConfig.get('MUTE_LOG_GROUP_OUTPUT'),
+      muteLogGroupOutput: envTruthy(envConfig.get('YAMF_LOG_QUIET_GROUPS', false)),
       includeLogLevelInOutput: false,
-      outputJson: false, // TODO for cloudwatch and other log aggregators
+      outputJson: envTruthy(logJsonEnv),
+      includeTimestamp: envTruthy(envConfig.get('YAMF_LOG_TIMESTAMP', true)),
       warnLevel: false,
       maxDepth: 2
-    }, options)
+    }
+    this.options = Object.assign(defaults, options)
+    if (options.outputJson !== undefined) this.options.outputJson = options.outputJson
+    if (options.includeTimestamp !== undefined) this.options.includeTimestamp = options.includeTimestamp
 
     this.logLevels = logLevels
 
@@ -238,16 +243,36 @@ export default class Logger {
   }
 
   outputJsonFormatLog(level, ...args) {
-    let { logGroup } = this.options
-
-    let output = {}
-    output.src = path.relative(process.cwd(), getLogLineNumber(false))
-    output.level = level
-    output.rank = this.activeLogLevels.indexOf(level)
-    output.group = logGroup
-    output.message = args
-    output.error = args.find(arg => arg instanceof Error)
-    return JSON.stringify(output, null, this.options.maxDepth + 1) // +1 since the output is an object itself
+    const hasError = args.some(arg => arg instanceof Error || (arg && arg.stack))
+    const effectiveLevel = (level === 'debug' && hasError) ? 'debugErr' : level
+    if (this.activeLogLevels.indexOf(effectiveLevel) < 0) {
+      return
+    }
+    const ts = new Date().toISOString()
+    const line = getLogLineNumber(this.options.excludeFullPathInLogLines)
+    const { logGroup } = this.options
+    const msgParts = args.map(a => {
+      if (a instanceof Error) return a.message
+      if (typeof a === 'object' && a !== null) {
+        try {
+          return JSON.stringify(a)
+        } catch {
+          return String(a)
+        }
+      }
+      return String(a)
+    })
+    const rec = {
+      ts,
+      level: effectiveLevel,
+      group: logGroup || '',
+      line: typeof line === 'string' ? line.replace(/\x1b\[[0-9;]*m/g, '') : line,
+      msg: msgParts[0] ?? ''
+    }
+    if (msgParts.length > 1) rec.data = msgParts.slice(1)
+    const err = args.find(arg => arg instanceof Error)
+    if (err) rec.err = err.stack
+    ogConsole.log(JSON.stringify(rec))
   }
 
   outputPlainFormatLog(level, ...args) {
@@ -284,8 +309,15 @@ export default class Logger {
 
       if (arg !== color && !logContent.endsWith('\n')) logContent += ' | '
     }
-    logContent = logContent.slice(0, logContent.length - 3) + colors.reset
-    
+    if (logContent.endsWith(' | ')) {
+      logContent = logContent.slice(0, logContent.length - 3)
+    }
+    logContent += colors.reset
+
+    if (this.options.includeTimestamp) {
+      logContent = `[${new Date().toISOString()}] ${logContent}`
+    }
+
     const consoleMethod = (effectiveLevel === 'debugErr') ? 'debug' : level
     if (ogConsole[consoleMethod]) ogConsole[consoleMethod](logContent)
     else ogConsole.log(logContent)
@@ -293,14 +325,12 @@ export default class Logger {
   }
 
   createLogFn(level) {
-    let { outputJson } = this.options
-
     let isMuted = false
     if (this[level]) throw new Error(`Already created log fn for level ${level}`)
     else this[level] = function log(...args) {
       if (isMuted) return
 
-      return outputJson ? this.outputJsonFormatLog(level, ...args) : this.outputPlainFormatLog(level, ...args)
+      return this.options.outputJson ? this.outputJsonFormatLog(level, ...args) : this.outputPlainFormatLog(level, ...args)
     }
 
     if (this[level]) {

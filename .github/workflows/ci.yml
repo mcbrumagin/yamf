@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Metadata check
+        run: pnpm run check:metadata
+
+      - name: Unit tests (workspace except CLI and examples)
+        run: pnpm test
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: CLI + examples integration
+        run: pnpm run test:integration
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: unit
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: yamf
+          POSTGRES_PASSWORD: changeme
+          POSTGRES_DB: yamf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      YAMF_TEST_POSTGRES_URL: postgres://yamf:changeme@localhost:5432/yamf
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bootstrap yamf schema for e2e
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          psql "$YAMF_TEST_POSTGRES_URL" -v ON_ERROR_STOP=1 \
+            -f packages/services/user/migrations/ci_e2e_bootstrap_yamf_schema.sql
+
+      - name: E2E tests (postgres-backed packages)
+        run: pnpm run test:e2e

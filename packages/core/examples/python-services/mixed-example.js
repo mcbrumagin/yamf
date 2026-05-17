@@ -14,7 +14,7 @@ console.log('Starting Node.js services...')
 console.log(`Registry URL: ${process.env.YAMF_REGISTRY_URL}`)
 
 // Create a Node.js service that calls Python services
-await createService(async function nodeToPythonService(payload) {
+await createService('nodeToPythonService', async function (payload) {
   console.log('Node service received:', payload)
   
   // Call Python simple-service
@@ -40,7 +40,7 @@ await createService(async function nodeToPythonService(payload) {
 })
 
 // Create a Node.js service that publishes to channels Python services subscribe to
-await createService(async function nodePublisher(payload) {
+await createService('nodePublisher', async function (payload) {
   const channel = payload.channel || 'test-channel'
   const message = payload.message || { source: 'Node.js', data: 'Hello Python!' }
   
@@ -60,7 +60,7 @@ await createService(async function nodePublisher(payload) {
 })
 
 // Create a Node.js service that can be called from Python
-await createService(async function nodeService(payload) {
+await createService('nodeService', async function (payload) {
   console.log('Node service called by:', payload.from || 'unknown')
   
   return {

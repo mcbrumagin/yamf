@@ -383,8 +383,8 @@ async function routeCommandByHeaders(state, payload, request, response) {
     case COMMANDS.AUTH_LOGOUT: {
       // Allow caller to target a non-default auth service via yamf-service-name, as long as
       // the gateway has cached it as serviceType === 'auth-service'. Otherwise fall back to
-      // the conventional 'auth-service'.
-      const DEFAULT_AUTH_SERVICE = 'auth-service'
+      // the conventional 'auth' service name.
+      const DEFAULT_AUTH_SERVICE = 'auth'
       let authServiceName = DEFAULT_AUTH_SERVICE
       if (serviceName && serviceName !== DEFAULT_AUTH_SERVICE) {
         const requestedType = state.serviceTypes?.get(serviceName)

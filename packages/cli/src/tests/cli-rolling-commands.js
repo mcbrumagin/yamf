@@ -1,5 +1,5 @@
 /**
- * Rolling CLI command tests — `yamf restart --rolling`, `yamf drain`, `yamf status --health`.
+ * Rolling CLI command tests — `yamf restart --rolling`, `yamf registry drain`, `yamf status --health`.
  * Uses the same journey pattern as cli-journey.js (isolated YAMF_HOME + registry port).
  */
 
@@ -7,33 +7,61 @@ import { assert, assertErr } from '@yamf/test'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, mkdtempSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
+
+import { envTruthy } from '@yamf/core'
+import { runBootstrapWithEnv } from '../lib/bootstrap-for-tests.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const EXAMPLES = join(__dirname, '..', 'example')
-const YAMF_HOME = join(__dirname, '..', '.yamf-rolling-commands')
 const CLI_CWD = join(__dirname, '..')
-const DEBUG = process.env.YAMF_TEST_DEBUG === '1'
+const DEBUG = envTruthy(process.env.YAMF_TEST_DEBUG)
 
 // Tighter than production defaults: this suite is integration-heavy; keeps exec timeouts sane.
 // Production remains unchanged; override here for faster feedback when tuning PM3/registry polling.
-const ENV = {
-  ...process.env,
-  YAMF_REGISTRY_URL: 'http://localhost:18011',
-  YAMF_HOME,
-  LOG_LEVEL: 'info',
-  MUTE_LOG_GROUP_OUTPUT: 'true',
-  YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
-  YAMF_PM3_STOP_GRACE_MS: '5000',
-  YAMF_PM3_POLL_INTERVAL_MS: '80',
-  YAMF_PM3_POLL_STABLE_CHECKS: '2',
-  YAMF_PM3_BROADCAST_SETTLE_MS: '400',
-  YAMF_PM3_REGISTRY_CHECK_ATTEMPTS: '6',
-  YAMF_PM3_REGISTRY_CHECK_MS: '50'
+let ENV = null
+
+function reserveRegistryBaseUrl () {
+  return new Promise((resolve, reject) => {
+    const s = createServer()
+    s.listen(0, '127.0.0.1', () => {
+      const addr = s.address()
+      const port = typeof addr === 'object' && addr ? addr.port : 0
+      s.close((err) => (err != null ? reject(err) : resolve(`http://127.0.0.1:${port}`)))
+    })
+    s.on('error', reject)
+  })
+}
+
+async function resetEnv () {
+  cleanup()
+  const registryBaseUrl = await reserveRegistryBaseUrl()
+  const yamfHome = mkdtempSync(join(tmpdir(), 'yamf-cli-rolling-'))
+  ENV = {
+    ...process.env,
+    YAMF_REGISTRY_URL: registryBaseUrl,
+    YAMF_HOME: yamfHome,
+    LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+    YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
+    YAMF_PM3_STOP_GRACE_MS: '5000',
+    YAMF_PM3_POLL_INTERVAL_MS: '80',
+    YAMF_PM3_POLL_STABLE_CHECKS: '2',
+    YAMF_PM3_BROADCAST_SETTLE_MS: '400',
+    YAMF_PM3_REGISTRY_CHECK_ATTEMPTS: '6',
+    YAMF_PM3_REGISTRY_CHECK_MS: '50',
+    // Force keys onto `ENV` so runBootstrapWithEnv strips them from process.env (delete alone
+    // omits the key so the shell value would still be inherited by PM3-spawned dev-bootstrap).
+    YAMF_REGISTRY_TOKEN: undefined,
+    YAMF_DEPLOY_TOKEN: undefined
+  }
+  await runBootstrapWithEnv(ENV)
 }
 
 function cli(cmd, { timeout = 20000 } = {}) {
+  if (!ENV) throw new Error('test ENV not initialized; call resetEnv() before CLI usage')
   if (DEBUG) console.log(`\n> yamf ${cmd}`)
   try {
     const stdout = execSync(`node ${CLI} ${cmd}`, {
@@ -58,67 +86,94 @@ function cliSafe(cmd) {
 }
 
 function cleanup() {
+  if (!ENV) return
   cliSafe('stop --all')
   cliSafe('delete --all')
-  if (existsSync(YAMF_HOME)) {
-    rmSync(YAMF_HOME, { recursive: true, force: true })
+  if (ENV.YAMF_HOME && existsSync(ENV.YAMF_HOME)) {
+    rmSync(ENV.YAMF_HOME, { recursive: true, force: true })
   }
+  ENV = null
 }
 
 export async function testRestartHelpMentionsRolling() {
-  const out = cli('restart --help')
-  assert(out,
-    o => o.includes('--rolling'),
-    o => o.includes('zero-downtime') || o.includes('zero downtime') || o.includes('Spawn replacement')
-  )
+  await resetEnv()
+  try {
+    const out = cli('restart --help')
+    assert(out,
+      o => o.includes('--rolling'),
+      o => o.includes('zero-downtime') || o.includes('zero downtime') || o.includes('Spawn replacement')
+    )
+  } finally {
+    cleanup()
+  }
 }
 
 export async function testDrainHelpShown() {
-  const out = cli('drain --help')
-  assert(out,
-    o => o.includes('REGISTRY_DRAIN') || o.includes('drain'),
-    o => o.includes('YAMF_REGISTRY_URL')
-  )
+  await resetEnv()
+  try {
+    const out = cli('registry drain --help')
+    assert(out,
+      o => o.includes('REGISTRY_DRAIN') || o.includes('drain'),
+      o => o.includes('YAMF_REGISTRY_URL')
+    )
+  } finally {
+    cleanup()
+  }
 }
 
 export async function testStatusHelpMentionsHealthFlag() {
-  const out = cli('status --help')
-  assert(out, o => o.includes('--health'))
+  await resetEnv()
+  try {
+    const out = cli('status --help')
+    assert(out, o => o.includes('--health'))
+  } finally {
+    cleanup()
+  }
 }
 
 export async function testRestartRollingAndAllMutuallyExclusive() {
-  await assertErr(
-    () => cli('restart --rolling --all'),
-    err => (err.output || '').includes('cannot be combined')
-  )
+  await resetEnv()
+  try {
+    await assertErr(
+      () => cli('restart --rolling --all'),
+      err => (err.output || '').includes('cannot be combined')
+    )
+  } finally {
+    cleanup()
+  }
 }
 
 export async function testDrainRejectsMissingRegistryUrl() {
-  await assertErr(
-    () => {
-      // Clear registry URL for this invocation only
-      execSync(`node ${CLI} drain`, {
-        env: { ...ENV, YAMF_REGISTRY_URL: '' },
-        cwd: CLI_CWD,
-        encoding: 'utf8',
-        timeout: 5000
-      })
-    },
-    err => {
-      const msg = (err.stdout || '') + (err.stderr || '')
-      return msg.includes('YAMF_REGISTRY_URL') && msg.includes('not set')
-    }
-  )
+  await resetEnv()
+  try {
+    await assertErr(
+      () => {
+        // Clear registry URL for this invocation only
+        execSync(`node ${CLI} registry drain`, {
+          env: { ...ENV, YAMF_REGISTRY_URL: '' },
+          cwd: CLI_CWD,
+          encoding: 'utf8',
+          timeout: 5000
+        })
+      },
+      err => {
+        const msg = (err.stdout || '') + (err.stderr || '')
+        return msg.includes('YAMF_REGISTRY_URL') && msg.includes('not set')
+      }
+    )
+  } finally {
+    cleanup()
+  }
 }
 
 export async function testDrainAgainstLiveRegistry() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
-    const drainOut = cli('drain')
+    const drainOut = cli('registry drain')
     assert(drainOut, o => o.includes('Drain requested'))
 
     const statusOut = cli('status --health')
+    console.log('statusOut', statusOut)
     assert(statusOut,
       o => o.includes('draining:'),
       o => o.includes('YES')
@@ -129,9 +184,8 @@ export async function testDrainAgainstLiveRegistry() {
 }
 
 export async function testStatusHealthShowsServiceCounts() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const out = cli('status --health')
@@ -146,20 +200,20 @@ export async function testStatusHealthShowsServiceCounts() {
   }
 }
 
-function readPids() {
-  const statePath = join(YAMF_HOME, 'pm3', 'state.json')
+function readPids(targetFragment = 'load-balanced.js') {
+  if (!ENV?.YAMF_HOME) return []
+  const statePath = join(ENV.YAMF_HOME, 'pm3', 'state.json')
   if (!existsSync(statePath)) return []
   const raw = JSON.parse(readFileSync(statePath, 'utf8'))
   return Object.values(raw.processes || {})
-    .filter(p => p && p.pid && !p.isRegistry)
+    .filter(p => p && p.pid && !p.isRegistry && String(p.filepath || '').includes(targetFragment))
     .map(p => p.pid)
     .sort((a, b) => a - b)
 }
 
 export async function testRestartRollingReplacesLoadBalancedInstance() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
 
     const pidsBefore = readPids()
@@ -190,9 +244,8 @@ export async function testRestartRollingReplacesLoadBalancedInstance() {
 }
 
 export async function testRestartRollingReplacesMultipleInstances() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     cli(`start ${join(EXAMPLES, 'load-balanced.js')}`)
     cli(`start ${join(EXAMPLES, 'load-balanced.js')} --env YAMF_SERVICE_URL=http://127.0.0.1`)
 
@@ -213,9 +266,8 @@ export async function testRestartRollingReplacesMultipleInstances() {
 }
 
 export async function testRestartRollingRefusesRegistry() {
-  cleanup()
+  await resetEnv()
   try {
-    cli('init --dev')
     await assertErr(
       () => cli('restart --rolling dev-bootstrap'),
       err => {

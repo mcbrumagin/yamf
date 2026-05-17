@@ -12,7 +12,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import fsAsync from 'node:fs/promises'
 
-let logger = new Logger({ logGroup: 'static-file-service' })
+let logger = new Logger({ logGroup: 'static-files' })
 
 /* --- example filemap ---
 {
@@ -305,7 +305,7 @@ async function getRangeData(filePath, range) {
 const $404 = () => new HttpError(404, 'Not found')
 
 export default async function createStaticFileService({
-  serviceName = 'static-file-service',
+  serviceName = 'static-files',
   rootDir = normalizePath(process.cwd()),
   urlRoot = '/',
   fileMap = 'index.html',

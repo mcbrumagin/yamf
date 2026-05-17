@@ -1,38 +1,42 @@
 /**
  * CLI subcommand smokes: help, validation errors, cheap PM3 success paths.
- * Full journeys (init --dev, deploy harness) stay in `cli-journey.js` / `cli-build-deploy-tests.js`.
+ * Full journeys (local dev stack, deploy harness) stay in `cli-journey.js` / `cli-build-deploy-tests.js`.
  */
 import { assert } from '@yamf/test'
+import { envTruthy } from '@yamf/core'
 import { execSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CLI = join(__dirname, '..', 'cli.js')
 const CLI_CWD = join(__dirname, '..')
+const DEBUG = envTruthy(process.env.YAMF_TEST_DEBUG)
 
 function exec (cmd, env = {}) {
-  return execSync(`node ${CLI} ${cmd}`, {
-    env: { ...process.env, MUTE_LOG_GROUP_OUTPUT: 'true', LOG_LEVEL: 'error', ...env },
+  if (DEBUG) console.log(`\n> (cwd=${CLI_CWD}) yamf ${cmd}`)
+  const out = execSync(`node ${CLI} ${cmd}`, {
+    env: { ...process.env, ...env },
     cwd: CLI_CWD,
     encoding: 'utf8',
     timeout: 15000,
     stdio: ['pipe', 'pipe', 'pipe']
   })
+  if (DEBUG && out) console.log(out)
+  return out
 }
 
 function execErr (cmd, env = {}) {
   try {
-    execSync(`node ${CLI} ${cmd}`, {
-      env: { ...process.env, MUTE_LOG_GROUP_OUTPUT: 'true', LOG_LEVEL: 'error', ...env },
-      cwd: CLI_CWD,
-      encoding: 'utf8',
-      timeout: 15000,
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
+    exec(cmd, env)
     return null
   } catch (e) {
+    if (DEBUG) {
+      const combined = (e.stderr || '') + (e.stdout || '') + (e.message || '')
+      console.log('[ERROR]', combined)
+    }
     return e
   }
 }
@@ -49,9 +53,9 @@ export async function testDeployHelpMentionsLocalRemote () {
   await assert(out, (o) => o.includes('--local') && o.includes('--remote'))
 }
 
-export async function testStartHelpMentionsInstances () {
+export async function testStartHelpMentionsReplicas () {
   const out = exec('start --help')
-  await assert(out, (o) => o.includes('yamf start') && o.includes('--instances'))
+  await assert(out, (o) => o.includes('yamf start') && o.includes('--replicas'))
 }
 
 export async function testStopHelpMentionsAll () {
@@ -69,9 +73,19 @@ export async function testDescribeHelpMentionsRemote () {
   await assert(out, (o) => o.includes('--remote') && o.includes('yamf describe'))
 }
 
-export async function testInitHelpMentionsDev () {
+export async function testInitHelpMentionsScaffold () {
   const out = exec('init --help')
-  await assert(out, (o) => o.includes('--dev') && o.includes('yamf init'))
+  await assert(out, (o) => o.includes('yamf.config.js') && o.includes('yamf init'))
+}
+
+export async function testInitWritesManifestInEmptyDir () {
+  const d = mkdtempSync(join(__dirname, '..', '.yamf-init-smoke-'))
+  try {
+    execSync(`node ${CLI} init`, { cwd: d, encoding: 'utf8' })
+    await assert(existsSync(join(d, 'yamf.config.js')), (x) => x === true)
+  } finally {
+    rmSync(d, { recursive: true, force: true })
+  }
 }
 
 // --- Validation / expected errors ---
@@ -116,12 +130,6 @@ export async function testDescribeRequiresTarget () {
   await assert(msg(err), (m) => m.includes('Target') || m.includes('required'))
 }
 
-export async function testInitWithoutDevExitsWithGuidance () {
-  const err = execErr('init')
-  await assert(err && err.status, (s) => s === 1 || s > 0)
-  await assert(msg(err), (m) => m.includes('init') && (m.includes('dev') || m.includes('Usage')))
-}
-
 // --- Cheap success (empty PM3 state) ---
 
 export async function testStopAllSucceedsWithEmptyState () {
@@ -141,5 +149,36 @@ export async function testDeleteAllSucceedsWithEmptyState () {
     await assert(true, (x) => x)
   } finally {
     rmSync(home, { recursive: true, force: true })
+  }
+}
+
+// --- `yamf test` guard rails (exit 2) ---
+
+export async function testTestGenerateRequiresAsTest () {
+  const err = execErr('test --generate -d . -f "*.js"', { YAMF_LOG_QUIET_GROUPS: 'true' })
+  await assert(err && err.status, (s) => s === 2)
+  await assert(msg(err), (m) => m.includes('--generate requires --as-test'))
+}
+
+export async function testTestAsTestRequiresFileGlob () {
+  const err = execErr('test --as-test -d .', { YAMF_LOG_QUIET_GROUPS: 'true' })
+  await assert(err && err.status, (s) => s === 2)
+  await assert(msg(err), (m) => m.includes('--as-test requires'))
+}
+
+export async function testTestInvalidTimeoutRejected () {
+  const err = execErr('test -d . --timeout 0', { YAMF_LOG_QUIET_GROUPS: 'true' })
+  await assert(err && err.status, (s) => s === 2)
+  await assert(msg(err), (m) => m.includes('--timeout'))
+}
+
+export async function testTestListAsTestPrintsMatches () {
+  const dir = mkdtempSync(join(tmpdir(), 'yamf-cli-testlist-'))
+  try {
+    writeFileSync(join(dir, 'demo.example.js'), 'console.log(1)\n', 'utf8')
+    const out = exec(`test --list --as-test -d ${dir} -f "*.example.js"`, { YAMF_LOG_QUIET_GROUPS: 'true' })
+    await assert(out, (o) => o.includes('demo.example.js') && o.includes('Found'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
   }
 }

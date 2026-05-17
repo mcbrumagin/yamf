@@ -5,7 +5,7 @@
  * Processes are tracked by PID, validated for liveness on read.
  */
 
-import { httpRequest, HEADERS, COMMANDS, Logger, envConfig } from '@yamf/core'
+import { httpRequest, HEADERS, COMMANDS, Logger, envConfig, envTruthy } from '@yamf/core'
 import { writeFileSync, readFileSync, mkdirSync, renameSync, existsSync } from 'node:fs'
 import { join, resolve as pathResolve, basename } from 'node:path'
 import { spawnDetached } from './spawn.js'
@@ -88,10 +88,14 @@ function isProcessAlive(pid) {
 }
 
 async function getServiceStateSnapshot(registryUrl) {
+  const headers = {
+    [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+    ...(process.env.YAMF_REGISTRY_TOKEN
+      ? { [HEADERS.REGISTRY_TOKEN]: process.env.YAMF_REGISTRY_TOKEN }
+      : {})
+  }
   const result = await httpRequest(registryUrl, {
-    headers: {
-      [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL
-    }
+    headers
   })
   return result.services || {}
 }
@@ -203,7 +207,12 @@ export class PM3 {
       }
       try {
         await httpRequest(this.registryUrl, {
-          headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL }
+          headers: {
+            [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+            ...(process.env.YAMF_REGISTRY_TOKEN
+              ? { [HEADERS.REGISTRY_TOKEN]: process.env.YAMF_REGISTRY_TOKEN }
+              : {})
+          }
         })
         this.registryRunning = true
       } catch (err) {
@@ -401,7 +410,7 @@ export class PM3 {
 
   /** @returns {false} to skip; env `YAMF_PM3_STOP_REGISTRY_BROADCAST=0` disables. */
   shouldUseRegistryBroadcastStop () {
-    return envConfig.get('YAMF_PM3_STOP_REGISTRY_BROADCAST', '1') !== '0'
+    return envTruthy(envConfig.get('YAMF_PM3_STOP_REGISTRY_BROADCAST', true))
   }
 
   /**
@@ -451,7 +460,14 @@ export class PM3 {
     }
     let pull
     try {
-      pull = await httpRequest(registryUrl, { headers: { [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL } })
+      pull = await httpRequest(registryUrl, {
+        headers: {
+          [HEADERS.COMMAND]: COMMANDS.REGISTRY_PULL,
+          ...(process.env.YAMF_REGISTRY_TOKEN
+            ? { [HEADERS.REGISTRY_TOKEN]: process.env.YAMF_REGISTRY_TOKEN }
+            : {})
+        }
+      })
     } catch {
       return []
     }

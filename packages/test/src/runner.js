@@ -24,7 +24,7 @@
  */
 
 import crypto from 'crypto'
-import { Logger } from '@yamf/core'
+import { Logger, envConfig, envTruthy } from '@yamf/core'
 
 const logger = new Logger({ includeLogLineNumbers: false })
 
@@ -126,7 +126,20 @@ export async function runTestFnsSequentially(testFns) {
       }
       const startTime = Date.now()
       try {
-        await fn()
+        const timeoutRaw = process.env.YAMF_TEST_CASE_TIMEOUT_MS
+        const timeoutMs = timeoutRaw != null && timeoutRaw !== '' ? Number(timeoutRaw) : NaN
+        const useTimeout = Number.isFinite(timeoutMs) && timeoutMs > 0
+        if (useTimeout) {
+          await new Promise((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error(`Test timed out after ${timeoutMs}ms`)), timeoutMs)
+            Promise.resolve(fn()).then(
+              (v) => { clearTimeout(t); resolve(v) },
+              (e) => { clearTimeout(t); reject(e) }
+            )
+          })
+        } else {
+          await fn()
+        }
         const durationMs = Date.now() - startTime
         testTimings.push({ name: fn.name, durationMs, ok: true })
         logger.info(logger.writeColor('green', `✔ ${fn.name}`) + logger.writeColor('gray', ` (${durationMs}ms)`))
@@ -200,7 +213,10 @@ function reportTestResults ({
   logger.info('\n')
   logger.info(`----- Testing Complete -----`)
 
-  if (testSuccess > 0 && process.env.MUTE_SUCCESS_CASES !== 'true') {
+  if (
+    testSuccess > 0 &&
+    !envTruthy(envConfig.get('YAMF_TEST_QUIET_PASSES', false))
+  ) {
     logger.info(logger.writeColor('green', '✔ ✔ ✔  Success Report  ✔ ✔ ✔'))
     logger.info(logger.writeColor('green', '\n  ' + successCases.join('\n  ')))
     logger.info('')
@@ -225,7 +241,7 @@ function reportTestResults ({
   if (isSoloRun) logger.warn(logger.writeColor('magenta', 'This was a solo test run, remove "solo" flags for a full test run'))
   if (isMuteRun) logger.warn(logger.writeColor('magenta', 'This was a partially muted test run, remove "mute" flags for a full test run'))
 
-  if (process.env.YAMF_TEST_TIMINGS === '1' && testTimings && testTimings.length > 0) {
+  if (envTruthy(envConfig.get('YAMF_TEST_TIMINGS', false)) && testTimings && testTimings.length > 0) {
     printTimingTable(testTimings)
   }
 }
@@ -282,7 +298,7 @@ export default async function runTests(testSuitesOrFns) {
   }
 }
 
-// Export for backwards compatibility
+// Named export mirrors the default export (`runTests`).
 export { runTests }
 
 // ============================================================================

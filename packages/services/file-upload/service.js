@@ -13,7 +13,7 @@ import { promises as fsPromises } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
-let logger = new Logger({ logGroup: 'file-upload-service' })
+let logger = new Logger({ logGroup: 'uploads' })
 
 function sanitizeFilename(filename) {
   return sanitizePathSegment(path.basename(filename || 'unnamed'))
@@ -79,7 +79,7 @@ function handleStreamingUpload(_payload, req, res, options) {
     acceptMime = null,
     onAllocate = null,
     auditUpload = null,
-    serviceName: uploadServiceName = 'file-upload-service'
+    serviceName: uploadServiceName = 'uploads'
   } = options
 
   const envCap = Number(envConfig.get('YAMF_UPLOAD_MAX_BYTES', 25 * 1024 * 1024))
@@ -480,7 +480,7 @@ const validators = {
  * @returns {Promise<Service>} The created service
  */
 export default async function createFileUploadService({
-  serviceName = 'file-upload-service',
+  serviceName = 'uploads',
   uploadDir = path.join(process.cwd(), 'uploads'),
   fileFieldName = 'file',
   textFields = [],
@@ -539,7 +539,17 @@ export default async function createFileUploadService({
       }
 
       if (onSuccess) {
-        await onSuccess(successData, req, res)
+        try {
+          await onSuccess(successData, req, res)
+        } catch (err) {
+          const code = err && err.code
+          const msg = (err && err.message) || ''
+          if (code === 'ERR_HTTP_HEADERS_SENT' || /headers.*sent|Cannot set headers/i.test(msg)) {
+            logger.warn('onSuccess tried to write after the response was already sent; ignoring duplicate send', { message: msg })
+            return
+          }
+          throw err
+        }
       } else {
         if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'application/json' })
         if (!res.writableEnded) res.end(JSON.stringify(successData))
@@ -571,10 +581,8 @@ export default async function createFileUploadService({
         : null
     })
     
-    // Return false to indicate that the response is handled by the function itself
-    // This prevents the framework from trying to send another response
-    return false // TODO return next()? preventDefault()? next({ preventDefault: true })?
-    // return next({ reason: 'file upload', file: filePath })
+    // Return false: framework must not send a second response (multipart handler ends the response).
+    return false
   }, {
     useAuthService,
     streamPayload: true // Don't buffer the request - we need the raw stream for multipart uploads

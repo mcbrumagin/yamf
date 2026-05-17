@@ -74,7 +74,7 @@ service = create_service_sync("doubler", handler)
 
 # Service with options
 service = create_service_sync("protected_service", handler, {
-    "useAuthService": "auth-service"
+    "useAuthService": "auth"
 })
 
 # Keep service running
@@ -341,11 +341,11 @@ Command.PUBSUB_SUBSCRIBE # 'pubsub-subscribe'
 
 | Feature | Node.js | Python |
 |---------|---------|--------|
-| Create Service | `createService(fn)` | `create_service(fn)` / `create_service_sync(fn)` |
+| Create Service | `createService(name, fn)` | `create_service(fn)` / `create_service_sync(fn)` |
 | Call Service | `callService(name, payload)` | `call_service(name, payload)` / `call_service_sync(name, payload)` |
 | Create Route | `createRoute(path, fn)` | `create_route(path, fn)` / `create_route_sync(path, fn)` |
 | Publish Message | `publishMessage(ch, msg)` | `publish_message(ch, msg)` / `publish_message_sync(ch, msg)` |
-| Subscription Service | `createSubscriptionService(ch, fn)` | `create_subscription_service(ch, fn)` / `create_subscription_service_sync(ch, fn)` |
+| Subscription Service | `createSubscriptionService(name, { channel: fn })` | `create_subscription_service(ch, fn)` / `create_subscription_service_sync(ch, fn)` |
 | Service Context | `this.call()`, `this.publish()` | `self.call()`, `self.publish()` |
 
 ## Examples

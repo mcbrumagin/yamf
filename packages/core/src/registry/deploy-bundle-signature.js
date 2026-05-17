@@ -82,7 +82,11 @@ export function verifyEd25519SignatureOnDeployHash (hashUtf8, signatureBase64, p
 }
 
 /**
- * If `authorized_keys` is non-empty, require a valid `yamf-bundle-ed25519-sig` for this hash.
+ * If `authorized_keys` is non-empty, require a valid `yamf-bundle-signature` for this hash.
+ * The algorithm tag (`yamf-bundle-signature-alg`) defaults to `ed25519` and is the only
+ * algorithm currently accepted; other tags are rejected so we fail closed if a future
+ * sender advertises an algorithm the registry doesn't yet support.
+ *
  * @param {{ hash: string, headers: Record<string, string|undefined> }} p
  * @returns {{ ok: true } | { status: number, message: string }}
  */
@@ -92,15 +96,19 @@ export function enforceDeployBundleEd25519Policy (p) {
     return { ok: true }
   }
   const h = p.headers || {}
-  const sig = h[HEADERS.BUNDLE_ED25519_SIG] || h['yamf-bundle-ed25519-sig']
+  const sig = h[HEADERS.BUNDLE_SIGNATURE]
+  const alg = String(h[HEADERS.BUNDLE_SIGNATURE_ALG] || 'ed25519').toLowerCase()
   if (!sig || !String(sig).trim()) {
     return {
       status: 401,
-      message: 'Ed25519 signature required: deploy authorized_keys is configured; send yamf-bundle-ed25519-sig (base64 over UTF-8 hash string)'
+      message: 'Bundle signature required: deploy authorized_keys is configured; send yamf-bundle-signature (base64 over UTF-8 hash string)'
     }
   }
+  if (alg !== 'ed25519') {
+    return { status: 415, message: `Unsupported bundle signature algorithm: ${alg}` }
+  }
   if (!verifyEd25519SignatureOnDeployHash(p.hash, String(sig).trim(), pubKeys)) {
-    return { status: 403, message: 'Invalid Ed25519 signature for yamf-bundle-ed25519-sig' }
+    return { status: 403, message: 'Invalid Ed25519 signature for yamf-bundle-signature' }
   }
   return { ok: true }
 }

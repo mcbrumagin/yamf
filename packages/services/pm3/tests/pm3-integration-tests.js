@@ -1,6 +1,5 @@
 /**
- * Integration tests: real registry + {@link import('../service.js') createPm3Service} + SERVICE_CALL
- * (Tier 1 of docs/TEST-PLAN-UNDER-50.md).
+ * Integration tests: real registry + {@link import('../service.js') createPm3Service} + SERVICE_CALL.
  */
 import { createServer } from 'node:net'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -29,8 +28,8 @@ function makePm3TestEnv (registryBaseUrl, yamfHome) {
   return {
     YAMF_REGISTRY_URL: registryBaseUrl,
     YAMF_HOME: yamfHome,
-    MUTE_LOG_GROUP_OUTPUT: 'true',
-    MUTE_SUCCESS_CASES: 'true',
+    YAMF_LOG_QUIET_GROUPS: 'true',
+    YAMF_TEST_QUIET_PASSES: 'true',
     LOG_LEVEL: 'error',
     YAMF_GRACEFUL_SHUTDOWN_MS: '2000',
     YAMF_PM3_STOP_GRACE_MS: '2000',
@@ -51,10 +50,10 @@ export async function testPm3ServiceListIsReachableViaCallService () {
     await withEnv(makePm3TestEnv(baseUrl, yamfHome), async () => {
       await terminateAfter(
         () => registryServer(),
-        () => createPm3Service({ managedServicePath: managed, serviceName: 'pm3-service' }),
+        () => createPm3Service({ managedServicePath: managed, serviceName: 'pm3' }),
         async () => {
           await sleep(600)
-          const res = await callService('pm3-service', { command: 'list' })
+          const res = await callService('pm3', { command: 'list' })
           await assert(res, (r) => Array.isArray(r))
         }
       )
@@ -77,12 +76,12 @@ export async function testPm3ServiceDeployRequiresDeployTokenWhenEnforced () {
     await withEnv(env, async () => {
       await terminateAfter(
         () => registryServer(),
-        () => createPm3Service({ managedServicePath: managed, serviceName: 'pm3-service' }),
+        () => createPm3Service({ managedServicePath: managed, serviceName: 'pm3' }),
         async () => {
           await sleep(600)
           await assertErr(
             () =>
-              callService('pm3-service', {
+              callService('pm3', {
                 command: 'deploy',
                 service: 'pm3-it-svc',
                 hash: 'sha256-missingok',
@@ -112,11 +111,11 @@ export async function testPm3ServiceRejectsEmptyPayload () {
     await withEnv(makePm3TestEnv(baseUrl, yamfHome), async () => {
       await terminateAfter(
         () => registryServer(),
-        () => createPm3Service({ managedServicePath: managed, serviceName: 'pm3-service' }),
+        () => createPm3Service({ managedServicePath: managed, serviceName: 'pm3' }),
         async () => {
           await sleep(600)
           await assertErr(
-            () => callService('pm3-service', {}),
+            () => callService('pm3', {}),
             (err) => err?.status === 400 || (err?.message && err.message.includes('command'))
           )
         }

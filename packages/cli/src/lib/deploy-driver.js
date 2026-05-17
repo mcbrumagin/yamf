@@ -11,9 +11,10 @@ import {
   deployDecisionFromReplicas,
   signDeployHashWithEd25519Pem
 } from '@yamf/core'
+import { DEPLOY_COMMANDS } from '@yamf/services-deploy-router'
 import { checkDeployContractGate } from '@yamf/core/contract-compatibility'
 import { loadIncomingServiceContractFromBundle } from './contract-from-bundle.js'
-import { readFileSync, createReadStream } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, join, resolve as pathResolve, sep } from 'node:path'
 import { getServiceBuildDir } from './yamf-paths.js'
 
@@ -74,32 +75,33 @@ export async function pruneStalePm3BundlesInServiceDir (pm3, serviceName, cwd, k
 }
 
 /**
- * `restartRolling(replicaKey)` needs PM3 state with `entry.services[replicaKey]` set by
+ * `restartRolling(registeredServiceName)` needs PM3 state with `entry.services[registeredServiceName]` set by
  * post-start registry polling, which can time out. Resolve the running bundle path under
  * `.yamf/build/{serviceName}/` instead so rolling works in `yamf dev` regardless.
  * @param {import('./pm3.js').PM3} pm3
  * @param {string} serviceName
  * @param {string} cwd
  * @param {string} newBundlePath
- * @param {string} replicaKey
+ * @param {string} registeredServiceName - key in REGISTRY_PULL `replicas` / PM3 service map
  * @param {boolean} [remote]
  */
-export async function resolveLocalRollingTarget (pm3, serviceName, cwd, newBundlePath, replicaKey, remote = false) {
-  if (remote || !pm3) return replicaKey
+export async function resolveLocalRollingTarget (pm3, serviceName, cwd, newBundlePath, registeredServiceName, remote = false) {
+  if (remote || !pm3) return registeredServiceName
   if (pm3.filepathForService) {
     try {
-      const byName = pm3.filepathForService(replicaKey)
+      const byName = pm3.filepathForService(registeredServiceName)
       if (byName) return byName
     } catch { /* */ }
   }
-  if (!newBundlePath) return replicaKey
+  if (!newBundlePath) return registeredServiceName
   const entries = await listRunningLocalBundlesInServiceDir(pm3, serviceName, cwd, newBundlePath)
   if (entries[0]?.filepath) return entries[0].filepath
-  return replicaKey
+  return registeredServiceName
 }
 
 /**
- * Stream local bundle to registry `deploy-bundle` (slice C3).
+ * Stream local bundle to the registry's `deploy-bundle` plugin verb (registered by
+ * `@yamf/services-deploy-router`).
  * @param {{ registryUrl: string, hash: string, bundlePath: string, deployToken?: string }} p
  */
 export async function uploadDeployBundleToRegistry ({ registryUrl, hash, bundlePath, deployToken = process.env.YAMF_DEPLOY_TOKEN || '' }) {
@@ -108,7 +110,7 @@ export async function uploadDeployBundleToRegistry ({ registryUrl, hash, bundleP
   }
   const base = String(registryUrl).replace(/\/$/, '')
   const deployHeaders = {
-    [HEADERS.COMMAND]: 'deploy-bundle',
+    [HEADERS.COMMAND]: DEPLOY_COMMANDS.BUNDLE,
     [HEADERS.DEPLOY_TOKEN]: deployToken,
     [HEADERS.DEPLOY_HASH]: hash,
     'content-type': 'application/javascript; charset=utf-8'
@@ -116,17 +118,17 @@ export async function uploadDeployBundleToRegistry ({ registryUrl, hash, bundleP
   const signPath = process.env.YAMF_DEPLOY_PRIVATE_KEY
   if (signPath) {
     try {
-      deployHeaders[HEADERS.BUNDLE_ED25519_SIG] = signDeployHashWithEd25519Pem(hash, signPath)
+      deployHeaders[HEADERS.BUNDLE_SIGNATURE] = signDeployHashWithEd25519Pem(hash, signPath)
+      deployHeaders[HEADERS.BUNDLE_SIGNATURE_ALG] = 'ed25519'
     } catch (e) {
       throw new Error(`YAMF_DEPLOY_PRIVATE_KEY sign failed: ${e?.message || e}`)
     }
   }
+  const bundleBody = readFileSync(bundlePath)
   const res = await fetch(base, {
     method: 'POST',
     headers: deployHeaders,
-    body: createReadStream(bundlePath),
-    // @ts-ignore Node stream upload
-    duplex: 'half'
+    body: bundleBody
   })
   if (!res.ok) {
     const t = await res.text()
@@ -225,9 +227,9 @@ export async function planAndApply ({
     }
   })
   const serviceName = yamfService.name
-  /** @see {import('./load-yamf-config.js').YamfConfigService#replicaKey} */
-  const replicaKey = yamfService.replicaKey || yamfService.name
-  let current = pull.replicas?.[replicaKey] || []
+  /** @see {import('./load-yamf-config.js').YamfConfigService#registeredServiceName} */
+  const registeredServiceName = yamfService.registeredServiceName || yamfService.name
+  let current = pull.replicas?.[registeredServiceName] || []
   const wantReplicas = replicasOverride ?? yamfService.replicas ?? 1
 
   let { decision, sameHash, otherHash } = deployDecisionFromReplicas(current, hash, wantReplicas)
@@ -314,7 +316,7 @@ export async function planAndApply ({
     YAMF_SOURCE_HASH: hash,
     YAMF_BUNDLE_PATH: bundlePath,
     YAMF_SERVICE_NAME: serviceName,
-    ...(allowBreaking && { YAMF_DEPLOY_ALLOW_BREAKING: '1' })
+    ...(allowBreaking && { YAMF_DEPLOY_ALLOW_BREAKING: 'true' })
   }
   if (yamfEntryDir) {
     env.YAMF_ENTRY_DIR = yamfEntryDir
@@ -357,11 +359,11 @@ export async function planAndApply ({
     return { decision, added: want }
   }
 
-  // rolling — default target is replicaKey, but local PM3 only finds it if `entry.services[replicaKey]`
+  // rolling — default target is registeredServiceName, but local PM3 only finds it if `entry.services[…]`
   // was filled by post-start poll (unreliable). Fall back to the running .mjs path under
   // .yamf/build/{serviceName}/.
   const rollingTarget = await resolveLocalRollingTarget(
-    pm3, serviceName, cwd, bundlePath, replicaKey, remote
+    pm3, serviceName, cwd, bundlePath, registeredServiceName, remote
   )
   const result = await pm3.restartRolling(rollingTarget, { env, bundlePath })
   return { decision, replaced: result.replaced?.length ?? 0, pm3: result }

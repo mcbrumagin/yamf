@@ -9,26 +9,61 @@ import {
 import { existsSync } from 'node:fs'
 import { pickNode } from './placement.js'
 
+const DEPLOY_HISTORY_MAX = 20
+
+function pushDeployEvent (registry, event) {
+  const h = registry?._state?.deployHistory
+  if (!Array.isArray(h)) return
+  h.push(event)
+  if (h.length > DEPLOY_HISTORY_MAX) h.splice(0, h.length - DEPLOY_HISTORY_MAX)
+}
+
+/**
+ * Wire verbs registered by {@link registerDeployRouter}. Exported so CLI / deploy-driver code
+ * can target them without stringly-typed literals.
+ */
+export const DEPLOY_COMMANDS = Object.freeze({
+  /** Server-side rollout decision; takes `{ services: [{ name, hash, replicas? }] }`. */
+  PLAN: 'deploy-plan',
+  /** Streamed bundle upload; body is the raw bundle, `yamf-deploy-hash` header required. */
+  BUNDLE: 'deploy-bundle'
+})
+
 const PLUGIN_SERVICE = 'yamf-deploy-router'
 
 /**
- * @param {object} registry - server from `registryServer()`; must expose `registerCommand`, `getReplicasFor`, optional `_bundleStore`
+ * Install the deploy-router plugin onto a running registry.
+ *
+ * This is a **registry plugin** in the privileged in-process tier (see
+ * `@yamf/core/registry/command-router.js#registerCommand`): handlers run with direct
+ * `getReplicasFor` / `_bundleStore` access *after* token validation. It is **not** a
+ * service factory and is reserved for trusted boot code (CLI dev bootstrap, integration
+ * harnesses). For app-level extension via custom `yamf-command` verbs, see the v1 plan —
+ * service-extended commands are deferred to post-v1.
+ *
+ * Verbs registered: {@link DEPLOY_COMMANDS.PLAN} and {@link DEPLOY_COMMANDS.BUNDLE}.
+ *
+ * @param {object} registry - server from `registryServer()`; must expose `registerCommand`,
+ *   `getReplicasFor`, and (if `bundleStore` is omitted) `_bundleStore`.
  * @param {{ bundleStore?: object, location: string, pm3ServiceName?: string }} options
- * @param {string} options.location - own URL (used for `registerCommand` cleanup key; often `YAMF_REGISTRY_URL`)
+ * @param {string} options.location - Own URL (used as the `registerCommand` cleanup key;
+ *   typically `YAMF_REGISTRY_URL`).
+ * @returns {{ pickNode: (opts?: object) => string }} Helper bound to the registry / pm3 service name.
  */
-export function attachDeployRouter (registry, { bundleStore, location, pm3ServiceName = 'pm3-service' } = {}) {
+export function registerDeployRouter (registry, { bundleStore, location, pm3ServiceName = 'pm3' } = {}) {
   if (!location) {
-    throw new Error('attachDeployRouter: `location` (registry public URL) is required')
+    throw new Error('registerDeployRouter: `location` (registry public URL) is required')
   }
   if (!bundleStore && !registry?._bundleStore) {
-    throw new Error('attachDeployRouter: pass bundleStore or start registry with a bundle store')
+    throw new Error('registerDeployRouter: pass bundleStore or start registry with a bundle store')
   }
   const store = bundleStore || registry._bundleStore
 
-  // Server-side plan (auth: deploy token). The `yamf deploy` CLI still uses REGISTRY_PULL + planAndApply
-  // client-side for parity; keep this for HTTP API consumers and future "registry as source of truth" flows.
+  // Server-side plan (auth: deploy token). The `yamf deploy` CLI still uses REGISTRY_PULL +
+  // planAndApply client-side for parity; this stays for HTTP API consumers and future
+  // "registry as source of truth" flows.
   registry.registerCommand(
-    'deploy-plan',
+    DEPLOY_COMMANDS.PLAN,
     async ({ body, headers }) => {
       const out = { decisions: [] }
       for (const s of body?.services || []) {
@@ -38,18 +73,20 @@ export function attachDeployRouter (registry, { bundleStore, location, pm3Servic
         const reps = registry.getReplicasFor(s.name) || []
         const { decision } = deployDecisionFromReplicas(reps, s.hash, s.replicas ?? 1)
         out.decisions.push({ service: s.name, hash: s.hash, decision })
-        const fromH = (reps || []).map((r) => r.sourceHash).filter(Boolean).join(',') || null
+        const fromHash = reps.map((r) => r.sourceHash).filter(Boolean).join(',') || null
+        const deployEvent = {
+          service: s.name,
+          fromHash,
+          toHash: s.hash,
+          decision,
+          at: Date.now(),
+          deployer: headers[HEADERS.DEPLOYER] || null
+        }
+        pushDeployEvent(registry, deployEvent)
         try {
-          await publishMessage('yamf:deploy', {
-            service: s.name,
-            fromHash: fromH,
-            toHash: s.hash,
-            decision,
-            at: Date.now(),
-            deployer: headers[HEADERS.DEPLOYER] || null
-          })
+          await publishMessage('yamf:deploy', deployEvent)
         } catch {
-          /* no pub */
+          // best-effort observability; missing pubsub does not fail the plan
         }
       }
       return out
@@ -64,7 +101,7 @@ export function attachDeployRouter (registry, { bundleStore, location, pm3Servic
   )
 
   registry.registerCommand(
-    'deploy-bundle',
+    DEPLOY_COMMANDS.BUNDLE,
     async ({ request, headers }) => {
       const hash = (headers[HEADERS.DEPLOY_HASH] || headers['yamf-deploy-hash'] || '').trim()
       if (!hash) {

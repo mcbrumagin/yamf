@@ -1,12 +1,13 @@
 {
   "name": "@yamf/shared",
-  "version": "0.2.0",
+  "version": "0.9.0",
   "type": "module",
   "description": "Shared utilities for YAMF - truly isomorphic code that works in both browser and Node.js",
   "main": "src/index.js",
   "homepage": "https://github.com/mcbrumagin/yamf",
   "scripts": {
-    "test": "yamf test -d ."
+    "test": "yamf test -d .",
+    "test:all": "yamf test -d . --include-e2e"
   },
   "exports": {
     ".": "./src/index.js",
@@ -18,7 +19,7 @@
     "./path-safety": "./src/path-safety.js"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "keywords": [
     "utilities",

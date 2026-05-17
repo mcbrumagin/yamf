@@ -20,6 +20,7 @@ import {
   terminateAfter,
   withEnv
 } from './helpers.js'
+import { withInlineRegistry, pickListenPort } from './example-helpers.js'
 
 import runTests, {
   mergeAllTestsSafely,
@@ -45,5 +46,7 @@ export {
   runTests,
   runTestFnsSequentially,
   TestRunner,
-  withEnv
+  withEnv,
+  withInlineRegistry,
+  pickListenPort
 }

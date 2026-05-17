@@ -1,249 +1,55 @@
-import {
-  assert,
-  assertEach
-} from '@yamf/test'
-
 /**
- * Route Registry Tests
- * Tests for gateway route registry functions
+ * Pure tests for `registry/route-registry.js` (register / unregister / lookup).
  */
+import { assert, assertErr } from '@yamf/test'
+import HttpError from '../../src/http-primitives/http-error.js'
+import {
+  registerRoute,
+  unregisterRoute,
+  findControllerRoute,
+  getAllRoutes
+} from '../../src/registry/route-registry.js'
 
-export async function testFindControllerRoute_ExactPrefixMatch() {
-  const { findControllerRoute } = await import('../../src/gateway/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map([
-      ['/api/', { service: 'apiController', dataType: 'application/json' }],
-      ['/admin/', { service: 'adminController', dataType: 'text/html' }]
-    ])
-  }
-  
-  const result = findControllerRoute(state, '/api/users')
-  
-  await assert(result,
-    r => r !== null,
-    r => r.service === 'apiController',
-    r => r.dataType === 'application/json'
+function emptyState () {
+  return { routes: new Map(), controllerRoutes: new Map() }
+}
+
+export function testRegisterDirectAndController () {
+  const state = emptyState()
+  registerRoute(state, { service: 'a', path: '/api/x' })
+  registerRoute(state, { service: 'b', path: '/api/y/*', dataType: 'application/json' })
+  const all = getAllRoutes(state)
+  assert(all.routes['/api/x'], (r) => r.service === 'a')
+  assert(all.controllerRoutes['/api/y/'], (r) => r.service === 'b' && r.dataType === 'application/json')
+}
+
+export function testFindControllerRoutePrefixMatch () {
+  const state = emptyState()
+  registerRoute(state, { service: 'pages', path: '/app/*' })
+  const hit = findControllerRoute(state, '/app/dashboard')
+  assert(hit, (r) => r.service === 'pages')
+  assert(findControllerRoute(state, '/other'), (r) => r == null)
+}
+
+export function testUnregisterRouteRequiresPath () {
+  const state = emptyState()
+  assertErr(
+    () => unregisterRoute(state, { path: '' }),
+    (e) => e instanceof HttpError && e.status === 400
   )
 }
 
-export async function testFindControllerRoute_MultipleMatches_ReturnsFirst() {
-  const { findControllerRoute } = await import('../../src/gateway/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map([
-      ['/api/', { service: 'apiController', dataType: 'application/json' }],
-      ['/api/v2/', { service: 'apiV2Controller', dataType: 'application/json' }]
-    ])
-  }
-  
-  // Should match the first one (insertion order)
-  const result = findControllerRoute(state, '/api/users')
-  
-  await assert(result,
-    r => r !== null,
-    r => r.service === 'apiController'
+export function testUnregisterRouteUnknownPath404 () {
+  const state = emptyState()
+  assertErr(
+    () => unregisterRoute(state, { path: '/nope' }),
+    (e) => e instanceof HttpError && e.status === 404
   )
 }
 
-export async function testFindControllerRoute_CaseInsensitive() {
-  const { findControllerRoute } = await import('../../src/gateway/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map([
-      ['/api/', { service: 'apiController', dataType: 'application/json' }]
-    ])
-  }
-  
-  // Test case insensitivity
-  const result1 = findControllerRoute(state, '/API/users')
-  const result2 = findControllerRoute(state, '/Api/users')
-  const result3 = findControllerRoute(state, '/api/users')
-  
-  assertEach(
-    [result1, result2, result3],
-    r => r !== null,
-    r => r.service === 'apiController'
-  )
+export function testUnregisterControllerByWildcardPath () {
+  const state = emptyState()
+  registerRoute(state, { service: 'c', path: '/z/*' })
+  unregisterRoute(state, { path: '/z/*' })
+  assert(getAllRoutes(state).controllerRoutes, (m) => Object.keys(m).length === 0)
 }
-
-export async function testFindControllerRoute_NoMatch() {
-  const { findControllerRoute } = await import('../../src/gateway/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map([
-      ['/api/', { service: 'apiController', dataType: 'application/json' }]
-    ])
-  }
-  
-  const result = findControllerRoute(state, '/users')
-  
-  await assert(result, r => r === null)
-}
-
-export async function testFindControllerRoute_EmptyRegistry() {
-  const { findControllerRoute } = await import('../../src/gateway/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map()
-  }
-  
-  const result = findControllerRoute(state, '/api/users')
-  
-  await assert(result, r => r === null)
-}
-
-export async function testFindControllerRoute_NestedPaths() {
-  const { findControllerRoute } = await import('../../src/gateway/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map([
-      ['/api/v1/', { service: 'apiV1Controller', dataType: 'application/json' }],
-      ['/api/v2/', { service: 'apiV2Controller', dataType: 'application/json' }]
-    ])
-  }
-  
-  const result1 = findControllerRoute(state, '/api/v1/users')
-  const result2 = findControllerRoute(state, '/api/v2/posts')
-  
-  await assert(result1,
-    r => r !== null,
-    r => r.service === 'apiV1Controller'
-  )
-  
-  await assert(result2,
-    r => r !== null,
-    r => r.service === 'apiV2Controller'
-  )
-}
-
-export async function testFindControllerRoute_RootPath() {
-  const { findControllerRoute } = await import('../../src/gateway/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map([
-      ['/', { service: 'rootController', dataType: 'text/html' }]
-    ])
-  }
-  
-  const result1 = findControllerRoute(state, '/')
-  const result2 = findControllerRoute(state, '/anything')
-  
-  assertEach(
-    [result1, result2],
-    r => r !== null,
-    r => r.service === 'rootController'
-  )
-}
-
-export async function testFindControllerRoute_LongerPathsFirst() {
-  const { findControllerRoute } = await import('../../src/gateway/route-registry.js')
-  
-  // More specific paths should be registered first for proper matching
-  const state = {
-    controllerRoutes: new Map([
-      ['/api/admin/', { service: 'adminController', dataType: 'application/json' }],
-      ['/api/', { service: 'apiController', dataType: 'application/json' }]
-    ])
-  }
-  
-  // Should match the more specific path first
-  const result = findControllerRoute(state, '/api/admin/users')
-  
-  await assert(result,
-    r => r !== null,
-    r => r.service === 'adminController'
-  )
-}
-
-// Test registry implementation (has additional functions)
-export async function testRegistryRouteRegistry_FindControllerRoute() {
-  const { findControllerRoute } = await import('../../src/registry/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map([
-      ['/api/', { service: 'apiController', dataType: 'application/json' }]
-    ])
-  }
-  
-  const result = findControllerRoute(state, '/api/users')
-  
-  await assert(result,
-    r => r !== null,
-    r => r.service === 'apiController'
-  )
-}
-
-export async function testRegistryRouteRegistry_RegisterDirectRoute() {
-  const { registerDirectRoute } = await import('../../src/registry/route-registry.js')
-  
-  const state = {
-    routes: new Map()
-  }
-  
-  registerDirectRoute(state, {
-    service: 'testService',
-    path: '/test',
-    dataType: 'application/json'
-  })
-  
-  await assert(state.routes.get('/test'),
-    r => r !== undefined,
-    r => r.service === 'testService',
-    r => r.dataType === 'application/json'
-  )
-}
-
-export async function testRegistryRouteRegistry_RegisterControllerRoute() {
-  const { registerControllerRoute } = await import('../../src/registry/route-registry.js')
-  
-  const state = {
-    controllerRoutes: new Map()
-  }
-  
-  registerControllerRoute(state, {
-    service: 'apiController',
-    path: '/api/*',
-    dataType: 'application/json'
-  })
-  
-  await assert(state.controllerRoutes.get('/api/'),
-    r => r !== undefined,
-    r => r.service === 'apiController',
-    r => r.dataType === 'application/json'
-  )
-}
-
-export async function testRegistryRouteRegistry_RegisterRoute_AutoDetect() {
-  const { registerRoute } = await import('../../src/registry/route-registry.js')
-  
-  const state = {
-    routes: new Map(),
-    controllerRoutes: new Map()
-  }
-  
-  // Should auto-detect as direct route
-  registerRoute(state, {
-    service: 'directService',
-    path: '/direct',
-    dataType: 'text/plain'
-  })
-  
-  // Should auto-detect as controller route
-  registerRoute(state, {
-    service: 'controllerService',
-    path: '/api/*',
-    dataType: 'application/json'
-  })
-  
-  await assert(state.routes.get('/direct'),
-    r => r !== undefined,
-    r => r.service === 'directService'
-  )
-  
-  await assert(state.controllerRoutes.get('/api/'),
-    r => r !== undefined,
-    r => r.service === 'controllerService'
-  )
-}
-

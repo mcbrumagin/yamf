@@ -75,7 +75,7 @@ const argon2Parameters = {
   passes: 3
 }
 
-/** `crypto.argon2` exists in Node.js 24+ (see `engines` in @yamf/core). */
+/** `crypto.argon2` exists in Node.js 24+; when absent we use built-in scrypt (Node 22+). */
 let argon2AsyncCached
 function getArgon2Async() {
   if (typeof crypto.argon2 !== 'function') return null
@@ -83,37 +83,67 @@ function getArgon2Async() {
   return argon2AsyncCached
 }
 
-function requireArgon2() {
-  const fn = getArgon2Async()
-  if (!fn) {
-    throw new Error(
-      'crypto.argon2 is not available. Use Node.js 24+ for Argon2 password hashing (createArgonSaltAndHash / checkArgonPassword).'
-    )
-  }
-  return fn
+const scryptAsync = promisify(crypto.scrypt)
+const SCRYPT_KEYLEN = 64
+/** Prefix on `hash` when stored credentials use scrypt (no native `crypto.argon2`). */
+const SCRYPT_HASH_PREFIX = 'scrypt1:'
+const scryptParameters = {
+  N: 16384,
+  r: 8,
+  p: 1,
+  maxmem: 64 * 1024 * 1024
+}
+
+async function createScryptSaltAndHash(password) {
+  const saltBytes = randomBytes(16)
+  const salt = saltBytes.toString('base64')
+  const derivedKey = await scryptAsync(password, saltBytes, SCRYPT_KEYLEN, scryptParameters)
+  return { salt, hash: `${SCRYPT_HASH_PREFIX}${derivedKey.toString('base64')}` }
+}
+
+async function checkScryptPassword(passToCheck, salt, hashWithPrefix) {
+  const payload = hashWithPrefix.slice(SCRYPT_HASH_PREFIX.length)
+  const saltBytes = Buffer.from(salt, 'base64')
+  const expected = Buffer.from(payload, 'base64')
+  const derivedKey = await scryptAsync(passToCheck, saltBytes, SCRYPT_KEYLEN, scryptParameters)
+  if (expected.length !== derivedKey.length) return false
+  return crypto.timingSafeEqual(expected, derivedKey)
 }
 
 export async function createArgonSaltAndHash(password) {
-  const argon2 = requireArgon2()
-  const saltBytes = randomBytes(16)
-  const salt = saltBytes.toString('base64')
-  const derivedKey = await argon2('argon2id', {
-    ...argon2Parameters,
-    message: password,
-    nonce: saltBytes,
-  })
-  return { salt, hash: derivedKey.toString('base64') }
+  const argon2 = getArgon2Async()
+  if (argon2) {
+    const saltBytes = randomBytes(16)
+    const salt = saltBytes.toString('base64')
+    const derivedKey = await argon2('argon2id', {
+      ...argon2Parameters,
+      message: password,
+      nonce: saltBytes,
+    })
+    return { salt, hash: derivedKey.toString('base64') }
+  }
+  return createScryptSaltAndHash(password)
 }
 
 export async function checkArgonPassword(passToCheck, salt, hash) {
-  const argon2 = requireArgon2()
   const saltBytes = Buffer.from(salt, 'base64')
+  if (hash.startsWith(SCRYPT_HASH_PREFIX)) {
+    return checkScryptPassword(passToCheck, salt, hash)
+  }
+  const argon2 = getArgon2Async()
+  if (!argon2) {
+    throw new Error(
+      'Password hash uses Argon2 (Node.js 24+ native crypto.argon2). Use Node 24+ or reset credentials so they can be re-hashed.'
+    )
+  }
   const derivedKey = await argon2('argon2id', {
     ...argon2Parameters,
     message: passToCheck,
     nonce: saltBytes,
   })
-  return derivedKey.toString('base64') === hash
+  const expected = Buffer.from(hash, 'base64')
+  if (expected.length !== derivedKey.length) return false
+  return crypto.timingSafeEqual(expected, derivedKey)
 }
 
 // export createArgon2Hash

@@ -4,6 +4,7 @@ import {
   HttpError,
   next,
   envConfig,
+  envTruthy,
   HEADERS,
   loadOrCreateEd25519KeyPair
 } from '@yamf/core'
@@ -49,28 +50,26 @@ function tokenKeyId(encodedToken) {
   return calculateSHA256Checksum(encodedToken).slice(0, 16)
 }
 
-const defaultValidateUser = async (username, password) => {
-  const user = envConfig.getRequired('ADMIN_USER')
-  const pass = envConfig.getRequired('ADMIN_PASS')
-  if (user !== username || pass !== password) return false
-  return true
-}
-
 /**
- * @param {Object} [opts]
- * @param {string} [opts.serviceName='auth-service']
+ * @param {Object} opts
+ * @param {(username: string, password: string) => Promise<boolean>|boolean} opts.validateUserPassword
+ *   Required. Application-supplied credential validator. Must return strict boolean
+ *   `true` for valid credentials, strict boolean `false` (or throw) for invalid.
+ *   YAMF intentionally ships no default validator — backing your auth with
+ *   `ADMIN_USER`/`ADMIN_PASS` env vars is a footgun for v1+.
+ * @param {string} [opts.serviceName='auth']
  * @param {boolean|string} [opts.useSessions='refresh-only'] true | 'refresh-only' | false
  * @param {boolean} [opts.ephemeral] default true when NODE_ENV=test
  * @param {number|null} [opts.maxSessionsPerUser] max concurrent refresh sessions per user (null = unlimited)
  */
-export default async function createAuthService({
-  serviceName = 'auth-service',
+export default async function createAuthService ({
+  serviceName = 'auth',
   useSessions = 'refresh-only',
-  validateUserPassword = defaultValidateUser,
+  validateUserPassword,
   enrichTokenPayload = null,
   keyName = 'default',
   keyDir = defaultKeyDir(),
-  ephemeral = process.env.NODE_ENV === 'test' || process.env.YAMF_AUTH_EPHEMERAL === '1',
+  ephemeral = process.env.NODE_ENV === 'test' || envTruthy(envConfig.get('YAMF_AUTH_EPHEMERAL', false)),
   accessTokenExpiry = 60000 * 30,
   refreshTokenExpiry = 60000 * 60 * 24,
   maxSessionsPerUser = null,
@@ -81,6 +80,9 @@ export default async function createAuthService({
   }
   if (maxSessionsPerUser != null && (!Number.isFinite(maxSessionsPerUser) || maxSessionsPerUser < 1)) {
     throw new Error('maxSessionsPerUser must be a positive integer or null')
+  }
+  if (typeof validateUserPassword !== 'function') {
+    throw new TypeError('createAuthService: { validateUserPassword } is required and must be a function')
   }
 
   await assertValidateUserPasswordSanity(validateUserPassword)
@@ -324,6 +326,18 @@ export default async function createAuthService({
     if (payload.verifyAccess) return verifyAccessToken(payload.verifyAccess, request, response)
     return getNewAccessToken(payload, request)
   })
+
+  if (cache && typeof cache.terminate === 'function') {
+    const inner = server.terminate.bind(server)
+    server.terminate = async () => {
+      try {
+        await cache.terminate()
+      } catch (err) {
+        logger.debug('auth cache terminate failed:', err?.message)
+      }
+      await inner()
+    }
+  }
 
   return server
 }

@@ -17,31 +17,43 @@ import { lifecycle } from '../shared/process-lifecycle.js'
 const logger = new Logger({ logGroup: 'yamf-gateway' })
 
 /**
- * Create and start the gateway server
- * 
- * @param {number} [port] - Port to listen on (defaults to YAMF_GATEWAY_URL port)
- * @param {Object} [options] - Server options
- * @param {Object} [options.rateLimit] - Rate limit configuration
- * @param {Object} [options.rateLimit.default] - Default rate limit for all requests
- * @param {Object} [options.rateLimit.services] - Pre-bound service-specific rate limits
- * 
+ * Create and start the gateway server.
+ *
+ * Options-only signature for symmetry with `registryServer({ … })`. Port resolution order:
+ * 1. `options.port`
+ * 2. The port component of `YAMF_GATEWAY_URL`
+ *
+ * @param {Object} [options]
+ * @param {number} [options.port]
+ * @param {Object} [options.rateLimit]
+ * @param {Object} [options.rateLimit.default]   - Default rate limit for all requests.
+ * @param {Object} [options.rateLimit.services]  - Pre-bound service-specific rate limits.
+ *
  * @example
- * await gatewayServer(8080, {
+ * await gatewayServer({
+ *   port: 8080,
  *   rateLimit: {
  *     default: { windowMs: 60000, maxRequestsPerIp: 50, maxTotalRequests: 5000 },
  *     services: {
- *       'auth-service': { 
- *         windowMs: 60000, 
- *         maxRequestsPerIp: 5,  // Stricter at public gateway
- *         customKeyFn: (payload) => payload?.username 
+ *       auth: {
+ *         windowMs: 60000,
+ *         maxRequestsPerIp: 5, // stricter at the public gateway
+ *         customKeyFn: (payload) => payload?.username
  *       }
  *     }
  *   }
  * })
  */
-export default async function createGatewayServer(port, options = {}) {
+export default async function createGatewayServer (options = {}) {
+  if (typeof options === 'number' || typeof options === 'string') {
+    throw new TypeError(
+      'gatewayServer expects a single options object. Replace `gatewayServer(port, opts)` with ' +
+      '`gatewayServer({ port, ...opts })`.'
+    )
+  }
   // TODO validate auth token exists for prod gateway (otherwise it will fail to update itself)
   const state = createGatewayState()
+  let port = options.port
   
   // Initialize rate limit configuration from options
   if (options.rateLimit) {
@@ -97,15 +109,14 @@ export default async function createGatewayServer(port, options = {}) {
   process.on('unhandledRejection', unhandledRejectionHandler)
   process.on('uncaughtException', uncaughtExceptionHandler)
   
-  // Determine port from argument or environment
+  // Resolve port: explicit option wins, otherwise pull from YAMF_GATEWAY_URL.
   if (!port) {
     const gatewayHost = process.env.YAMF_GATEWAY_URL
     if (gatewayHost) {
       port = gatewayHost.split(':')[2]
       if (!port || isNaN(port)) {
         throw new Error(
-          'Please specify "port" arg or define "YAMF_GATEWAY_URL" env variable ' +
-          'including protocol and port number'
+          'Please pass options.port or define "YAMF_GATEWAY_URL" with a protocol and port number'
         )
       }
     }
@@ -182,11 +193,17 @@ export default async function createGatewayServer(port, options = {}) {
     resetState(state)
     await httpServerTerminate()
   }
-  const unregisterFromLifecycle = lifecycle.registerTerminable(runGatewayShutdown, { priority: 0 })
+  // Late-bound: lifecycle invokes whatever `server.terminate` resolves to at
+  // shutdown time so wrappers that override `server.terminate` are honored.
+  let unregisterFromLifecycle
   server.terminate = async () => {
-    unregisterFromLifecycle()
+    unregisterFromLifecycle?.()
     await runGatewayShutdown()
   }
+  unregisterFromLifecycle = lifecycle.registerTerminable(
+    () => server.terminate(),
+    { priority: 0 }
+  )
   
   server.isGateway = true
   

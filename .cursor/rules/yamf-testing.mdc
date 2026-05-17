@@ -10,5 +10,7 @@ alwaysApply: false
 - **Helpers:** `yamf/packages/test/README.md` — especially **`terminateAfter`**: pass **thunks** `() => registryServer()` / `() => gatewayServer()`, not pre-`await`ed values (see `packages/test/src/helpers.js`).
 - **Core integration tests:** `yamf/packages/core/tests/README.md` when adding or moving integration tests.
 - **Registry in tests:** `registryServer({ port?, broadcastShutdownOnTerminate?, rateLimit? })` — options object only; do not use a legacy two-argument form.
+- **`assert` vs `assertErr`:** Use **`assert(value, …)`** for normal values. For **`Error` instances** (e.g. `execSync` throwing), use **`assertErr(err, …)`** — predicates receive the error. Plain **`assert(err, …)`** treats a first-arg `Error` as reserved and reports `expected no error`; that path is wrong for subprocess failures.
+- **`assert(value, …)` shape:** The **first argument is the value under test** (or a thunk). Put expectations in the callbacks — failures print `for target …` plus `failed ->` with predicate source. Avoid `assert(computedBoolean, x => x === true)` where the target collapses to useless `true`/`false`; prefer `assert(out, o => !o.includes('bad'))`.
 
 When debugging flaky multi-server tests, prefer aligning with **TESTING.md** before adding sleeps.

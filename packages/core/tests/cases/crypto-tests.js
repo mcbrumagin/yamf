@@ -3,6 +3,8 @@
  * Comprehensive tests for all cryptographic functions
  */
 
+import crypto from 'node:crypto'
+
 import {
   assert,
   assertErr
@@ -14,7 +16,9 @@ import {
   calculateSHA256Checksum,
   calculateSHA512Checksum,
   ed25519,
-  createSaltedHash
+  createSaltedHash,
+  createArgonSaltAndHash,
+  checkArgonPassword
 } from '../../src/index.js'
 
 /**
@@ -385,5 +389,37 @@ export async function testChecksumWithBinaryData() {
     ([m, s1, s256, s512]) => s1.length === 40,
     ([m, s1, s256, s512]) => s256.length === 64,
     ([m, s1, s256, s512]) => s512.length === 128
+  )
+}
+
+/**
+ * createArgonSaltAndHash / checkArgonPassword: round-trip (Argon2 on Node 24+, scrypt fallback on 22–23).
+ */
+export async function testArgonCompatiblePasswordRoundTrip() {
+  const password = 'secretPassw0rd!'
+  const { salt, hash } = await createArgonSaltAndHash(password)
+  const ok = await checkArgonPassword(password, salt, hash)
+  await assert([ok], ([x]) => x === true)
+}
+
+export async function testArgonCompatibleWrongPassword() {
+  const { salt, hash } = await createArgonSaltAndHash('right')
+  const ok = await checkArgonPassword('wrong', salt, hash)
+  await assert([ok], ([x]) => x === false)
+}
+
+export async function testArgonCompatibleUsesScryptWhenNativeArgonUnavailable() {
+  if (typeof crypto.argon2 === 'function') return
+  const { hash } = await createArgonSaltAndHash('x')
+  await assert([hash], ([h]) => h.startsWith('scrypt1:'))
+}
+
+export async function testArgonPasswordLegacyArgonHashRequiresNativeArgon() {
+  if (typeof crypto.argon2 === 'function') return
+  const fakeArgonOnlyHash = Buffer.alloc(64).toString('base64')
+  const salt = crypto.randomBytes(16).toString('base64')
+  await assertErr(
+    async () => checkArgonPassword('pw', salt, fakeArgonOnlyHash),
+    err => err.message.includes('Argon2')
   )
 }

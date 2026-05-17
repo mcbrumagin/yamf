@@ -3,7 +3,7 @@
 A lightweight, zero-dependency microservices framework for Node.js with built-in service discovery, pub/sub messaging, HTTP routing, and load balancing.
 
 [![Tests](https://img.shields.io/badge/tests-436%2F436%20passing-brightgreen)]()
-[![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## Features
@@ -39,12 +39,12 @@ import { registryServer, createService, callService } from '@yamf/core'
 await registryServer()
 
 // Create a service
-await createService(function helloService(payload) {
+await createService('hello', function (payload) {
   return { message: 'Hello, ' + payload.name }
 })
 
 // Call the service
-const result = await callService('helloService', { name: 'World' })
+const result = await callService('hello', { name: 'World' })
 console.log(result.message) // "Hello, World"
 ```
 
@@ -78,12 +78,12 @@ Services are just functions that receive a payload and return a result:
 import { createService } from '@yamf/core'
 
 // Simple service
-await createService(function calculateService(payload) {
+await createService('calculate', function (payload) {
   return { result: payload.a + payload.b }
 })
 
 // Service that calls other services
-await createService(function orchestratorService(payload) {
+await createService('orchestrator', async function (payload) {
   const result1 = await this.call('serviceA', payload)
   const result2 = await this.call('serviceB', result1)
   return result2
@@ -104,8 +104,10 @@ Event-driven services:
 ```javascript
 import { createSubscriptionService, publishMessage } from '@yamf/core'
 
-const subService = await createSubscriptionService('subService', 'orders', async (message) => {
-  console.log('New order:', message)
+const subService = await createSubscriptionService('subService', {
+  orders: async (message) => {
+    console.log('New order:', message)
+  }
 })
 
 // does a lookup/publish through the service registry
@@ -140,7 +142,7 @@ Create HTTP endpoints that map to services:
 ```javascript
 import { createRoute } from '@yamf/core'
 
-// Route with inline service
+// Route with inline service (named function — `.name` becomes the service name)
 await createRoute('/api/users', function usersService(payload) {
   return { users: ['Alice', 'Bob'] }
 })
@@ -264,7 +266,7 @@ Services can seamlessly communicate regardless of implementation language:
 
 ```javascript
 // Node.js service
-await createService(function nodeService(payload) {
+await createService('node-service', async function (payload) {
   // Call Python service
   return await this.call('pythonService', payload)
 })
@@ -283,12 +285,12 @@ async def python_service(self, payload):
 Automatic load balancing when multiple instances of the same service exist:
 
 ```javascript
-// Create multiple instances of the same service
-await createService(function workerService(payload) {
+// Create multiple instances of the same service (typically across processes/nodes)
+await createService('workerService', function (payload) {
   return { instance: 'A', result: payload.value * 2 }
 })
 
-await createService(function workerService(payload) {
+await createService('workerService', function (payload) {
   return { instance: 'B', result: payload.value * 2 }
 })
 
@@ -306,7 +308,7 @@ Services can throw HTTP errors with status codes:
 ```javascript
 import { HttpError } from '@yamf/core'
 
-await createService(function validateService(payload) {
+await createService('validate', function (payload) {
   if (!payload.userId) {
     throw new HttpError(400, 'Missing required field: userId')
   }
@@ -341,8 +343,8 @@ export YAMF_SERVICE_URL=http://myservice:10000
 #### `registryServer(port?: number): Promise<Server>`
 Start the registry server. Port defaults to value from `YAMF_REGISTRY_URL`.
 
-#### `createService(name: string | Function, serviceFn?: Function, options?: Object): Promise<Server>`
-Create and register a service. Accepts named functions or separate name/function parameters.
+#### `createService(serviceName: string, serviceFn: Function, options?: Object): Promise<Server>`
+Create and register a service. `serviceName` is required (kebab-case recommended).
 
 #### `callService(name: string, payload: any): Promise<any>`
 Call a service by name with automatic load balancing.

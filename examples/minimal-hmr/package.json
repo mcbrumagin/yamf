@@ -2,6 +2,9 @@
   "name": "yamf-example-minimal-hmr",
   "version": "0.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "type": "module",
   "description": "Minimal yamf build/deploy + Vite dev UI. Full integration lives in soundclone.",
   "scripts": {

@@ -1,46 +1,34 @@
-import { Logger } from '@yamf/core'
-import { PM3 } from '../lib/pm3.js'
-import parseArgs from '../lib/parse-args.js'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import {
-  DEFAULT_LOCAL_REGISTRY_URL,
-  resolveLocalRegistryUrl,
-  checkLocalRegistryBootstrapTarget
-} from '../lib/registry-url.js'
-
-const logger = new Logger()
+import parseArgs from '../lib/parse-args.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const DEV_BOOTSTRAP_PATH = join(__dirname, '..', 'lib', 'dev-bootstrap.js')
+const EXAMPLE_CONFIG = join(__dirname, '..', '..', '..', '..', 'yamf.config.example.js')
 
 const ARGS = {
-  help:    { flags: ['-h', '--help'] },
-  dev:     { flags: ['--dev'] },
-  verbose: { flags: ['-v', '--verbose'] }
+  help: { flags: ['-h', '--help'] },
+  force: { flags: ['--force'] }
 }
 
-function getInitHelp() {
+function getInitHelp () {
   return `
-yamf init - Initialize yamf environment
+yamf init - Create yamf.config.js from the repo template (manifest scaffolding only)
 
 Usage:
-  yamf init --dev [options]
+  yamf init [options]
 
-Flags:
-  --dev                 Start local dev environment (registry + cache + pm3-service)
+For a local registry, cache, and pm3-service, run:
+
+  yamf dev
 
 Options:
-  -v, --verbose         Verbose output
-  -h, --help            Show this help
-
-Registry URL:
-  Uses YAMF_REGISTRY_URL when set.
-  Otherwise tries the last local PM3 state URL, then falls back to ${DEFAULT_LOCAL_REGISTRY_URL}.
+  --force           Overwrite an existing yamf.config.js
+  -h, --help        Show this help
 `
 }
 
-export async function runInitCommand(args) {
+export async function runInitCommand (args) {
   const options = parseArgs(args, ARGS)
 
   if (options.help) {
@@ -48,33 +36,13 @@ export async function runInitCommand(args) {
     return
   }
 
-  if (!options.dev) {
-    console.error('Usage: yamf init --dev')
-    console.error('Run "yamf init --help" for options.')
-    process.exit(1)
+  const target = join(process.cwd(), 'yamf.config.js')
+  if (existsSync(target) && !options.force) {
+    console.log('yamf.config.js already exists (use --force to overwrite).')
+    return
   }
 
-  const pm3 = new PM3()
-  const { registryUrl, source } = resolveLocalRegistryUrl()
-  process.env.YAMF_REGISTRY_URL = registryUrl
-
-  const probe = await checkLocalRegistryBootstrapTarget(registryUrl)
-  if (!probe.local) {
-    throw new Error(
-      `yamf init --dev expects a loopback registry URL, got "${registryUrl}". ` +
-      `Set YAMF_REGISTRY_URL to a local URL (for example ${DEFAULT_LOCAL_REGISTRY_URL}).`
-    )
-  }
-  if (probe.available === false) {
-    throw new Error(
-      `Cannot start dev bootstrap at ${registryUrl}: port is already in use. ` +
-      'Likely an orphan process; run `yamf clean` (or stop the holder) and retry.'
-    )
-  }
-
-  logger.info(
-    `Starting dev environment (registry + cache + pm3-service) at ${registryUrl}` +
-      (source === 'pm3-state' ? ' (from PM3 state)' : '')
-  )
-  await pm3.start(DEV_BOOTSTRAP_PATH, { env: { YAMF_REGISTRY_URL: registryUrl } }) //, { internal: true }) // TODO
+  const template = readFileSync(EXAMPLE_CONFIG, 'utf8')
+  writeFileSync(target, template, 'utf8')
+  console.log(`Wrote ${target}`)
 }

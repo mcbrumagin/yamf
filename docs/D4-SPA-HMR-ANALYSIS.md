@@ -2,7 +2,7 @@
 
 **Status:** `createYamfDevHmrSpaPatch` in `@yamf/client` + **SoundClone** `main.js` (D4); **default** remains Vite HMR only (`VITE_YAMF_DEV_HMR` off). This document ties together **YAMF** (`yamf:dev-reload`, SSE, Vite plugin), **Vite** HMR, and **app** wiring.
 
-**Related:** [ROADMAP.md](./ROADMAP.md) (D2, D3, D4), [TEST-PLAN-FOLLOW-UP.md](./TEST-PLAN-FOLLOW-UP.md), [TEST-PLAN-CLIENT-AND-DEV-HMR.md](./TEST-PLAN-CLIENT-AND-DEV-HMR.md).
+**Related:** [ROADMAP.md](./ROADMAP.md) (D2, D3, D4), [V1-HARDENING.md](./V1-HARDENING.md) (test debt + remaining client/dev‑hmr gaps).
 
 ---
 

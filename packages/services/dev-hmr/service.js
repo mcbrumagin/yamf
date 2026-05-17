@@ -1,11 +1,11 @@
 /**
- * @yamf/services-dev-hmr — SSE service that subscribes to `PUBSUB_CHANNEL_YAMF_DEV_RELOAD` and
+ * @yamf/services-dev-hmr — SSE service that subscribes to `CHANNELS.DEV_RELOAD` and
  * sends a `reload` event to all browser EventSource clients (ROADMAP Phase 4 D2).
  *
- * Start only in dev: requires `YAMF_DEV=on` and `NODE_ENV !== 'production'`.
+ * Start only in dev: requires `YAMF_DEV=true` (or legacy `on`) and `NODE_ENV !== 'production'`.
  */
 
-import { createEventSourceService, PUBSUB_CHANNEL_YAMF_DEV_RELOAD, Logger } from '@yamf/core'
+import { createEventSourceService, CHANNELS, Logger, envConfig, envTruthy } from '@yamf/core'
 
 const logger = new Logger({ logGroup: 'yamf-dev-hmr' })
 const DEFAULT_SERVICE = 'yamf-dev'
@@ -16,9 +16,9 @@ const DEFAULT_SERVICE = 'yamf-dev'
  * @param {'public' | 'private'} [options.accessControl='public'] — external browsers need public or a gateway
  * @returns {Promise<object|null>} SSE server, or `null` when dev-hmr is disabled
  */
-export default async function createYamfDevHmrService (options = {}) {
-  if (process.env.YAMF_DEV !== 'on' || process.env.NODE_ENV === 'production') {
-    logger.info('yamf dev-hmr skipped (set YAMF_DEV=on and non-production to enable)')
+export default async function createDevHmrService (options = {}) {
+  if (!envTruthy(envConfig.get('YAMF_DEV', false)) || process.env.NODE_ENV === 'production') {
+    logger.info('yamf dev-hmr skipped (set YAMF_DEV=true and non-production to enable)')
     return null
   }
 
@@ -31,7 +31,7 @@ export default async function createYamfDevHmrService (options = {}) {
         client.send('ready', { ok: true })
       },
       channels: {
-        [PUBSUB_CHANNEL_YAMF_DEV_RELOAD]: async (data, clientHandles) => {
+        [CHANNELS.DEV_RELOAD]: async (data, clientHandles) => {
           const payload = {
             service: data?.service,
             hash: data?.hash,
@@ -49,6 +49,6 @@ export default async function createYamfDevHmrService (options = {}) {
     { accessControl, heartbeatInterval: 30000 }
   )
 
-  logger.info(`@yamf/services-dev-hmr "${serviceName}" at ${server.location} (subscribed to ${PUBSUB_CHANNEL_YAMF_DEV_RELOAD})`)
+  logger.info(`@yamf/services-dev-hmr "${serviceName}" at ${server.location} (subscribed to ${CHANNELS.DEV_RELOAD})`)
   return server
 }

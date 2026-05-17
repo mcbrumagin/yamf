@@ -9,11 +9,11 @@ function defaultDataDir () {
 /**
  * @param {Object} [opts]
  * @param {string} [opts.dataDir]
- * @param {string} [opts.serviceName='config-service']
+ * @param {string} [opts.serviceName='config']
  * @param {string} [opts.adminToken] - defaults to YAMF_CONFIG_ADMIN_TOKEN
  */
 export default async function createConfigService (opts = {}) {
-  const serviceName = opts.serviceName || 'config-service'
+  const serviceName = opts.serviceName || 'config'
   const dataDir = opts.dataDir || defaultDataDir()
   const adminToken = opts.adminToken || envConfig.get('YAMF_CONFIG_ADMIN_TOKEN', '')
 

@@ -1,18 +1,18 @@
 {
   "name": "@yamf/client",
-  "version": "0.2.1",
+  "version": "0.9.0",
   "type": "module",
   "description": "Isomorphic HTML-as-JavaScript library with conditional exports for browser and server",
   "main": "src/index.js",
   "homepage": "https://github.com/mcbrumagin/yamf",
   "exports": {
     ".": "./src/index.js",
-    "./element": "./src/Element.js",
+    "./element": "./src/element.js",
     "./elements": "./src/elements.js",
     "./html-tags": "./src/html-tags.js",
     "./state": "./src/state.js",
-    "./load-client": "./src/loadClient.js",
-    "./utils": "./src/utils.js",
+    "./client-init": "./src/client-init.js",
+    "./client-utils": "./src/client-utils.js",
     "./patch-dom": "./src/patch-dom.js",
     "./event-source": "./src/event-source.js",
     "./ssr-render": "./src/ssr-render.js",
@@ -22,7 +22,7 @@
     "./vite-plugin-yamf-dev": "./src/vite-plugin-yamf-dev.js"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "keywords": [
     "html",
@@ -33,7 +33,8 @@
     "morphdom"
   ],
   "scripts": {
-    "test": "yamf test -d ."
+    "test": "yamf test -d .",
+    "test:all": "yamf test -d . --include-e2e"
   },
   "dependencies": {
     "@yamf/shared": "workspace:*",
